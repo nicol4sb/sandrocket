@@ -4,17 +4,20 @@ Prompt
 I want to create a simple todo app.
 
 Tasks can have up to 150 characters plus a link.
+Since the project will have various major areas where progress needs to be had in parallel, allow some concept of epic for a task to belong to.
+Each epic is one level of the rocket, has a name and a pastille. Upon creation of a task, one is prompted for what epic the task belongs to. The tasks belonging to the epic are inside the rocket level of the epic.
+
 The app needs to be password protected, this is just for 2 people sharing a list of tasks to tackle together.
 Both user can create, mark as done, delete tasks. A shared pwd would be good enough.
 
 The app will look like a Tintin rocket, 
 with post-its containing the tasks, stuck on the rocket.
-Tasks can be moved up and down by dragging and dropping so the priority between them is clear visually.
+Tasks can be moved up and down by dragging and dropping so the priority between them is clear visually. They can be positioned anywhere on or besides the rocket - two dimensional.
+Tasks should be rearranged once one is marked as done.
+
 A foldable panel will keep track of every change so we can follow what the other user does. So typically creating, amending, moving a task, marking it as done, etc. I would go for the full journal ,loading it with an infinite scroll.
 
-Making it a phone app might be a good idea - it just needs to be simple to manage on the dev side.
-Users have apple and android. Propose something simple that can be built today right away.
-Sure! Pl
+The app should be a webapp, it just seems simpler for now.
 The app offers creation of tasks with a nice appropriate UI component, maybe a + sign somewhere.
 I want a nice UX to delete tasks as well with a confirmation dialog.
 
