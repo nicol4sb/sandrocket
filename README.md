@@ -1,3 +1,6 @@
+
+Prompt
+
 I want to create a simple todo app.
 
 Tasks can have up to 150 characters plus a link.
@@ -11,7 +14,7 @@ A foldable panel will keep track of every change so we can follow what the other
 
 Making it a phone app might be a good idea - it just needs to be simple to manage on the dev side.
 Users have apple and android. Propose something simple that can be built today right away.
-
+Sure! Pl
 The app offers creation of tasks with a nice appropriate UI component, maybe a + sign somewhere.
 I want a nice UX to delete tasks as well with a confirmation dialog.
 
