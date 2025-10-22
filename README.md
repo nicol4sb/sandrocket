@@ -24,6 +24,8 @@ The epics should be presented vertically so the order is clear between tasks
 Tasks are moveable within one epic only
 Style should be modern, high contrast so text is very readable
 
+
+
 Journal :
 A foldable panel will keep track of every change so we can follow what the other user does. So typically creating, amending, moving a task, marking it as done, etc. I would go for the full journal ,loading it with an infinite scroll.
 Upon new connection/reconnection to the app, the updates done by the other should be broadcasted somewhat visibly. user A moved task "DEF", created task "ABCD", marked task "XYZ" as achieved etc.
