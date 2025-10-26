@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sand Rocket - Task Management</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <!-- Login Modal -->
+    <div id="loginModal" class="modal show">
+        <div class="modal-content">
+            <div class="rocket-header">
+                <div class="rocket-icon">🚀</div>
+                <h1>Sand Rocket</h1>
+                <p>Enter the shared password to access your workspace</p>
+            </div>
+            <form id="loginForm">
+                <input type="password" id="passwordInput" placeholder="Enter password" required>
+                <button type="submit">Launch Rocket</button>
+            </form>
+            <div id="loginError" class="error-message"></div>
+        </div>
+    </div>
+
+    <!-- Main App -->
+    <div id="app" class="app-container" style="display: none;">
+        <!-- Top Banner -->
+        <header class="top-banner">
+            <div class="banner-content">
+                <div class="rocket-title">
+                    <span class="rocket-icon">🚀</span>
+                    <h1>Sand Rocket</h1>
+                </div>
+                <div class="banner-actions">
+                    <button id="logoutBtn" class="btn-secondary">Logout</button>
+                </div>
+            </div>
+        </header>
+
+        <!-- Activity Tab -->
+        <div id="activityTab" class="activity-tab">
+            <div class="tab-icon">ACTIVITY</div>
+        </div>
+
+        <!-- Activity Log Panel -->
+        <div id="activityPanel" class="activity-panel">
+            <div class="activity-header">
+                <h3>Reports & Analytics</h3>
+            </div>
+            
+            <!-- Tabs for different reports -->
+            <div class="report-tabs">
+                <button class="report-tab active" data-tab="activity">Activity Log</button>
+                <button class="report-tab" data-tab="metrics">Metrics</button>
+                <button class="report-tab" data-tab="closed">Closed Tasks</button>
+            </div>
+            
+            <!-- Activity Log Tab -->
+            <div id="activityTabContent" class="tab-content active">
+                <div id="activityList" class="activity-list">
+                    <!-- Activity items will be loaded here -->
+                </div>
+            </div>
+            
+            <!-- Metrics Tab -->
+            <div id="metricsTabContent" class="tab-content">
+                <div class="metrics-container">
+                    <div class="metric-card">
+                        <div class="metric-value" id="tasksCreated">0</div>
+                        <div class="metric-label">Tasks Created</div>
+                        <div class="metric-period">Last 7 days</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-value" id="tasksCompleted">0</div>
+                        <div class="metric-label">Tasks Completed</div>
+                        <div class="metric-period">Last 7 days</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-value" id="totalTasks">0</div>
+                        <div class="metric-label">Total Tasks</div>
+                        <div class="metric-period">All time</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-value" id="completionRate">0%</div>
+                        <div class="metric-label">Completion Rate</div>
+                        <div class="metric-period">All time</div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Closed Tasks Tab -->
+            <div id="closedTabContent" class="tab-content">
+                <div id="closedTasksList" class="closed-tasks-list">
+                    <!-- Closed tasks will be loaded here -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Mobile Epic Selector -->
+            <div class="epic-selector">
+                <select id="mobileEpicSelect">
+                    <option value="">Select Epic</option>
+                </select>
+            </div>
+            
+            <!-- Epics Container -->
+            <div id="epicsContainer" class="epics-container">
+                <!-- Epics will be loaded here -->
+            </div>
+
+        </main>
+    </div>
+
+    <!-- Task Creation Modal -->
+    <div id="taskModal" class="modal">
+        <div class="modal-content">
+            <form id="taskForm">
+                <textarea id="taskContent" placeholder="Enter task description (max 150 characters)" maxlength="150" required></textarea>
+                <div class="char-count">
+                    <span id="charCount">0</span>/150
+                </div>
+                <div class="modal-actions">
+                    <button type="submit">Go!</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Task Context Menu -->
+    <div id="taskContextMenu" class="context-menu">
+        <div class="context-menu-item" data-action="delete">
+            <span class="context-icon">🗑️</span>
+            Delete Task
+        </div>
+    </div>
+
+    <!-- Epic Creation Modal -->
+    <div id="epicModal" class="modal">
+        <div class="modal-content">
+            <h3>Create New Epic</h3>
+            <form id="epicForm">
+                <input type="text" id="epicName" placeholder="Epic name" required>
+                <div class="color-picker">
+                    <label>Color:</label>
+                    <div class="color-options">
+                        <div class="color-option" data-color="#FF6B6B" style="background-color: #FF6B6B;"></div>
+                        <div class="color-option" data-color="#4ECDC4" style="background-color: #4ECDC4;"></div>
+                        <div class="color-option" data-color="#45B7D1" style="background-color: #45B7D1;"></div>
+                        <div class="color-option" data-color="#96CEB4" style="background-color: #96CEB4;"></div>
+                        <div class="color-option" data-color="#FFEAA7" style="background-color: #FFEAA7;"></div>
+                        <div class="color-option" data-color="#DDA0DD" style="background-color: #DDA0DD;"></div>
+                    </div>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" id="cancelEpic">Cancel</button>
+                    <button type="submit">Create Epic</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Confirmation Modal -->
+    <div id="confirmModal" class="modal">
+        <div class="modal-content">
+            <h3 id="confirmTitle">Confirm Action</h3>
+            <p id="confirmMessage">Are you sure you want to perform this action?</p>
+            <div class="modal-actions">
+                <button type="button" id="confirmCancel">Cancel</button>
+                <button type="button" id="confirmOk" class="btn-danger">Confirm</button>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- Scripts -->
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
