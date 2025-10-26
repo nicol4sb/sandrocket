@@ -73,3 +73,4 @@ All configuration is centralized in `src/config/index.js`. Environment variables
 - `SESSION_SECRET` - Session secret key
 - `NODE_ENV` - Environment (development/production)
 - `CORS_ORIGIN` - CORS origin setting
+
