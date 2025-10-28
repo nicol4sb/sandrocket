@@ -1,229 +1,308 @@
 const sqlite3 = require('sqlite3').verbose();
+const bcrypt = require('bcryptjs');
 const path = require('path');
 
 class Database {
   constructor() {
-    this.db = new sqlite3.Database(path.join(__dirname, 'rocket.db'));
-    this.init();
+    this.db = null;
   }
 
-  init() {
-    // Enable WAL mode for better concurrent access
-    this.db.run('PRAGMA journal_mode = WAL');
-    
-    // Create tables
-    this.db.serialize(() => {
-      // Epics table
-      this.db.run(`
-        CREATE TABLE IF NOT EXISTS epics (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          name TEXT NOT NULL,
-          pastille_color TEXT DEFAULT '#FF6B6B',
-          position INTEGER NOT NULL,
-          created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-        )
-      `);
-
-      // Tasks table
-      this.db.run(`
-        CREATE TABLE IF NOT EXISTS tasks (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          epic_id INTEGER NOT NULL,
-          content TEXT NOT NULL CHECK(length(content) <= 150),
-          position INTEGER NOT NULL,
-          is_completed BOOLEAN DEFAULT 0,
-          completed_at DATETIME,
-          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-          updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-          FOREIGN KEY (epic_id) REFERENCES epics (id) ON DELETE CASCADE
-        )
-      `);
-
-      // Activity log table
-      this.db.run(`
-        CREATE TABLE IF NOT EXISTS activity_log (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          user_id TEXT NOT NULL,
-          action_type TEXT NOT NULL,
-          task_id INTEGER,
-          details TEXT,
-          timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
-          FOREIGN KEY (task_id) REFERENCES tasks (id) ON DELETE SET NULL
-        )
-      `);
-
-      // App config table
-      this.db.run(`
-        CREATE TABLE IF NOT EXISTS app_config (
-          key TEXT PRIMARY KEY,
-          value TEXT NOT NULL
-        )
-      `);
-
-      // Add completed_at column if it doesn't exist (migration)
-      this.db.run(`
-        ALTER TABLE tasks ADD COLUMN completed_at DATETIME
-      `, (err) => {
-        if (err && !err.message.includes('duplicate column name')) {
-          console.error('Error adding completed_at column:', err);
+  async init() {
+    return new Promise((resolve, reject) => {
+      const dbPath = path.join(__dirname, 'rocket.db');
+      this.db = new sqlite3.Database(dbPath, (err) => {
+        if (err) {
+          console.error('Error opening database:', err.message);
+          reject(err);
+        } else {
+          console.log('Connected to SQLite database');
+          this.createTables().then(resolve).catch(reject);
         }
       });
+    });
+  }
 
-      // Create indexes for better performance
-      this.db.run('CREATE INDEX IF NOT EXISTS idx_tasks_epic_id ON tasks(epic_id)');
-      this.db.run('CREATE INDEX IF NOT EXISTS idx_tasks_position ON tasks(position)');
-      this.db.run('CREATE INDEX IF NOT EXISTS idx_epics_position ON epics(position)');
-      this.db.run('CREATE INDEX IF NOT EXISTS idx_activity_timestamp ON activity_log(timestamp)');
+  async createTables() {
+    const tables = [
+      // Epics table
+      `CREATE TABLE IF NOT EXISTS epics (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        pastille_color TEXT DEFAULT '#FF6B6B',
+        position INTEGER DEFAULT 0,
+        created_at DATETIME DEFAULT (datetime('now', 'utc'))
+      )`,
+      
+      // Tasks table
+      `CREATE TABLE IF NOT EXISTS tasks (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        epic_id INTEGER NOT NULL,
+        content TEXT NOT NULL CHECK(length(content) <= 150),
+        position INTEGER DEFAULT 0,
+        is_completed BOOLEAN DEFAULT 0,
+        created_at DATETIME DEFAULT (datetime('now', 'utc')),
+        updated_at DATETIME DEFAULT (datetime('now', 'utc')),
+        FOREIGN KEY (epic_id) REFERENCES epics (id) ON DELETE CASCADE
+      )`,
+      
+      // Activity log table
+      `CREATE TABLE IF NOT EXISTS activity_log (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id TEXT DEFAULT 'user',
+        action_type TEXT NOT NULL,
+        task_id INTEGER,
+        epic_id INTEGER,
+        details TEXT,
+        timestamp DATETIME DEFAULT (datetime('now', 'utc')),
+        FOREIGN KEY (task_id) REFERENCES tasks (id) ON DELETE SET NULL,
+        FOREIGN KEY (epic_id) REFERENCES epics (id) ON DELETE SET NULL
+      )`,
+      
+      // App config table
+      `CREATE TABLE IF NOT EXISTS app_config (
+        key TEXT PRIMARY KEY,
+        value TEXT NOT NULL
+      )`
+    ];
 
-      // Insert default epic if none exist
-      this.db.get('SELECT COUNT(*) as count FROM epics', (err, row) => {
+    for (const sql of tables) {
+      await this.run(sql);
+    }
+
+    // Create indexes for better performance
+    await this.run('CREATE INDEX IF NOT EXISTS idx_tasks_epic_id ON tasks(epic_id)');
+    await this.run('CREATE INDEX IF NOT EXISTS idx_tasks_position ON tasks(position)');
+    await this.run('CREATE INDEX IF NOT EXISTS idx_epics_position ON epics(position)');
+    await this.run('CREATE INDEX IF NOT EXISTS idx_activity_timestamp ON activity_log(timestamp)');
+
+    // Initialize default data
+    await this.initializeDefaultData();
+  }
+
+  async initializeDefaultData() {
+    // Check if we already have data
+    const epicCount = await this.get('SELECT COUNT(*) as count FROM epics');
+    if (epicCount.count === 0) {
+      // Create default epic
+      await this.run("INSERT INTO epics (name, pastille_color, position) VALUES ('General', '#FF6B6B', 0)");
+      
+      // Create some sample tasks
+      const generalEpic = await this.get('SELECT id FROM epics WHERE name = ?', ['General']);
+      if (generalEpic) {
+        await this.run("INSERT INTO tasks (epic_id, content, position) VALUES (?, 'Welcome to Sand Rocket! 🚀', 0)", [generalEpic.id]);
+        await this.run("INSERT INTO tasks (epic_id, content, position) VALUES (?, 'Create your first epic', 1)", [generalEpic.id]);
+        await this.run("INSERT INTO tasks (epic_id, content, position) VALUES (?, 'Add some tasks to get started', 2)", [generalEpic.id]);
+      }
+    }
+
+    // Set default password if not exists
+    const passwordConfig = await this.get('SELECT value FROM app_config WHERE key = ?', ['password']);
+    if (!passwordConfig) {
+      const hashedPassword = await bcrypt.hash('rocket123', 10);
+      await this.run('INSERT INTO app_config (key, value) VALUES (?, ?)', ['password', hashedPassword]);
+    }
+  }
+
+  run(sql, params = []) {
+    return new Promise((resolve, reject) => {
+      this.db.run(sql, params, function(err) {
         if (err) {
-          console.error('Error checking epics:', err);
-          return;
+          console.error('Database run error:', err.message);
+          reject(err);
+        } else {
+          resolve({ id: this.lastID, changes: this.changes });
         }
-        if (row.count === 0) {
-          this.db.run(`
-            INSERT INTO epics (name, pastille_color, position) 
-            VALUES ('General', '#FF6B6B', 0)
-          `);
+      });
+    });
+  }
+
+  get(sql, params = []) {
+    return new Promise((resolve, reject) => {
+      this.db.get(sql, params, (err, row) => {
+        if (err) {
+          console.error('Database get error:', err.message);
+          reject(err);
+        } else {
+          resolve(row);
+        }
+      });
+    });
+  }
+
+  all(sql, params = []) {
+    return new Promise((resolve, reject) => {
+      this.db.all(sql, params, (err, rows) => {
+        if (err) {
+          console.error('Database all error:', err.message);
+          reject(err);
+        } else {
+          resolve(rows);
         }
       });
     });
   }
 
   // Epic methods
-  getEpics(callback) {
-    this.db.all(`
-      SELECT * FROM epics 
-      ORDER BY position ASC
-    `, callback);
+  async getEpics() {
+    return this.all('SELECT * FROM epics ORDER BY position ASC');
   }
 
-  createEpic(name, pastilleColor, position, callback) {
-    this.db.run(`
-      INSERT INTO epics (name, pastille_color, position) 
-      VALUES (?, ?, ?)
-    `, [name, pastilleColor, position], function(err) {
-      if (err) {
-        callback(err);
-      } else {
-        callback(null, this.lastID);
-      }
-    });
+  async getEpicById(id) {
+    return this.get('SELECT * FROM epics WHERE id = ?', [id]);
   }
 
-  updateEpic(id, name, pastilleColor, position, callback) {
-    this.db.run(`
-      UPDATE epics 
-      SET name = ?, pastille_color = ?, position = ?
-      WHERE id = ?
-    `, [name, pastilleColor, position, id], callback);
+  async createEpic(name, pastilleColor = '#FF6B6B') {
+    const maxPosition = await this.get('SELECT MAX(position) as max FROM epics');
+    const position = (maxPosition?.max ?? -1) + 1;
+    const utcTimestamp = new Date().toISOString();
+    
+    const result = await this.run(
+      'INSERT INTO epics (name, pastille_color, position, created_at) VALUES (?, ?, ?, ?)',
+      [name, pastilleColor, position, utcTimestamp]
+    );
+    
+    await this.logActivity('epic_created', null, result.id, { name, pastilleColor, position });
+    return result;
   }
 
-  deleteEpic(id, callback) {
-    this.db.run('DELETE FROM epics WHERE id = ?', [id], callback);
+  async updateEpic(id, updates) {
+    const setClause = Object.keys(updates).map(key => `${key} = ?`).join(', ');
+    const values = Object.values(updates);
+    values.push(id);
+    
+    await this.run(`UPDATE epics SET ${setClause} WHERE id = ?`, values);
+    await this.logActivity('epic_updated', null, id, updates);
+  }
+
+  async deleteEpic(id) {
+    await this.run('DELETE FROM epics WHERE id = ?', [id]);
+    await this.logActivity('epic_deleted', null, id, {});
   }
 
   // Task methods
-  getTasks(callback) {
-    this.db.all(`
-      SELECT t.*, e.name as epic_name, e.pastille_color 
-      FROM tasks t 
-      JOIN epics e ON t.epic_id = e.id 
-      ORDER BY t.epic_id, t.position ASC
-    `, callback);
+  async getTasks(epicId = null) {
+    const sql = epicId 
+      ? 'SELECT * FROM tasks WHERE epic_id = ? ORDER BY position ASC'
+      : 'SELECT * FROM tasks ORDER BY epic_id ASC, position ASC';
+    const params = epicId ? [epicId] : [];
+    return this.all(sql, params);
   }
 
-  getTasksByEpic(epicId, callback) {
-    this.db.all(`
-      SELECT * FROM tasks 
-      WHERE epic_id = ? 
-      ORDER BY position ASC
-    `, [epicId], callback);
+  async getTaskById(id) {
+    return this.get('SELECT * FROM tasks WHERE id = ?', [id]);
   }
 
-  createTask(epicId, content, position, callback) {
-    this.db.run(`
-      INSERT INTO tasks (epic_id, content, position) 
-      VALUES (?, ?, ?)
-    `, [epicId, content, position], function(err) {
-      if (err) {
-        callback(err);
-      } else {
-        callback(null, this.lastID);
-      }
-    });
+  async createTask(epicId, content) {
+    if (content.length > 150) {
+      throw new Error('Task content cannot exceed 150 characters');
+    }
+    
+    const maxPosition = await this.get('SELECT MAX(position) as max FROM tasks WHERE epic_id = ?', [epicId]);
+    const position = (maxPosition?.max ?? -1) + 1;
+    const utcTimestamp = new Date().toISOString();
+    
+    const result = await this.run(
+      'INSERT INTO tasks (epic_id, content, position, created_at, updated_at) VALUES (?, ?, ?, ?, ?)',
+      [epicId, content, position, utcTimestamp, utcTimestamp]
+    );
+    
+    await this.logActivity('task_created', result.id, epicId, { content, position });
+    return result;
   }
 
-  updateTask(id, epicId, content, position, isCompleted, callback) {
-    const completedAt = isCompleted ? 'CURRENT_TIMESTAMP' : 'NULL';
-    this.db.run(`
-      UPDATE tasks 
-      SET epic_id = ?, content = ?, position = ?, is_completed = ?, completed_at = ${completedAt}, updated_at = CURRENT_TIMESTAMP
-      WHERE id = ?
-    `, [epicId, content, position, isCompleted, id], callback);
+  async updateTask(id, updates) {
+    const setClause = Object.keys(updates).map(key => `${key} = ?`).join(', ');
+    const values = Object.values(updates);
+    values.push(id);
+    const utcTimestamp = new Date().toISOString();
+    
+    await this.run(`UPDATE tasks SET ${setClause}, updated_at = ? WHERE id = ?`, [...values.slice(0, -1), utcTimestamp, id]);
+    
+    const task = await this.get('SELECT * FROM tasks WHERE id = ?', [id]);
+    await this.logActivity('task_updated', id, task?.epic_id, updates);
   }
 
-  updateTaskPosition(id, position, callback) {
-    this.db.run(`
-      UPDATE tasks 
-      SET position = ?, updated_at = CURRENT_TIMESTAMP
-      WHERE id = ?
-    `, [position, id], callback);
+  async deleteTask(id) {
+    const task = await this.get('SELECT * FROM tasks WHERE id = ?', [id]);
+    await this.run('DELETE FROM tasks WHERE id = ?', [id]);
+    await this.logActivity('task_deleted', id, task?.epic_id, { content: task?.content });
   }
 
-  deleteTask(id, callback) {
-    this.db.run('DELETE FROM tasks WHERE id = ?', [id], callback);
+  async completeTask(id) {
+    await this.updateTask(id, { is_completed: 1 });
+  }
+
+  async reopenTask(id) {
+    await this.updateTask(id, { is_completed: 0 });
+  }
+
+  async getCompletedTasks() {
+    return this.all('SELECT * FROM tasks WHERE is_completed = 1 ORDER BY updated_at DESC');
   }
 
   // Activity log methods
-  logActivity(userId, actionType, taskId, details, callback) {
-    this.db.run(`
-      INSERT INTO activity_log (user_id, action_type, task_id, details) 
-      VALUES (?, ?, ?, ?)
-    `, [userId, actionType, taskId, details], callback);
+  async logActivity(actionType, taskId, epicId, details) {
+    const utcTimestamp = new Date().toISOString();
+    // If details is already a string (our new format), use it directly
+    // If it's an object (old format), stringify it
+    const detailsString = typeof details === 'string' ? details : JSON.stringify(details);
+    await this.run(
+      'INSERT INTO activity_log (action_type, task_id, epic_id, details, timestamp) VALUES (?, ?, ?, ?, ?)',
+      [actionType, taskId, epicId, detailsString, utcTimestamp]
+    );
   }
 
-  getActivityLog(limit = 50, callback) {
-    this.db.all(`
-      SELECT al.*, t.content as task_content 
-      FROM activity_log al 
-      LEFT JOIN tasks t ON al.task_id = t.id 
-      ORDER BY al.timestamp DESC 
+  async getActivityLog(limit = 50) {
+    return this.all(`
+      SELECT al.*, t.content as task_content, e.name as epic_name 
+      FROM activity_log al
+      LEFT JOIN tasks t ON al.task_id = t.id
+      LEFT JOIN epics e ON al.epic_id = e.id
+      ORDER BY al.timestamp DESC
       LIMIT ?
-    `, [limit], callback);
+    `, [limit]);
   }
 
-  getCompletedTasks(callback) {
-    this.db.all(`
-      SELECT t.*, e.name as epic_name
-      FROM tasks t
-      JOIN epics e ON t.epic_id = e.id
-      WHERE t.is_completed = 1
-      ORDER BY t.completed_at DESC
-    `, callback);
+  async getWeeklyStats() {
+    const weekAgo = new Date();
+    weekAgo.setDate(weekAgo.getDate() - 7);
+    
+    const created = await this.get(`
+      SELECT COUNT(*) as count FROM tasks 
+      WHERE created_at >= ?
+    `, [weekAgo.toISOString()]);
+    
+    const completed = await this.get(`
+      SELECT COUNT(*) as count FROM tasks 
+      WHERE is_completed = 1 AND updated_at >= ?
+    `, [weekAgo.toISOString()]);
+    
+    return {
+      created: created.count,
+      completed: completed.count
+    };
   }
 
-  // Config methods
-  getConfig(key, callback) {
-    this.db.get('SELECT value FROM app_config WHERE key = ?', [key], (err, row) => {
-      if (err) {
-        callback(err);
-      } else {
-        callback(null, row ? row.value : null);
-      }
-    });
+  // Authentication methods
+  async getPassword() {
+    const config = await this.get('SELECT value FROM app_config WHERE key = ?', ['password']);
+    return config?.value;
   }
 
-  setConfig(key, value, callback) {
-    this.db.run(`
-      INSERT OR REPLACE INTO app_config (key, value) 
-      VALUES (?, ?)
-    `, [key, value], callback);
+  async setPassword(newPassword) {
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    await this.run('INSERT OR REPLACE INTO app_config (key, value) VALUES (?, ?)', ['password', hashedPassword]);
+  }
+
+  async verifyPassword(password) {
+    const hashedPassword = await this.getPassword();
+    return await bcrypt.compare(password, hashedPassword);
   }
 
   close() {
-    this.db.close();
+    if (this.db) {
+      this.db.close();
+    }
   }
 }
 

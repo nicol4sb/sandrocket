@@ -25,13 +25,20 @@ A collaborative todo app designed to motivate participants to plan and execute t
 - Epics have a name and a pastille (visual indicator)
 - A task always belongs to one and one only epic
 - Epic assignment can be changed during task edition
-- Epics should be presented vertically and can be rearranged by drag and drop
+- Epics should be presented as vertical swimlanes and can be rearranged by horizontal drag and drop, left to right.
 
 ## User Experience (UX)
 
 ### Visual Design
 - Modern, high contrast styling for excellent text readability
 - Top banner should float when scrolling down
+- ensure the space is allocated to the epics and tasks first. closed tasks and the action log should not take space on the landing page
+- **Paper-like Drag & Drop**: Simple, intuitive drag and drop that feels like handling real paper notes:
+  - Dragged tasks have subtle rotation (2°) and shadow for natural paper feel
+  - Completely solid and opaque - no transparency
+  - Clear drop zone indicators with colored borders and backgrounds
+  - No complex animations or spacing - just clean, simple feedback
+  - **Intuitive Behavior**: Drag over any task to see where it will be dropped, with clear visual cues 
 
 ### Interaction Design
 - All text fields editable when clicked (titles, body, links)
@@ -57,7 +64,8 @@ A collaborative todo app designed to motivate participants to plan and execute t
 
 #### Core Components
 - **Express.js Server** - Handles HTTP requests, serves static files, and manages WebSocket connections
-- **SQLite Database** - Embedded file-based database (`rocket.db`) for easy backup and portability
+- **SQLite Database** - Embedded file-based database (`rocket.db`) for easy backup and portability - create a few epics and tasks attached to these epics for the initial look
+
 - **WebSocket Server** - Real-time collaboration using Socket.io for live updates between users
 - **Static Frontend** - Vanilla JavaScript with modern CSS, served directly by Express
 
@@ -92,10 +100,26 @@ sand-rocket/
 - **Activity broadcasting** shows real-time actions in the folding log panel
 
 #### Security & Authentication
-- **Simple shared password** stored as hashed value in SQLite
-- **Session-based auth** using Express sessions
-- **CSRF protection** for form submissions
-- **Input validation** and sanitization for all user data
+- **Password Security**: 
+  - Passwords are hashed using bcrypt with salt rounds (10)
+  - Default password: `rocket123` (can be changed via database)
+  - Password verification uses secure bcrypt comparison
+  - No plaintext passwords stored anywhere
+- **Session Management**:
+  - Express-session with secure session cookies
+  - Session secret key for cookie signing
+  - 24-hour session expiration
+  - Secure cookie settings (can be enabled for HTTPS in production)
+- **Rate Limiting**:
+  - API endpoints limited to 100 requests per 15 minutes per IP
+  - Prevents brute force attacks and API abuse
+- **Input Validation**:
+  - Character limits enforced (150 chars for tasks/epics)
+  - SQL injection prevention through parameterized queries
+  - XSS protection through HTML escaping
+- **CORS Configuration**:
+  - Configured for same-origin requests
+  - WebSocket connections properly secured
 
 #### Deployment Strategy
 - **Single file deployment** - just copy the folder and run `npm start`
@@ -158,10 +182,10 @@ sand-rocket/
 - Default password is `rocket123` (you can change this later)
 - A default "General" epic will be created for you to start with
 
-### Features Available
+### Features Available 
 ✅ **Task Management**: Create, edit, complete, and delete tasks (max 150 characters)  
 ✅ **Epic Organization**: Create and manage epics with color-coded pastilles  
-✅ **Drag & Drop**: Move tasks between epics by dragging, and reorganize order of tasks within one epic
+✅ **Drag & Drop**: Simple, intuitive paper-like drag and drop - Move tasks between epics by dragging, and change priority of tasks by moving them up and down within one epic. Dragged tasks have a subtle paper-like effect with rotation and shadow, while drop zones show clear visual feedback.
 ✅ **Real-time Collaboration**: Live updates when multiple users are working  
 ✅ **Activity Log**: Track all actions in the folding activity panel  
 ✅ **Authentication**: Simple shared password protection  

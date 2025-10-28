@@ -1,1769 +1,1344 @@
-// Global state
-let socket;
-let currentUser = null;
-let epics = [];
-let tasks = [];
-let completedTasks = [];
-
-// DOM elements
-const loginModal = document.getElementById('loginModal');
-const app = document.getElementById('app');
-const loginForm = document.getElementById('loginForm');
-const passwordInput = document.getElementById('passwordInput');
-const loginError = document.getElementById('loginError');
-const logoutBtn = document.getElementById('logoutBtn');
-const activityTab = document.getElementById('activityTab');
-const activityPanel = document.getElementById('activityPanel');
-// Close button removed from activity panel
-const activityList = document.getElementById('activityList');
-const epicsContainer = document.getElementById('epicsContainer');
-const mobileEpicSelect = document.getElementById('mobileEpicSelect');
-const mainContent = document.querySelector('.main-content');
-
-// Modals
-const taskModal = document.getElementById('taskModal');
-const epicModal = document.getElementById('epicModal');
-const confirmModal = document.getElementById('confirmModal');
-const taskForm = document.getElementById('taskForm');
-const epicForm = document.getElementById('epicForm');
-const taskContent = document.getElementById('taskContent');
-const charCount = document.getElementById('charCount');
-const epicName = document.getElementById('epicName');
-const taskContextMenu = document.getElementById('taskContextMenu');
-
-// Initialize app
-document.addEventListener('DOMContentLoaded', () => {
-    console.log('DOM loaded, initializing app...');
-    initializeApp();
-    setupEventListeners();
-    checkAuthStatus();
-});
-
-function initializeApp() {
-    // Initialize Socket.IO
-    socket = io();
-    
-    socket.on('connect', () => {
-        console.log('Connected to server');
-        socket.emit('join_workspace');
-    });
-    
-    socket.on('disconnect', () => {
-        console.log('Disconnected from server');
-    });
-    
-    // Real-time updates
-    socket.on('epic_created', handleEpicCreated);
-    socket.on('epic_updated', handleEpicUpdated);
-    socket.on('epic_deleted', handleEpicDeleted);
-    socket.on('task_created', handleTaskCreated);
-    socket.on('task_updated', handleTaskUpdated);
-    socket.on('task_position_updated', handleTaskPositionUpdated);
-    socket.on('task_deleted', handleTaskDeleted);
-}
-
-function setupEventListeners() {
-    // Login
-    loginForm.addEventListener('submit', handleLogin);
-    logoutBtn.addEventListener('click', handleLogout);
-    
-    // Activity log
-    activityTab.addEventListener('click', toggleActivityPanel);
-    
-    // Mobile epic selector
-    mobileEpicSelect.addEventListener('change', handleMobileEpicChange);
-    
-    // Window resize handler
-    window.addEventListener('resize', handleWindowResize);
-    
-    // Close activity panel when clicking outside on mobile
-    document.addEventListener('click', handleDocumentClick);
-    
-    // Context menu
-    document.addEventListener('contextmenu', handleContextMenu);
-    document.addEventListener('click', hideContextMenu);
-    document.addEventListener('touchstart', handleTouchStart);
-    document.addEventListener('touchend', handleTouchEnd);
-    taskContextMenu.addEventListener('click', handleContextMenuAction);
-    
-    // Report tabs
-    document.querySelectorAll('.report-tab').forEach(tab => {
-        tab.addEventListener('click', handleReportTabClick);
-    });
-    
-    // Task creation
-    taskForm.addEventListener('submit', handleTaskCreate);
-    taskContent.addEventListener('input', updateCharCount);
-    
-    // Task modal keyboard shortcuts
-    taskContent.addEventListener('keydown', handleTaskModalKeydown);
-    
-    // Epic creation
-    epicForm.addEventListener('submit', handleEpicCreate);
-    document.getElementById('cancelEpic').addEventListener('click', closeEpicModal);
-    
-    // Color picker
-    document.querySelectorAll('.color-option').forEach(option => {
-        option.addEventListener('click', selectColor);
-    });
-    
-    // Confirmation modal
-    document.getElementById('confirmCancel').addEventListener('click', closeConfirmModal);
-    document.getElementById('confirmOk').addEventListener('click', handleConfirm);
-    
-    // Drag and drop will be setup after data is loaded
-    
-}
-
-async function checkAuthStatus() {
-    try {
-        console.log('Checking auth status...');
-        const response = await fetch('/api/auth/status', { credentials: 'include' });
-        const data = await response.json();
-        console.log('Auth status response:', data);
-        
-        if (data.authenticated) {
-            console.log('User is authenticated, showing app...');
-            showApp();
-            loadData();
-        } else {
-            console.log('User not authenticated, showing login...');
-            showLogin();
-        }
-    } catch (error) {
-        console.error('Error checking auth status:', error);
-        showLogin();
-    }
-}
-
-function showLogin() {
-    loginModal.classList.add('show');
-    app.style.display = 'none';
-    passwordInput.focus();
-}
-
-function showApp() {
-    loginModal.classList.remove('show');
-    app.style.display = 'block';
-}
-
-async function handleLogin(e) {
-    e.preventDefault();
-    const password = passwordInput.value;
-    console.log('Attempting login with password:', password);
-    
-    try {
-        const response = await fetch('/api/auth/login', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            credentials: 'include',
-            body: JSON.stringify({ password })
-        });
-        
-        const data = await response.json();
-        console.log('Login response:', response.status, data);
-        
-        if (response.ok) {
-            console.log('Login successful, showing app...');
-            showApp();
-            loadData();
-            passwordInput.value = '';
-            hideError();
-        } else {
-            console.log('Login failed:', data.error);
-            showError(data.error);
-        }
-    } catch (error) {
-        console.error('Login error:', error);
-        showError('Connection error. Please try again.');
-    }
-}
-
-async function handleLogout() {
-    try {
-        await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' });
-        showLogin();
-        epics = [];
-        tasks = [];
-        completedTasks = [];
-        renderEpics();
-    } catch (error) {
-        console.error('Logout error:', error);
-    }
-}
-
-function showError(message) {
-    loginError.textContent = message;
-    loginError.classList.add('show');
-}
-
-function hideError() {
-    loginError.classList.remove('show');
-}
-
-async function loadData() {
-    try {
-        console.log('Loading data...');
-        const [epicsResponse, tasksResponse, activityResponse] = await Promise.all([
-            fetch('/api/epics', { credentials: 'include' }),
-            fetch('/api/tasks', { credentials: 'include' }),
-            fetch('/api/activity', { credentials: 'include' })
-        ]);
-        
-        console.log('Epics response status:', epicsResponse.status);
-        console.log('Tasks response status:', tasksResponse.status);
-        console.log('Activity response status:', activityResponse.status);
-        
-        if (!epicsResponse.ok || !tasksResponse.ok || !activityResponse.ok) {
-            throw new Error('Failed to fetch data');
-        }
-        
-        epics = await epicsResponse.json();
-        const allTasks = await tasksResponse.json();
-        const activities = await activityResponse.json();
-        
-        console.log('Loaded epics:', epics.length);
-        console.log('Loaded tasks:', allTasks.length);
-        console.log('Loaded activities:', activities.length);
-        
-        // Separate active and completed tasks
-        tasks = allTasks.filter(task => !task.is_completed);
-        completedTasks = allTasks.filter(task => task.is_completed);
-        
-        console.log('Active tasks:', tasks.length);
-        console.log('Completed tasks:', completedTasks.length);
-        
-        renderEpics();
-        renderActivityLog(activities);
-        
-        // Setup drag and drop after data is rendered
-        setupDragAndDrop();
-        
-        console.log('Data loaded and rendered successfully');
-    } catch (error) {
-        console.error('Error loading data:', error);
-        // If data loading fails, show login again
-        showLogin();
-    }
-}
-
-function renderEpics() {
-    epicsContainer.innerHTML = '';
-    
-    // Populate mobile epic selector
-    mobileEpicSelect.innerHTML = '<option value="">Select Epic</option>';
-    epics.forEach(epic => {
-        const option = document.createElement('option');
-        option.value = epic.id;
-        option.textContent = epic.name;
-        mobileEpicSelect.appendChild(option);
-    });
-    
-    epics.forEach(epic => {
-        const epicElement = createEpicElement(epic);
-        epicsContainer.appendChild(epicElement);
-    });
-    
-    // Add "Add Epic" button
-    const addEpicBtn = document.createElement('div');
-    addEpicBtn.className = 'add-epic-btn';
-    addEpicBtn.innerHTML = '+ Add Epic';
-    addEpicBtn.addEventListener('click', openEpicModal);
-    epicsContainer.appendChild(addEpicBtn);
-    
-    // Handle mobile view after a short delay to ensure DOM is ready
-    setTimeout(() => {
-        handleMobileView();
-    }, 100);
-}
-
-function createEpicElement(epic) {
-    const epicDiv = document.createElement('div');
-    epicDiv.className = 'epic-column';
-    epicDiv.draggable = true;
-    epicDiv.dataset.epicId = epic.id;
-    
-    const epicTasks = tasks.filter(task => task.epic_id === epic.id && !task.is_completed)
-                          .sort((a, b) => a.position - b.position);
-    
-    epicDiv.innerHTML = `
-        <div class="epic-header" style="--epic-color: ${epic.pastille_color}; --epic-color-dark: ${darkenColor(epic.pastille_color, 20)}">
-            <div class="epic-pastille" style="background-color: ${epic.pastille_color}"></div>
-            <div class="epic-title" contenteditable="true" data-epic-id="${epic.id}">${epic.name}</div>
-        </div>
-        <div class="epic-tasks" data-epic-id="${epic.id}">
-            ${epicTasks.map(task => createTaskHTML(task)).join('')}
-            <button class="add-task-btn" onclick="openTaskModal(${epic.id})">
-                + Add Task
-            </button>
-        </div>
-    `;
-    
-    // Setup epic title editing
-    const titleElement = epicDiv.querySelector('.epic-title');
-    titleElement.addEventListener('blur', () => updateEpic(epic.id, titleElement.textContent, epic.pastille_color, epic.position));
-    titleElement.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') {
-            e.preventDefault();
-            titleElement.blur();
-        }
-    });
-    titleElement.addEventListener('dblclick', () => {
-        titleElement.focus();
-        // Select all text
-        const range = document.createRange();
-        range.selectNodeContents(titleElement);
-        const selection = window.getSelection();
-        selection.removeAllRanges();
-        selection.addRange(range);
-    });
-    
-    // Setup task content editing
-    const taskElements = epicDiv.querySelectorAll('.task-content');
-    console.log('Setting up task editing for epic', epic.id, '- found', taskElements.length, 'task elements');
-    
-    taskElements.forEach((taskElement, index) => {
-        const taskId = parseInt(taskElement.closest('.task').dataset.taskId);
-        console.log(`Adding event listeners to task ${index + 1} (ID: ${taskId})`);
-        
-        taskElement.addEventListener('blur', () => {
-            console.log('Task content blur event triggered for task', taskId);
-            const newContent = taskElement.textContent.trim();
-            const originalContent = taskElement.getAttribute('data-original-content') || '';
-            console.log('New content:', newContent);
-            console.log('Original content:', originalContent);
-            
-            if (newContent && newContent !== originalContent) {
-                console.log('Content changed, updating task...');
-                updateTaskContent(taskId, newContent);
-            } else {
-                console.log('No content change detected');
-            }
-        });
-        
-        taskElement.addEventListener('keydown', (e) => {
-            console.log('Task content keydown event:', e.key);
-            if (e.key === 'Enter') {
-                e.preventDefault();
-                taskElement.blur();
-            }
-        });
-        
-        taskElement.addEventListener('dblclick', () => {
-            taskElement.focus();
-            // Select all text
-            const range = document.createRange();
-            range.selectNodeContents(taskElement);
-            const selection = window.getSelection();
-            selection.removeAllRanges();
-            selection.addRange(range);
-        });
-        
-        taskElement.addEventListener('click', (e) => {
-            console.log('Task content clicked for editing');
-            // Ensure the element gets focus for text editing
-            if (document.activeElement !== taskElement) {
-                taskElement.focus();
-            }
-            
-            // Let the browser handle cursor positioning naturally
-            // Don't interfere with the default click behavior
-        });
-    });
-    
-    // Epic drag and drop handled by DragDropManager
-    
-    return epicDiv;
-}
-
-function createTaskHTML(task) {
-    const createdDate = new Date(task.created_at).toLocaleString();
-    
-    return `
-        <div class="task" data-task-id="${task.id}">
-            <div class="task-drag-handle" draggable="true" title="Drag to reorder">⋮⋮</div>
-            <div class="task-main">
-                <input type="checkbox" class="task-complete-checkbox" onchange="completeTask(${task.id})" ${task.is_completed ? 'checked' : ''} title="Mark as completed">
-                <div class="task-content" contenteditable="true" data-original-content="${task.content.replace(/"/g, '&quot;')}">${task.content}</div>
-            </div>
-            <div class="task-meta">
-                <span class="task-created" title="Created: ${createdDate}">${formatDate(task.created_at)}</span>
-            </div>
-        </div>
-    `;
-}
-
-
-
-function renderActivityLog(activities) {
-    activityList.innerHTML = activities.map(activity => `
-        <div class="activity-item">
-            <div>${activity.details}</div>
-            <div class="timestamp">${formatDate(activity.timestamp)}</div>
-        </div>
-    `).join('');
-}
-
-function loadMetrics() {
-    const now = new Date();
-    const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-    
-    // Calculate metrics
-    const allTasks = [...tasks, ...completedTasks];
-    const tasksCreatedLast7Days = allTasks.filter(task => 
-        new Date(task.created_at) >= sevenDaysAgo
-    ).length;
-    
-    const tasksCompletedLast7Days = completedTasks.filter(task => 
-        new Date(task.updated_at) >= sevenDaysAgo
-    ).length;
-    
-    const totalTasks = allTasks.length;
-    const completionRate = totalTasks > 0 ? Math.round((completedTasks.length / totalTasks) * 100) : 0;
-    
-    // Update metric displays
-    document.getElementById('tasksCreated').textContent = tasksCreatedLast7Days;
-    document.getElementById('tasksCompleted').textContent = tasksCompletedLast7Days;
-    document.getElementById('totalTasks').textContent = totalTasks;
-    document.getElementById('completionRate').textContent = completionRate + '%';
-}
-
-async function loadClosedTasks() {
-    const closedTasksList = document.getElementById('closedTasksList');
-    
-    try {
-        const response = await fetch('/api/tasks/completed', {
-            credentials: 'include'
-        });
-        
-        if (!response.ok) {
-            throw new Error('Failed to fetch completed tasks');
-        }
-        
-        const completedTasks = await response.json();
-        
-        if (completedTasks.length === 0) {
-            closedTasksList.innerHTML = '<div class="no-tasks">No completed tasks yet</div>';
-            return;
-        }
-        
-        closedTasksList.innerHTML = completedTasks.map(task => {
-            const completedDate = new Date(task.completed_at).toLocaleString();
-            const epicName = task.epic_name || 'Unknown Epic';
-            
-            return `
-                <div class="closed-task-item">
-                    <div>
-                        <div class="closed-task-content">${task.content}</div>
-                        <div class="closed-task-meta">
-                            From: ${epicName} • Completed: ${completedDate}
-                        </div>
-                    </div>
-                    <div class="closed-task-actions">
-                        <button class="btn-secondary" onclick="reopenTask(${task.id})">Reopen</button>
-                        <button class="task-delete" onclick="confirmDeleteTask(${task.id})">×</button>
-                    </div>
-                </div>
-            `;
-        }).join('');
-    } catch (error) {
-        console.error('Error loading completed tasks:', error);
-        closedTasksList.innerHTML = '<div class="no-tasks">Error loading completed tasks</div>';
-    }
-}
-
-// Task Management
-async function reopenTask(taskId) {
-    try {
-        // First, get the task details
-        const response = await fetch('/api/tasks/completed', {
-            credentials: 'include'
-        });
-        
-        if (!response.ok) {
-            throw new Error('Failed to fetch task details');
-        }
-        
-        const completedTasks = await response.json();
-        const task = completedTasks.find(t => t.id === taskId);
-        
-        if (!task) {
-            console.error('Task not found:', taskId);
-            return;
-        }
-        
-        // Reopen the task by setting isCompleted to false
-        const updateResponse = await fetch(`/api/tasks/${taskId}`, {
-            method: 'PUT',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            credentials: 'include',
-            body: JSON.stringify({
-                epicId: task.epic_id,
-                content: task.content,
-                position: task.position,
-                isCompleted: false
-            })
-        });
-        
-        if (updateResponse.ok) {
-            console.log('Task reopened successfully');
-            // Reload the closed tasks list to remove the reopened task
-            loadClosedTasks();
-            // Reload main data to show the task back in its epic
-            loadData();
-        } else {
-            console.error('Failed to reopen task:', updateResponse.status, updateResponse.statusText);
-        }
-    } catch (error) {
-        console.error('Error reopening task:', error);
-    }
-}
-
-function openTaskModal(epicId) {
-    // Store the epic ID for task creation
-    taskModal.dataset.epicId = epicId;
-    
-    taskContent.value = '';
-    updateCharCount();
-    taskModal.classList.add('show');
-    taskContent.focus();
-}
-
-function closeTaskModal() {
-    taskModal.classList.remove('show');
-}
-
-function handleTaskModalKeydown(e) {
-    // Ctrl + Enter to create task
-    if (e.key === 'Enter' && e.ctrlKey) {
-        e.preventDefault();
-        handleTaskCreate(e);
-    }
-    // Esc to cancel
-    else if (e.key === 'Escape') {
-        e.preventDefault();
-        closeTaskModal();
-    }
-}
-
-function updateCharCount() {
-    const count = taskContent.value.length;
-    charCount.textContent = count;
-    charCount.style.color = count > 150 ? '#dc3545' : '#6c757d';
-}
-
-async function handleTaskCreate(e) {
-    e.preventDefault();
-    
-    const epicId = parseInt(taskModal.dataset.epicId);
-    const content = taskContent.value.trim();
-    
-    if (!epicId || !content) return;
-    
-    try {
-        const response = await fetch('/api/tasks', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            credentials: 'include',
-            body: JSON.stringify({
-                epicId,
-                content,
-                position: tasks.filter(t => t.epic_id === epicId).length
-            })
-        });
-        
-        if (response.ok) {
-            closeTaskModal();
-            loadData(); // Reload to get the new task
-        } else {
-            const error = await response.json();
-            alert(error.error);
-        }
-    } catch (error) {
-        console.error('Error creating task:', error);
-        alert('Error creating task');
-    }
-}
-
-// Epic Management
-function openEpicModal() {
-    epicName.value = '';
-    document.querySelectorAll('.color-option').forEach(option => {
-        option.classList.remove('selected');
-    });
-    document.querySelector('.color-option').classList.add('selected');
-    
-    epicModal.classList.add('show');
-    epicName.focus();
-}
-
-function closeEpicModal() {
-    epicModal.classList.remove('show');
-    document.querySelectorAll('.color-option').forEach(option => {
-        option.classList.remove('selected');
-    });
-}
-
-function selectColor(e) {
-    document.querySelectorAll('.color-option').forEach(option => {
-        option.classList.remove('selected');
-    });
-    e.target.classList.add('selected');
-}
-
-async function handleEpicCreate(e) {
-    e.preventDefault();
-    
-    const name = epicName.value.trim();
-    const selectedColor = document.querySelector('.color-option.selected').dataset.color;
-    
-    if (!name) return;
-    
-    try {
-        const response = await fetch('/api/epics', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            credentials: 'include',
-            body: JSON.stringify({
-                name,
-                pastilleColor: selectedColor,
-                position: epics.length
-            })
-        });
-        
-        if (response.ok) {
-            closeEpicModal();
-            loadData(); // Reload to get the new epic
-        } else {
-            const error = await response.json();
-            alert(error.error);
-        }
-    } catch (error) {
-        console.error('Error creating epic:', error);
-        alert('Error creating epic');
-    }
-}
-
-async function updateEpic(epicId, name, pastilleColor, position) {
-    try {
-        const response = await fetch(`/api/epics/${epicId}`, {
-            method: 'PUT',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            credentials: 'include',
-            body: JSON.stringify({
-                name: name.trim(),
-                pastilleColor,
-                position
-            })
-        });
-        
-        if (response.ok) {
-            // Update local epic data
-            const epic = epics.find(e => e.id === epicId);
-            if (epic) {
-                epic.name = name.trim();
-            }
-            
-            // Broadcast update to other users
-            socket.emit('epic_updated', { id: epicId, name: name.trim(), pastilleColor, position });
-        } else {
-            console.error('Failed to update epic');
-            // Revert the title if update failed
-            loadData();
-        }
-    } catch (error) {
-        console.error('Error updating epic:', error);
-        // Revert the title if update failed
-        loadData();
-    }
-}
-
-// Task Actions
-async function completeTask(taskId) {
-    try {
-        const task = tasks.find(t => t.id === taskId);
-        if (!task) {
-            console.log('Task not found:', taskId);
-            return;
-        }
-        
-        const checkbox = document.querySelector(`[data-task-id="${taskId}"] .task-complete-checkbox`);
-        const taskElement = document.querySelector(`[data-task-id="${taskId}"]`);
-        
-        if (!checkbox || !taskElement) {
-            console.log('Checkbox or task element not found for task:', taskId);
-            return;
-        }
-        
-        const isCompleted = checkbox.checked;
-        console.log('Completing task:', taskId, 'isCompleted:', isCompleted);
-        
-        // Add visual feedback
-        taskElement.style.transition = 'all 0.3s ease';
-        taskElement.style.transform = 'scale(0.95)';
-        taskElement.style.opacity = '0.7';
-        
-        // Add completion animation
-        setTimeout(() => {
-            taskElement.style.transform = 'scale(1.05)';
-            if (isCompleted) {
-                taskElement.style.background = 'linear-gradient(135deg, rgba(40, 167, 69, 0.2), rgba(32, 201, 151, 0.2))';
-                taskElement.style.border = '2px solid #28a745';
-            } else {
-                taskElement.style.background = '';
-                taskElement.style.border = '';
-            }
-        }, 150);
-        
-        const response = await fetch(`/api/tasks/${taskId}`, {
-            method: 'PUT',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            credentials: 'include',
-            body: JSON.stringify({
-                epicId: task.epic_id,
-                content: task.content,
-                position: task.position,
-                isCompleted: isCompleted
-            })
-        });
-        
-        if (response.ok) {
-            console.log('Task completion status updated successfully');
-            
-            // Update local task state
-            task.is_completed = isCompleted;
-            
-            // Show success feedback
-            if (isCompleted) {
-                taskElement.style.background = 'linear-gradient(135deg, rgba(40, 167, 69, 0.3), rgba(32, 201, 151, 0.3))';
-                taskElement.style.border = '2px solid #28a745';
-            } else {
-                taskElement.style.background = '';
-                taskElement.style.border = '';
-            }
-            
-            // Reset visual state after animation
-            setTimeout(() => {
-                taskElement.style.transform = '';
-                taskElement.style.opacity = '';
-            }, 300);
-        } else {
-            console.error('Failed to update task completion status:', response.status, response.statusText);
-            // Reset checkbox and visual state on error
-            checkbox.checked = !isCompleted;
-            taskElement.style.transform = '';
-            taskElement.style.opacity = '';
-            taskElement.style.background = '';
-            taskElement.style.border = '';
-        }
-    } catch (error) {
-        console.error('Error updating task completion status:', error);
-        
-        // Reset checkbox and visual state on error
-        const checkbox = document.querySelector(`[data-task-id="${taskId}"] .task-complete-checkbox`);
-        const taskElement = document.querySelector(`[data-task-id="${taskId}"]`);
-        
-        if (checkbox) checkbox.checked = !checkbox.checked;
-        if (taskElement) {
-            taskElement.style.transform = '';
-            taskElement.style.opacity = '';
-            taskElement.style.background = '';
-            taskElement.style.border = '';
-        }
-    }
-}
-
-async function reopenTask(taskId) {
-    try {
-        const task = completedTasks.find(t => t.id === taskId);
-        if (!task) return;
-        
-        const response = await fetch(`/api/tasks/${taskId}`, {
-            method: 'PUT',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            credentials: 'include',
-            body: JSON.stringify({
-                epicId: task.epic_id,
-                content: task.content,
-                position: 0,
-                isCompleted: false
-            })
-        });
-        
-        if (response.ok) {
-            loadData(); // Reload to update the UI
-        }
-    } catch (error) {
-        console.error('Error reopening task:', error);
-    }
-}
-
-// Confirmation Modal
-let confirmCallback = null;
-
-function confirmDeleteTask(taskId) {
-    const task = [...tasks, ...completedTasks].find(t => t.id === taskId);
-    if (!task) return;
-    
-    document.getElementById('confirmTitle').textContent = 'Delete Task';
-    document.getElementById('confirmMessage').textContent = `Are you sure you want to delete "${task.content}"?`;
-    
-    confirmCallback = () => deleteTask(taskId);
-    confirmModal.classList.add('show');
-}
-
-
-function closeConfirmModal() {
-    confirmModal.classList.remove('show');
-    confirmCallback = null;
-}
-
-function handleConfirm() {
-    if (confirmCallback) {
-        confirmCallback();
-        closeConfirmModal();
-    }
-}
-
-async function deleteTask(taskId) {
-    try {
-        const response = await fetch(`/api/tasks/${taskId}`, {
-            method: 'DELETE',
-            credentials: 'include'
-        });
-        
-        if (response.ok) {
-            loadData(); // Reload to update the UI
-        }
-    } catch (error) {
-        console.error('Error deleting task:', error);
-    }
-}
-
-
-// Mobile View Handling
-function handleMobileView() {
-    const isMobile = window.innerWidth <= 768;
-    if (isMobile) {
-        // Show first epic by default on mobile if none selected
-        if (epics.length > 0 && !mobileEpicSelect.value) {
-            mobileEpicSelect.value = epics[0].id;
-            showSelectedEpic(epics[0].id);
-        } else if (mobileEpicSelect.value) {
-            // Show the currently selected epic
-            showSelectedEpic(parseInt(mobileEpicSelect.value));
-        }
-    }
-}
-
-function handleMobileEpicChange() {
-    const selectedEpicId = parseInt(mobileEpicSelect.value);
-    console.log('Mobile epic changed to:', selectedEpicId);
-    if (selectedEpicId) {
-        showSelectedEpic(selectedEpicId);
-    } else {
-        hideAllEpics();
-    }
-}
-
-function showSelectedEpic(epicId) {
-    const isMobile = window.innerWidth <= 768;
-    console.log('showSelectedEpic called with:', epicId, 'isMobile:', isMobile);
-    
-    if (isMobile) {
-        // Remove mobile-selected class from all epics
-        document.querySelectorAll('.epic-column').forEach(epic => {
-            epic.classList.remove('mobile-selected');
-        });
-        
-        // Add mobile-selected class to selected epic
-        const selectedEpic = document.querySelector(`.epic-column[data-epic-id="${epicId}"]`);
-        console.log('Found epic element:', selectedEpic);
-        if (selectedEpic) {
-            selectedEpic.classList.add('mobile-selected');
-            console.log('Epic displayed');
-        } else {
-            console.log('Epic not found for ID:', epicId);
-        }
-    }
-}
-
-function hideAllEpics() {
-    const isMobile = window.innerWidth <= 768;
-    
-    if (isMobile) {
-        document.querySelectorAll('.epic-column').forEach(epic => {
-            epic.classList.remove('mobile-selected');
-        });
-    }
-}
-
-function handleWindowResize() {
-    const isMobile = window.innerWidth <= 768;
-    if (isMobile) {
-        // Mobile view - show epic selector and handle epic display
-        handleMobileView();
-    } else {
-        // Desktop view - show all epics and clear mobile selection
-        document.querySelectorAll('.epic-column').forEach(epic => {
-            epic.classList.remove('mobile-selected');
-        });
-        mobileEpicSelect.value = '';
-    }
-}
-
-function handleDocumentClick(e) {
-    const isMobile = window.innerWidth <= 768;
-    const isActivityPanelOpen = activityPanel.classList.contains('open');
-    
-    // On mobile, close activity panel if clicking outside of it
-    if (isMobile && isActivityPanelOpen) {
-        if (!activityPanel.contains(e.target) && !activityTab.contains(e.target)) {
-            closeActivityPanel();
-        }
-    }
-}
-
-// Context menu variables
-let touchStartTime = 0;
-let touchStartTarget = null;
-let currentTaskId = null;
-
-function handleContextMenu(e) {
-    const taskElement = e.target.closest('.task');
-    const taskContent = e.target.closest('.task-content');
-    const epicTitle = e.target.closest('.epic-title');
-    
-    // Don't show context menu for editable content (to allow text editing)
-    if (taskContent || epicTitle) {
-        return;
-    }
-    
-    if (taskElement) {
-        e.preventDefault();
-        currentTaskId = parseInt(taskElement.dataset.taskId);
-        showContextMenu(e.clientX, e.clientY);
-    }
-}
-
-function handleTouchStart(e) {
-    const taskElement = e.target.closest('.task');
-    const taskContent = e.target.closest('.task-content');
-    const epicTitle = e.target.closest('.epic-title');
-    
-    // Don't show context menu for editable content (to allow text editing)
-    if (taskContent || epicTitle) {
-        return;
-    }
-    
-    if (taskElement) {
-        touchStartTime = Date.now();
-        touchStartTarget = taskElement;
-        currentTaskId = parseInt(taskElement.dataset.taskId);
-    }
-}
-
-function handleTouchEnd(e) {
-    if (touchStartTarget && Date.now() - touchStartTime > 500) {
-        e.preventDefault();
-        const rect = touchStartTarget.getBoundingClientRect();
-        showContextMenu(rect.left + rect.width / 2, rect.top + rect.height / 2);
-    }
-    touchStartTime = 0;
-    touchStartTarget = null;
-}
-
-function showContextMenu(x, y) {
-    taskContextMenu.style.left = x + 'px';
-    taskContextMenu.style.top = y + 'px';
-    taskContextMenu.style.display = 'block';
-}
-
-function hideContextMenu() {
-    taskContextMenu.style.display = 'none';
-    currentTaskId = null;
-}
-
-function handleContextMenuAction(e) {
-    const action = e.target.closest('.context-menu-item')?.dataset.action;
-    
-    if (action === 'delete' && currentTaskId) {
-        confirmDeleteTask(currentTaskId);
-    }
-    
-    hideContextMenu();
-}
-
-function handleReportTabClick(e) {
-    const tabName = e.target.dataset.tab;
-    
-    // Remove active class from all tabs
-    document.querySelectorAll('.report-tab').forEach(tab => {
-        tab.classList.remove('active');
-    });
-    
-    // Add active class to clicked tab
-    e.target.classList.add('active');
-    
-    // Hide all tab contents
-    document.querySelectorAll('.tab-content').forEach(content => {
-        content.classList.remove('active');
-    });
-    
-    // Show selected tab content
-    const targetContent = document.getElementById(`${tabName}TabContent`);
-    if (targetContent) {
-        targetContent.classList.add('active');
-        
-        // Load data for specific tabs
-        if (tabName === 'metrics') {
-            loadMetrics();
-        } else if (tabName === 'closed') {
-            loadClosedTasks();
-        }
-    }
-}
-
-// Activity Panel
-function toggleActivityPanel() {
-    const isOpen = activityPanel.classList.contains('open');
-    if (isOpen) {
-        closeActivityPanel();
-    } else {
-        openActivityPanel();
-    }
-}
-
-function openActivityPanel() {
-    activityPanel.classList.add('open');
-    activityTab.style.left = '350px';
-    mainContent.classList.add('activity-panel-open');
-}
-
-function closeActivityPanel() {
-    activityPanel.classList.remove('open');
-    activityTab.style.left = '0';
-    mainContent.classList.remove('activity-panel-open');
-}
-
-// Real-time Updates
-function handleEpicCreated(data) {
-    loadData(); // Reload to get the new epic
-}
-
-function handleEpicUpdated(data) {
-    loadData(); // Reload to update the epic
-}
-
-function handleEpicDeleted(data) {
-    loadData(); // Reload to remove the epic
-}
-
-function handleTaskCreated(data) {
-    loadData(); // Reload to get the new task
-}
-
-function handleTaskUpdated(data) {
-    loadData(); // Reload to update the task
-}
-
-function handleTaskPositionUpdated(data) {
-    const task = tasks.find(t => t.id === data.id);
-    if (task) {
-        task.position = data.position;
-        renderEpics();
-    }
-}
-
-function handleTaskDeleted(data) {
-    loadData(); // Reload to remove the task
-}
-
-// Drag and Drop System
-class DragDropManager {
+// Sand Rocket - Frontend Application
+class SandRocketApp {
     constructor() {
-        console.log('DragDropManager constructor called');
-        this.draggedElement = null;
-        this.draggedData = null;
-        this.dropZones = new Map();
+        this.socket = null;
+        this.epics = [];
+        this.tasks = [];
+        this.completedTasks = [];
+        this.activityLog = [];
+        this.currentUser = 'user';
+        this.draggedTask = null;
+        
+        this.init();
+    }
+
+    async init() {
         this.setupEventListeners();
-        console.log('DragDropManager setup complete');
+        await this.checkAuthStatus();
+        this.setupKeyboardShortcuts();
+        
+        // Update activity times every minute
+        setInterval(() => {
+            if (this.activityLog.length > 0) {
+                this.updateActivityTimes();
+            }
+        }, 60000); // 60 seconds
     }
 
     setupEventListeners() {
-        console.log('Setting up drag and drop event listeners');
-        
-        // Remove existing listeners if they exist
-        this.removeEventListeners();
-        
-        // Bind methods to preserve 'this' context
-        this.boundHandleDragStart = this.handleDragStart.bind(this);
-        this.boundHandleDragEnd = this.handleDragEnd.bind(this);
-        this.boundHandleDragOver = this.handleDragOver.bind(this);
-        this.boundHandleDragLeave = this.handleDragLeave.bind(this);
-        this.boundHandleDrop = this.handleDrop.bind(this);
-        
-        // Add event listeners
-        document.addEventListener('dragstart', this.boundHandleDragStart);
-        document.addEventListener('dragend', this.boundHandleDragEnd);
-        document.addEventListener('dragover', this.boundHandleDragOver);
-        document.addEventListener('dragleave', this.boundHandleDragLeave);
-        document.addEventListener('drop', this.boundHandleDrop);
-        
-        console.log('Drag and drop event listeners set up');
-        console.log('Document event listeners count:', {
-            dragstart: document.addEventListener.toString().includes('dragstart'),
-            dragover: document.addEventListener.toString().includes('dragover'),
-            drop: document.addEventListener.toString().includes('drop')
+        // Login form
+        document.getElementById('loginForm').addEventListener('submit', (e) => {
+            e.preventDefault();
+            this.login();
+        });
+
+        // Header buttons
+        const addEpicBtn = document.getElementById('addEpicBtn');
+        if (addEpicBtn) {
+            addEpicBtn.addEventListener('click', () => {
+                this.showEpicModal();
+            });
+        }
+
+        const activityToggle = document.getElementById('activityToggle');
+        if (activityToggle) {
+            activityToggle.addEventListener('click', () => {
+                this.toggleActivityPanel();
+            });
+        }
+
+        const logoutBtn = document.getElementById('logoutBtn');
+        if (logoutBtn) {
+            logoutBtn.addEventListener('click', () => {
+                this.logout();
+            });
+        }
+
+        // Epic modal
+        document.getElementById('epicForm').addEventListener('submit', (e) => {
+            e.preventDefault();
+            this.createEpic();
+        });
+
+        document.getElementById('cancelEpicBtn').addEventListener('click', () => {
+            this.hideEpicModal();
+        });
+
+        // Task modal
+        document.getElementById('taskForm').addEventListener('submit', (e) => {
+            e.preventDefault();
+            this.createTask();
+        });
+
+        document.getElementById('cancelTaskBtn').addEventListener('click', () => {
+            this.hideTaskModal();
+        });
+
+        // Character count for task content
+        document.getElementById('taskContent').addEventListener('input', (e) => {
+            const count = e.target.value.length;
+            document.getElementById('charCount').textContent = count;
+            
+            if (count > 150) {
+                e.target.style.borderColor = '#dc3545';
+            } else {
+                e.target.style.borderColor = '#e9ecef';
+            }
+        });
+
+        // Panel close buttons
+        document.getElementById('closeActivityBtn').addEventListener('click', () => {
+            this.hideActivityPanel();
+        });
+
+        document.getElementById('closeCompletedBtn').addEventListener('click', () => {
+            this.hideCompletedPanel();
+        });
+
+        // Confirmation modal
+        document.getElementById('confirmCancel').addEventListener('click', () => {
+            this.hideConfirmModal();
+        });
+
+        // Close modals on outside click
+        document.addEventListener('click', (e) => {
+            if (e.target.classList.contains('modal')) {
+                this.hideAllModals();
+            }
+        });
+
+        // Keyboard shortcuts
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                this.hideAllModals();
+            }
         });
     }
-    
-    removeEventListeners() {
-        if (this.boundHandleDragStart) {
-            document.removeEventListener('dragstart', this.boundHandleDragStart);
-            document.removeEventListener('dragend', this.boundHandleDragEnd);
-            document.removeEventListener('dragover', this.boundHandleDragOver);
-            document.removeEventListener('dragleave', this.boundHandleDragLeave);
-            document.removeEventListener('drop', this.boundHandleDrop);
+
+    async checkAuthStatus() {
+        try {
+            const response = await fetch('/api/auth/status', {
+                credentials: 'same-origin'
+            });
+            const data = await response.json();
+            
+            if (data.authenticated) {
+                this.showApp();
+                await this.loadData();
+            } else {
+                this.showLogin();
+            }
+        } catch (error) {
+            console.error('Auth check error:', error);
+            this.showLogin();
         }
     }
 
-    handleDragStart(e) {
-        console.log('Drag start event triggered');
-        console.log('Event target:', e.target);
-        console.log('Event target class:', e.target.className);
+    async login() {
+        const password = document.getElementById('password').value;
         
-        // Only start drag if clicking on the drag handle
-        const dragHandle = e.target.closest('.task-drag-handle');
-        if (!dragHandle) {
-            console.log('Not clicking on drag handle, not starting drag');
-            return;
+        try {
+            this.showLoading();
+            const response = await fetch('/api/auth/login', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                credentials: 'same-origin',
+                body: JSON.stringify({ password }),
+            });
+
+            const data = await response.json();
+            
+            if (data.success) {
+                this.showApp();
+                await this.loadData();
+                this.showToast('Welcome to Sand Rocket! 🚀', 'success');
+            } else {
+                this.showToast('Invalid password', 'error');
+            }
+        } catch (error) {
+            console.error('Login error:', error);
+            this.showToast('Login failed', 'error');
+        } finally {
+            this.hideLoading();
         }
+    }
+
+    async logout() {
+        try {
+            await fetch('/api/auth/logout', { 
+                method: 'POST',
+                credentials: 'same-origin'
+            });
+            this.showLogin();
+            this.showToast('Logged out successfully', 'success');
+        } catch (error) {
+            console.error('Logout error:', error);
+        }
+    }
+
+    showLogin() {
+        document.getElementById('loginModal').classList.remove('hidden');
+        document.getElementById('app').classList.add('hidden');
+        document.getElementById('password').focus();
+    }
+
+    showApp() {
+        document.getElementById('loginModal').classList.add('hidden');
+        document.getElementById('app').classList.remove('hidden');
+    }
+
+    async loadData() {
+        try {
+            this.showLoading();
+            
+            const [epicsResponse, tasksResponse, completedResponse, activityResponse, statsResponse] = await Promise.all([
+                fetch('/api/epics', { credentials: 'same-origin' }),
+                fetch('/api/tasks', { credentials: 'same-origin' }),
+                fetch('/api/tasks/completed', { credentials: 'same-origin' }),
+                fetch('/api/activity?limit=50', { credentials: 'same-origin' }),
+                fetch('/api/stats/weekly', { credentials: 'same-origin' })
+            ]);
+
+            this.epics = await epicsResponse.json();
+            this.tasks = await tasksResponse.json();
+            this.completedTasks = await completedResponse.json();
+            this.activityLog = await activityResponse.json();
+            const stats = await statsResponse.json();
+
+            this.renderEpics();
+            this.renderCompletedTasks();
+            this.renderActivityLog();
+            this.updateStats(stats);
+            
+        } catch (error) {
+            console.error('Load data error:', error);
+            this.showToast('Failed to load data', 'error');
+        } finally {
+            this.hideLoading();
+        }
+    }
+
+    renderEpics() {
+        console.log('renderEpics called, epics count:', this.epics.length);
+        const container = document.getElementById('epicsContainer');
+        container.innerHTML = '';
+
+        this.epics.forEach(epic => {
+            console.log('Rendering epic:', epic.id, epic.name);
+            const epicElement = this.createEpicElement(epic);
+            container.appendChild(epicElement);
+        });
+    }
+
+    createEpicElement(epic) {
+        const epicDiv = document.createElement('div');
+        epicDiv.className = 'epic-column';
+        epicDiv.dataset.epicId = epic.id;
+
+        const tasks = this.tasks
+            .filter(task => task.epic_id === epic.id && !task.is_completed)
+            .sort((a, b) => a.position - b.position);
         
-        const taskElement = e.target.closest('.task');
-        console.log('Task element found:', taskElement);
+        epicDiv.innerHTML = `
+            <div class="epic-header">
+                <div class="epic-pastille" style="background-color: ${epic.pastille_color}"></div>
+                <div class="epic-name clickable-text" contenteditable="false" onclick="app.editEpicName(${epic.id})" title="Click to edit">${epic.name}</div>
+                <div class="epic-actions">
+                    <button onclick="app.showAddTaskModal(${epic.id})" title="Add task">+</button>
+                    <button onclick="app.deleteEpic(${epic.id})" title="Delete epic">🗑️</button>
+                </div>
+            </div>
+            <div class="tasks-container" data-epic-id="${epic.id}">
+                ${tasks.map(task => this.createTaskElement(task)).join('')}
+            </div>
+            <button class="add-task-btn" onclick="app.showAddTaskModal(${epic.id})">
+                <span>+</span> Add Task
+            </button>
+        `;
+
+        this.setupEpicDragAndDrop(epicDiv);
+        return epicDiv;
+    }
+
+    createTaskElement(task) {
+        const createdDate = new Date(task.created_at).toLocaleString();
         
-        if (taskElement) {
-            console.log('Task element found:', taskElement.dataset.taskId);
-            this.draggedElement = taskElement;
-            this.draggedData = {
-                type: 'task',
-                id: parseInt(taskElement.dataset.taskId)
-            };
-            
-            // Create placeholder where the task was
-            this.createPlaceholder(taskElement);
-            
-            // Hide the original task
-            taskElement.style.opacity = '0';
-            taskElement.style.pointerEvents = 'none';
-            
-            // Create custom drag preview
-            this.createDragPreview(taskElement, e);
-            
+        return `
+            <div class="task-item" data-task-id="${task.id}" draggable="true">
+                <div class="task-content clickable-text" contenteditable="false" onclick="app.editTask(${task.id})" title="Click to edit">${this.escapeHtml(task.content)}</div>
+                <div class="task-meta">
+                    <span class="task-date" title="Created: ${createdDate}">${this.formatDate(task.created_at)}</span>
+                    <div class="task-actions">
+                        <button class="complete-btn" onclick="app.completeTask(${task.id})" title="Mark as complete">✓</button>
+                        <button class="delete-btn" onclick="app.deleteTask(${task.id})" title="Delete task">🗑️</button>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
+    setupEpicDragAndDrop(epicElement) {
+        const tasksContainer = epicElement.querySelector('.tasks-container');
+        
+        // Make epic droppable for moving tasks between epics
+        epicElement.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            epicElement.classList.add('drag-over');
+        });
+
+        epicElement.addEventListener('dragleave', (e) => {
+            // Only remove class if we're actually leaving the epic element
+            if (!epicElement.contains(e.relatedTarget)) {
+                epicElement.classList.remove('drag-over');
+            }
+        });
+
+            epicElement.addEventListener('drop', (e) => {
+                e.preventDefault();
+                epicElement.classList.remove('drag-over');
+                
+                const taskId = e.dataTransfer.getData('text/plain');
+                if (taskId && this.draggedTask) {
+                    const newEpicId = parseInt(epicElement.dataset.epicId);
+                    
+                    // Find the drop position within the epic
+                    const tasksContainer = epicElement.querySelector('.tasks-container');
+                    const taskElements = Array.from(tasksContainer.querySelectorAll('.task-item'));
+                    
+                    // Calculate drop position based on mouse Y coordinate
+                    const dropY = e.clientY;
+                    let insertPosition = 0;
+                    
+                    for (let i = 0; i < taskElements.length; i++) {
+                        const taskRect = taskElements[i].getBoundingClientRect();
+                        const taskCenterY = taskRect.top + taskRect.height / 2;
+                        
+                        if (dropY < taskCenterY) {
+                            insertPosition = i;
+                            break;
+                        }
+                        insertPosition = i + 1;
+                    }
+                    
+                    this.moveTaskToEpic(parseInt(taskId), newEpicId, insertPosition);
+                }
+            });
+
+        // Setup task drag and drop within the epic
+        const taskElements = tasksContainer.querySelectorAll('.task-item');
+        taskElements.forEach(taskElement => {
+            this.setupTaskDragAndDrop(taskElement);
+        });
+    }
+
+
+
+
+    setupTaskDragAndDrop(taskElement) {
+        taskElement.addEventListener('dragstart', (e) => {
+            this.draggedTask = { id: parseInt(taskElement.dataset.taskId) };
+            taskElement.classList.add('dragging');
             e.dataTransfer.effectAllowed = 'move';
             e.dataTransfer.setData('text/plain', taskElement.dataset.taskId);
-            console.log('Drag started for task:', this.draggedData.id);
-            console.log('Dragged data set:', this.draggedData);
-        } else {
-            console.log('No task element found in drag start');
-            console.log('Available elements:', {
-                target: e.target,
-                parent: e.target.parentElement,
-                grandparent: e.target.parentElement?.parentElement
-            });
-        }
-    }
+        });
 
-    createPlaceholder(taskElement) {
-        const placeholder = document.createElement('div');
-        placeholder.className = 'task-placeholder';
-        placeholder.innerHTML = 'Moving task...';
-        placeholder.dataset.taskId = taskElement.dataset.taskId;
-        
-        // Insert placeholder where the task was
-        taskElement.parentNode.insertBefore(placeholder, taskElement);
-        this.placeholder = placeholder;
-    }
-    
-    createDragPreview(taskElement, e) {
-        // Create drag preview element
-        const dragPreview = document.createElement('div');
-        dragPreview.className = 'drag-preview';
-        
-        // Copy task content
-        const taskContent = taskElement.querySelector('.task-content').textContent;
-        const taskMeta = taskElement.querySelector('.task-meta').textContent;
-        
-        dragPreview.innerHTML = `
-            <div class="task-content">${taskContent}</div>
-            <div class="task-meta">${taskMeta}</div>
-        `;
-        
-        document.body.appendChild(dragPreview);
-        this.dragPreview = dragPreview;
-        
-        // Position preview at mouse cursor
-        this.updateDragPreviewPosition(e);
-        
-        // Add mouse move listener
-        this.boundHandleMouseMove = this.handleMouseMove.bind(this);
-        document.addEventListener('mousemove', this.boundHandleMouseMove);
-    }
-    
-    updateDragPreviewPosition(e) {
-        if (this.dragPreview) {
-            this.dragPreview.style.left = (e.clientX + 10) + 'px';
-            this.dragPreview.style.top = (e.clientY - 10) + 'px';
-        }
-    }
-    
-    handleMouseMove(e) {
-        this.updateDragPreviewPosition(e);
-    }
-    
-    handleDragEnd(e) {
-        const taskElement = e.target.closest('.task');
-        if (taskElement) {
+        taskElement.addEventListener('dragend', () => {
             taskElement.classList.remove('dragging');
-            // Restore original task visibility
-            taskElement.style.opacity = '';
-            taskElement.style.pointerEvents = '';
-        }
-        
-        // Remove drag preview
-        if (this.dragPreview) {
-            document.body.removeChild(this.dragPreview);
-            this.dragPreview = null;
-        }
-        
-        // Remove mouse move listener
-        if (this.boundHandleMouseMove) {
-            document.removeEventListener('mousemove', this.boundHandleMouseMove);
-            this.boundHandleMouseMove = null;
-        }
-        
-        this.cleanup();
-    }
-
-    handleDragOver(e) {
-        e.preventDefault();
-        e.dataTransfer.dropEffect = 'move';
-
-        if (!this.draggedData || this.draggedData.type !== 'task') {
-            return;
-        }
-
-        const targetTask = e.target.closest('.task');
-        const epicContainer = e.target.closest('.epic-tasks');
-        const epicColumn = e.target.closest('.epic-column');
-
-        // Handle epic container highlighting - make it more prominent
-        if (epicContainer) {
-            epicContainer.classList.add('drag-over');
+            this.draggedTask = null;
             
-            // If we're over an epic container but not a specific task, show drop zone at the end
-            if (!targetTask) {
-                this.showEpicDropZone(epicContainer, 'end');
-            }
-        }
-
-        // Handle task-to-task reordering with expanded drop zones
-        if (targetTask && !targetTask.classList.contains('dragging')) {
-            this.showDropIndicator(targetTask, e);
-        }
-        
-        // Handle epic column highlighting for cross-epic moves
-        if (epicColumn && epicColumn.dataset.epicId !== this.draggedData.epicId) {
-            epicColumn.classList.add('epic-drag-over');
-        }
-    }
-
-    handleDragLeave(e) {
-        const epicContainer = e.target.closest('.epic-tasks');
-        const epicColumn = e.target.closest('.epic-column');
-        
-        if (epicContainer && !epicContainer.contains(e.relatedTarget)) {
-            epicContainer.classList.remove('drag-over');
-            this.hideEpicDropZone(epicContainer);
-        }
-        
-        if (epicColumn && !epicColumn.contains(e.relatedTarget)) {
-            epicColumn.classList.remove('epic-drag-over');
-        }
-
-        const task = e.target.closest('.task');
-        if (task && !task.contains(e.relatedTarget)) {
-            this.hideDropIndicator(task);
-        }
-    }
-
-    async handleDrop(e) {
-        console.log('DROP EVENT TRIGGERED!', {
-            target: e.target,
-            targetClass: e.target.className,
-            draggedData: this.draggedData
-        });
-        
-        e.preventDefault();
-
-        console.log('Dragged data in drop:', this.draggedData);
-        console.log('Dragged data type:', typeof this.draggedData);
-        console.log('Dragged data type property:', this.draggedData?.type);
-        
-        if (!this.draggedData || this.draggedData.type !== 'task') {
-            console.log('No valid dragged data in drop, returning');
-            console.log('Dragged data is:', this.draggedData);
-            this.cleanup();
-            return;
-        }
-
-        const targetTask = e.target.closest('.task');
-        const epicContainer = e.target.closest('.epic-tasks');
-
-        console.log('Drop targets in handleDrop:', {
-            targetTask: targetTask,
-            epicContainer: epicContainer,
-            targetTaskId: targetTask?.dataset?.taskId,
-            epicContainerId: epicContainer?.dataset?.epicId,
-            epicColumn: epicContainer?.closest('.epic-column'),
-            epicColumnId: epicContainer?.closest('.epic-column')?.dataset?.epicId
-        });
-
-        if (targetTask) {
-            console.log('Handling task reorder');
-            await this.handleTaskReorder(targetTask, e);
-        } else if (epicContainer) {
-            console.log('Handling task move to epic');
-            await this.handleTaskMoveToEpic(epicContainer);
-        } else {
-            console.log('No valid drop target found in handleDrop');
-        }
-        
-        // Clean up after processing
-        this.cleanup();
-    }
-
-    showDropIndicator(targetTask, e) {
-        this.hideAllDropIndicators();
-
-        const rect = targetTask.getBoundingClientRect();
-        const midY = rect.top + rect.height / 2;
-        const isAbove = e.clientY < midY;
-
-        // Add visual indicator to target task
-        targetTask.classList.add(isAbove ? 'drop-above' : 'drop-below');
-
-        // Create drop zone line
-        const dropZone = document.createElement('div');
-        dropZone.className = 'drop-zone active';
-        dropZone.dataset.targetTask = targetTask.dataset.taskId;
-        dropZone.dataset.position = isAbove ? 'above' : 'below';
-
-        if (isAbove) {
-            targetTask.parentNode.insertBefore(dropZone, targetTask);
-        } else {
-            targetTask.parentNode.insertBefore(dropZone, targetTask.nextSibling);
-        }
-
-        this.dropZones.set(targetTask.dataset.taskId, { task: targetTask, zone: dropZone });
-    }
-
-    hideDropIndicator(targetTask) {
-        if (this.dropZones.has(targetTask.dataset.taskId)) {
-            const { task, zone } = this.dropZones.get(targetTask.dataset.taskId);
-            task.classList.remove('drop-above', 'drop-below');
-            zone.remove();
-            this.dropZones.delete(targetTask.dataset.taskId);
-        }
-    }
-
-    hideAllDropIndicators() {
-        this.dropZones.forEach(({ task, zone }) => {
-            task.classList.remove('drop-above', 'drop-below');
-            zone.remove();
-        });
-        this.dropZones.clear();
-    }
-
-    showEpicDropZone(epicContainer, position) {
-        this.hideEpicDropZone(epicContainer);
-        
-        const dropZone = document.createElement('div');
-        dropZone.className = 'epic-drop-zone active';
-        dropZone.dataset.epicId = epicContainer.dataset.epicId;
-        dropZone.dataset.position = position;
-        
-        if (position === 'end') {
-            epicContainer.appendChild(dropZone);
-        } else {
-            epicContainer.insertBefore(dropZone, epicContainer.firstChild);
-        }
-    }
-
-    hideEpicDropZone(epicContainer) {
-        const existingZone = epicContainer.querySelector('.epic-drop-zone');
-        if (existingZone) {
-            existingZone.remove();
-        }
-    }
-
-    async handleTaskReorder(targetTask, e) {
-        const draggedTaskId = this.draggedData.id;
-        const targetTaskId = parseInt(targetTask.dataset.taskId);
-        
-        if (draggedTaskId === targetTaskId) return;
-
-        const draggedTask = tasks.find(t => t.id === draggedTaskId);
-        const targetTaskObj = tasks.find(t => t.id === targetTaskId);
-
-        if (!draggedTask || !targetTaskObj) return;
-
-        // If tasks are in different epics, move to the target epic
-        if (draggedTask.epic_id !== targetTaskObj.epic_id) {
-            console.log('Tasks in different epics, moving to target epic');
-            const epicContainer = targetTask.closest('.epic-tasks');
-            if (epicContainer) {
-                await this.handleTaskMoveToEpic(epicContainer);
-            }
-            return;
-        }
-
-        const rect = targetTask.getBoundingClientRect();
-        const midY = rect.top + rect.height / 2;
-        const isAbove = e.clientY < midY;
-
-        // Remove placeholder first
-        if (this.placeholder) {
-            this.placeholder.remove();
-            this.placeholder = null;
-        }
-
-        this.reorderTasks(draggedTask, targetTaskObj, isAbove);
-    }
-
-    async handleTaskMoveToEpic(epicContainer) {
-        const draggedTaskId = this.draggedData.id;
-        const epicColumn = epicContainer.closest('.epic-column');
-        const newEpicId = parseInt(epicColumn.dataset.epicId);
-        
-        console.log('Moving task to epic:', {
-            draggedTaskId: draggedTaskId,
-            newEpicId: newEpicId,
-            epicColumn: epicColumn
-        });
-        
-        const draggedTask = tasks.find(t => t.id === draggedTaskId);
-        if (!draggedTask) {
-            console.log('Dragged task not found in tasks array');
-            return;
-        }
-        
-        if (draggedTask.epic_id === newEpicId) {
-            console.log('Task is already in this epic, no move needed');
-            return;
-        }
-
-        // Remove placeholder first
-        if (this.placeholder) {
-            this.placeholder.remove();
-            this.placeholder = null;
-        }
-
-        console.log('Moving task from epic', draggedTask.epic_id, 'to epic', newEpicId);
-        this.moveTaskToEpic(draggedTask, newEpicId);
-    }
-
-    reorderTasks(draggedTask, targetTask, isAbove) {
-        const epicTasks = tasks.filter(t => t.epic_id === draggedTask.epic_id && !t.is_completed)
-                              .sort((a, b) => a.position - b.position);
-
-        // Remove dragged task from list
-        const tasksWithoutDragged = epicTasks.filter(t => t.id !== draggedTask.id);
-        
-        // Find insertion point
-        const targetIndex = tasksWithoutDragged.findIndex(t => t.id === targetTask.id);
-        const insertIndex = isAbove ? targetIndex : targetIndex + 1;
-        
-        // Insert dragged task at new position
-        tasksWithoutDragged.splice(insertIndex, 0, draggedTask);
-        
-        // Update positions
-        const updates = [];
-        tasksWithoutDragged.forEach((task, index) => {
-            if (task.position !== index) {
-                updates.push({ id: task.id, position: index });
-            }
-        });
-
-        if (updates.length > 0) {
-            this.updateTaskPositions(updates);
-        }
-    }
-
-    async moveTaskToEpic(draggedTask, newEpicId) {
-        console.log('Calling updateTask to move task to epic:', newEpicId);
-        try {
-            await updateTask(draggedTask.id, {
-                epicId: newEpicId,
-                content: draggedTask.content,
-                position: 0,
-                isCompleted: draggedTask.is_completed
+            // Clean up all drag-over classes
+            document.querySelectorAll('.drag-over, .drag-over-bottom').forEach(el => {
+                el.classList.remove('drag-over', 'drag-over-bottom');
             });
-            console.log('Task moved successfully, reloading data...');
-            
-            // Show success animation before reloading
-            this.showSuccessAnimation();
-            
-            // Reload after a short delay to show the animation
-            setTimeout(() => {
-                loadData();
-            }, 300);
-        } catch (error) {
-            console.error('Error moving task to epic:', error);
-        }
-    }
-
-    async updateTaskPositions(updates) {
-        try {
-            // Update local data first
-            updates.forEach(update => {
-                const task = tasks.find(t => t.id === update.id);
-                if (task) {
-                    task.position = update.position;
-                }
-            });
-
-            // Send updates to server
-            const promises = updates.map(update => 
-                fetch(`/api/tasks/${update.id}/position`, {
-                    method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
-                    credentials: 'include',
-                    body: JSON.stringify({ position: update.position })
-                })
-            );
-
-            await Promise.all(promises);
-            
-            // Re-render and show success animation
-            renderEpics();
-            this.showSuccessAnimation(updates[0].id);
-            
-        } catch (error) {
-            console.error('Error updating task positions:', error);
-            loadData(); // Reload on error
-        }
-    }
-
-    showSuccessAnimation(taskId) {
-        setTimeout(() => {
-            const taskElement = document.querySelector(`[data-task-id="${taskId}"]`);
-            if (taskElement) {
-                taskElement.classList.add('moved');
-                setTimeout(() => {
-                    taskElement.classList.remove('moved');
-                }, 600);
-            }
-        }, 100);
-    }
-
-    cleanup() {
-        // Remove all visual indicators
-        document.querySelectorAll('.epic-tasks').forEach(container => {
-            container.classList.remove('drag-over');
         });
-        this.hideAllDropIndicators();
-        
-        // Remove placeholder
-        if (this.placeholder) {
-            this.placeholder.remove();
-            this.placeholder = null;
-        }
-        
-        // Reset drag state
-        this.draggedElement = null;
-        this.draggedData = null;
-    }
-    
-    destroy() {
-        this.removeEventListeners();
-        this.cleanup();
-    }
-}
 
-// Initialize drag and drop system
-let dragDropManager;
-
-function setupDragAndDrop() {
-    console.log('Setting up drag and drop...');
-    try {
-        // Destroy existing manager if it exists
-        if (dragDropManager) {
-            dragDropManager.destroy();
-        }
-        
-        dragDropManager = new DragDropManager();
-        console.log('DragDropManager initialized successfully');
-        
-        // Test if event listeners are working
-        setTimeout(() => {
-            const testTask = document.querySelector('.task');
-            if (testTask) {
-                console.log('Found test task:', testTask);
-                console.log('Task draggable attribute:', testTask.getAttribute('draggable'));
-                console.log('All tasks in DOM:', document.querySelectorAll('.task').length);
-                
-                // Add a simple test event listener
-                testTask.addEventListener('dragstart', (e) => {
-                    console.log('SIMPLE TEST: Drag start detected!');
-                });
-                
-                // Test basic drag events
-                testTask.addEventListener('drag', (e) => {
-                    console.log('SIMPLE TEST: Drag event detected!');
-                });
-                
-                testTask.addEventListener('dragend', (e) => {
-                    console.log('SIMPLE TEST: Drag end detected!');
-                });
-                
-                // Test drop events on the epic container
-                const epicContainer = testTask.closest('.epic-tasks');
-                if (epicContainer) {
-                    epicContainer.addEventListener('dragover', (e) => {
-                        console.log('SIMPLE TEST: Epic dragover detected!');
-                        e.preventDefault();
-                    });
-                    
-                    epicContainer.addEventListener('drop', (e) => {
-                        console.log('SIMPLE TEST: Epic drop detected!');
-                        e.preventDefault();
-                    });
-                }
-                
-                // Test if the DragDropManager is working
-                console.log('DragDropManager instance:', dragDropManager);
-                console.log('DragDropManager bound methods:', {
-                    dragStart: dragDropManager.boundHandleDragStart,
-                    dragEnd: dragDropManager.boundHandleDragEnd,
-                    dragOver: dragDropManager.boundHandleDragOver
-                });
-                
-                // Test if drag and drop is supported
-                console.log('Drag and drop support test:');
-                console.log('draggable attribute:', testTask.draggable);
-                console.log('draggable property:', testTask.draggable);
-                console.log('hasAttribute draggable:', testTask.hasAttribute('draggable'));
-                
-                // Force set draggable
-                testTask.draggable = true;
-                console.log('After setting draggable=true:', testTask.draggable);
+        taskElement.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+            
+            // Determine if we're dragging over the top or bottom half
+            const rect = taskElement.getBoundingClientRect();
+            const midpoint = rect.top + rect.height / 2;
+            const isOverTopHalf = e.clientY < midpoint;
+            
+            // Remove previous drag-over classes from all tasks
+            document.querySelectorAll('.task-item').forEach(task => {
+                task.classList.remove('drag-over', 'drag-over-bottom');
+            });
+            
+            // Add appropriate class based on position
+            if (isOverTopHalf) {
+                taskElement.classList.add('drag-over');
             } else {
-                console.log('No tasks found for testing');
+                taskElement.classList.add('drag-over-bottom');
             }
-        }, 1000);
-        
-    } catch (error) {
-        console.error('Error initializing DragDropManager:', error);
-    }
-}
-
-
-
-// Utility Functions
-function formatDate(dateString) {
-    const date = new Date(dateString);
-    const now = new Date();
-    const diff = now - date;
-    
-    if (diff < 60000) return 'Just now';
-    if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`;
-    if (diff < 86400000) return `${Math.floor(diff / 3600000)}h ago`;
-    return date.toLocaleDateString();
-}
-
-function darkenColor(color, percent) {
-    const num = parseInt(color.replace("#", ""), 16);
-    const amt = Math.round(2.55 * percent);
-    const R = (num >> 16) - amt;
-    const G = (num >> 8 & 0x00FF) - amt;
-    const B = (num & 0x0000FF) - amt;
-    return "#" + (0x1000000 + (R < 255 ? R < 1 ? 0 : R : 255) * 0x10000 +
-        (G < 255 ? G < 1 ? 0 : G : 255) * 0x100 +
-        (B < 255 ? B < 1 ? 0 : B : 255)).toString(16).slice(1);
-}
-
-async function updateTask(taskId, data) {
-    try {
-        const response = await fetch(`/api/tasks/${taskId}`, {
-            method: 'PUT',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            credentials: 'include',
-            body: JSON.stringify(data)
         });
-        
-        if (response.ok) {
-            loadData(); // Reload to update the UI
-        }
-    } catch (error) {
-        console.error('Error updating task:', error);
-    }
-}
 
-async function updateTaskContent(taskId, newContent) {
-    const task = tasks.find(t => t.id === taskId);
-    if (!task) {
-        console.error('Task not found:', taskId);
-        return;
-    }
-    
-    console.log('Updating task content:', { taskId, newContent });
-    
-    await updateTask(taskId, {
-        content: newContent,
-        epicId: task.epic_id,
-        position: task.position,
-        isCompleted: task.is_completed
-    });
-}
-
-async function updateEpic(epicId, name, pastilleColor, position) {
-    try {
-        const response = await fetch(`/api/epics/${epicId}`, {
-            method: 'PUT',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            credentials: 'include',
-            body: JSON.stringify({
-                name,
-                pastilleColor,
-                position
-            })
+        taskElement.addEventListener('dragleave', (e) => {
+            // Only remove classes if we're actually leaving the element
+            if (!taskElement.contains(e.relatedTarget)) {
+                taskElement.classList.remove('drag-over', 'drag-over-bottom');
+            }
         });
-        
-        if (response.ok) {
-            loadData(); // Reload to update the UI
-        }
-    } catch (error) {
-        console.error('Error updating epic:', error);
-    }
-}
+
+        taskElement.addEventListener('drop', (e) => {
+            e.preventDefault();
+            taskElement.classList.remove('drag-over', 'drag-over-bottom');
+            
+            const taskId = e.dataTransfer.getData('text/plain');
+            if (taskId && this.draggedTask) {
+                const targetTaskId = parseInt(taskElement.dataset.taskId);
+                const draggedTaskId = parseInt(taskId);
+                
+                if (draggedTaskId !== targetTaskId) {
+                    // Determine if we're dropping above or below the target
+                    const rect = taskElement.getBoundingClientRect();
+                    const midpoint = rect.top + rect.height / 2;
+                    const isAbove = e.clientY < midpoint;
                     
+                    this.reorderTasks(draggedTaskId, targetTaskId, isAbove);
+                }
+            }
+        });
+    }
+
+    async moveTaskToEpic(taskId, newEpicId, insertPosition = null) {
+        try {
+            // First, update the epic_id
+            await fetch(`/api/tasks/${taskId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'same-origin',
+                body: JSON.stringify({ epic_id: newEpicId })
+            });
+            
+            // If insertPosition is specified, reorder tasks in the target epic
+            if (insertPosition !== null) {
+                // Get all tasks in the target epic, sorted by position
+                const targetEpicTasks = this.tasks
+                    .filter(t => t.epic_id === newEpicId && !t.is_completed)
+                    .sort((a, b) => a.position - b.position);
+                
+                // Find the moved task
+                const movedTask = this.tasks.find(t => t.id === taskId);
+                if (movedTask) {
+                    // Remove the moved task from its current position
+                    const filteredTasks = targetEpicTasks.filter(t => t.id !== taskId);
+                    
+                    // Insert the moved task at the specified position
+                    filteredTasks.splice(insertPosition, 0, movedTask);
+                    
+                    // Update positions for all tasks in the target epic
+                    const updates = filteredTasks.map((t, index) => ({
+                        id: t.id,
+                        position: index
+                    }));
+                    
+                    // Send batch update to server
+                    const response = await fetch('/api/tasks/reorder', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        credentials: 'same-origin',
+                        body: JSON.stringify({ updates })
+                    });
+                    
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    
+                    // Update local data
+                    updates.forEach(update => {
+                        const localTask = this.tasks.find(t => t.id === update.id);
+                        if (localTask) {
+                            localTask.position = update.position;
+                        }
+                    });
+                }
+            }
+            
+            // Update local task data
+            const localTask = this.tasks.find(t => t.id === taskId);
+            if (localTask) {
+                localTask.epic_id = newEpicId;
+            }
+            
+            this.renderEpics();
+            this.showToast('Task moved successfully', 'success');
+        } catch (error) {
+            console.error('Move task error:', error);
+            this.showToast('Failed to move task', 'error');
+        }
+    }
+
+    async reorderTasks(taskId, targetTaskId) {
+        try {
+            // Validate inputs
+            if (!taskId || !targetTaskId || taskId === targetTaskId) {
+                return; // No need to reorder if same task or invalid IDs
+            }
+
+            // Get current positions and calculate new position
+            const task = this.tasks.find(t => t.id === taskId);
+            const targetTask = this.tasks.find(t => t.id === targetTaskId);
+            
+            if (!task || !targetTask) {
+                console.warn('Task or target task not found');
+                return;
+            }
+
+            if (task.epic_id !== targetTask.epic_id) {
+                console.warn('Tasks are in different epics, cannot reorder');
+                return;
+            }
+
+            // Get all tasks in the same epic, sorted by position
+            const epicTasks = this.tasks
+                .filter(t => t.epic_id === task.epic_id && !t.is_completed)
+                .sort((a, b) => a.position - b.position);
+            
+            const draggedIndex = epicTasks.findIndex(t => t.id === taskId);
+            const targetIndex = epicTasks.findIndex(t => t.id === targetTaskId);
+            
+            if (draggedIndex === -1 || targetIndex === -1) {
+                console.warn('Could not find task indices');
+                return;
+            }
+
+            // Remove the dragged task from its current position
+            epicTasks.splice(draggedIndex, 1);
+            // Insert it at the new position
+            epicTasks.splice(targetIndex, 0, task);
+            
+            // Update positions for all affected tasks
+            const updates = epicTasks.map((t, index) => ({
+                id: t.id,
+                position: index
+            }));
+            
+            // Send batch update to server
+            const response = await fetch('/api/tasks/reorder', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'same-origin',
+                body: JSON.stringify({ updates })
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            
+            // Update local data with new positions
+            updates.forEach(update => {
+                const localTask = this.tasks.find(t => t.id === update.id);
+                if (localTask) {
+                    localTask.position = update.position;
+                }
+            });
+            
+            // Force re-render by clearing and rebuilding the epics
+            this.renderEpics();
+            this.showToast('Task reordered', 'success');
+        } catch (error) {
+            console.error('Reorder task error:', error);
+            this.showToast('Failed to reorder task', 'error');
+        }
+    }
+
+    // Epic Management
+    showEpicModal() {
+        document.getElementById('epicModal').classList.remove('hidden');
+        document.getElementById('epicName').focus();
+    }
+
+    hideEpicModal() {
+        document.getElementById('epicModal').classList.add('hidden');
+        document.getElementById('epicForm').reset();
+    }
+
+    async createEpic() {
+        const name = document.getElementById('epicName').value.trim();
+        const color = document.querySelector('input[name="epicColor"]:checked').value;
+
+        if (!name) {
+            this.showToast('Epic name is required', 'error');
+            return;
+        }
+
+        try {
+            // Set flag to prevent WebSocket rendering
+            this.isCreatingEpic = true;
+            
+            const response = await fetch('/api/epics', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'same-origin',
+                body: JSON.stringify({ name, pastilleColor: color })
+            });
+
+            const epic = await response.json();
+            console.log('Epic created locally:', epic);
+            this.epics.push(epic);
+            console.log('Epics array after local add:', this.epics.length);
+            this.renderEpics();
+            this.hideEpicModal();
+            this.showToast('Epic created successfully', 'success');
+            
+            // Clear flag after a short delay to allow WebSocket event to be ignored
+            setTimeout(() => {
+                this.isCreatingEpic = false;
+            }, 100);
+        } catch (error) {
+            console.error('Create epic error:', error);
+            this.showToast('Failed to create epic', 'error');
+            this.isCreatingEpic = false;
+        }
+    }
+
+    async editEpicName(epicId) {
+        const epic = this.epics.find(e => e.id === epicId);
+        if (!epic) return;
+
+        const nameElement = document.querySelector(`[data-epic-id="${epicId}"] .epic-name`);
+        nameElement.contentEditable = true;
+        nameElement.classList.add('editing');
+        nameElement.focus();
+        
+        // Add character counter
+        const charCounter = document.createElement('div');
+        charCounter.className = 'char-counter';
+        charCounter.style.cssText = 'font-size: 0.8rem; color: #6c757d; text-align: right; margin-top: 0.25rem;';
+        charCounter.textContent = `${nameElement.textContent.length}/150`;
+        nameElement.parentNode.appendChild(charCounter);
+        
+        // Select all text
+        const range = document.createRange();
+        range.selectNodeContents(nameElement);
+        const selection = window.getSelection();
+        selection.removeAllRanges();
+        selection.addRange(range);
+
+        const saveEdit = async () => {
+            const newName = nameElement.textContent.trim();
+            if (newName && newName !== epic.name) {
+                // Check character limit upfront
+                if (newName.length > 150) {
+                    this.showToast('Epic name cannot exceed 150 characters', 'error');
+                    nameElement.textContent = epic.name;
+                    nameElement.contentEditable = false;
+                    nameElement.classList.remove('editing');
+                    return;
+                }
+
+                try {
+                    await fetch(`/api/epics/${epicId}`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        credentials: 'same-origin',
+                        body: JSON.stringify({ name: newName })
+                    });
+                    
+                    epic.name = newName;
+                    this.showToast('Epic updated', 'success');
+                } catch (error) {
+                    console.error('Update epic error:', error);
+                    this.showToast('Failed to update epic', 'error');
+                    nameElement.textContent = epic.name; // Revert on error
+                }
+            } else {
+                nameElement.textContent = epic.name; // Revert if no change
+            }
+            
+            nameElement.contentEditable = false;
+            nameElement.classList.remove('editing');
+            
+            // Remove character counter
+            if (charCounter && charCounter.parentNode) {
+                charCounter.parentNode.removeChild(charCounter);
+            }
+        };
+
+        nameElement.addEventListener('blur', saveEdit, { once: true });
+        nameElement.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                saveEdit();
+            } else if (e.key === 'Escape') {
+                nameElement.textContent = epic.name;
+                nameElement.contentEditable = false;
+                nameElement.classList.remove('editing');
+                
+                // Remove character counter
+                if (charCounter && charCounter.parentNode) {
+                    charCounter.parentNode.removeChild(charCounter);
+                }
+            }
+        });
+        
+        // Prevent typing beyond 150 characters and add real-time feedback
+        nameElement.addEventListener('input', (e) => {
+            const currentLength = e.target.textContent.length;
+            
+            // Prevent typing beyond 150 characters
+            if (currentLength > 150) {
+                e.target.textContent = e.target.textContent.substring(0, 150);
+                // Move cursor to end
+                const range = document.createRange();
+                const selection = window.getSelection();
+                range.selectNodeContents(e.target);
+                range.collapse(false);
+                selection.removeAllRanges();
+                selection.addRange(range);
+            }
+            
+            // Update character counter
+            charCounter.textContent = `${e.target.textContent.length}/150`;
+            
+            // Visual feedback based on character count
+            const length = e.target.textContent.length;
+            if (length > 120) {
+                nameElement.style.borderColor = '#ffc107';
+                nameElement.style.backgroundColor = '#fff3cd';
+                charCounter.style.color = '#ffc107';
+            } else {
+                nameElement.style.borderColor = '#FF6B6B';
+                nameElement.style.backgroundColor = '#fff3cd';
+                charCounter.style.color = '#6c757d';
+            }
+        });
+        
+        // Prevent paste operations that would exceed limit
+        nameElement.addEventListener('paste', (e) => {
+            e.preventDefault();
+            const paste = (e.clipboardData || window.clipboardData).getData('text');
+            const currentText = e.target.textContent;
+            const newText = currentText + paste;
+            
+            if (newText.length <= 150) {
+                e.target.textContent = newText;
+            } else {
+                // Truncate paste to fit within limit
+                const remainingChars = 150 - currentText.length;
+                if (remainingChars > 0) {
+                    e.target.textContent = currentText + paste.substring(0, remainingChars);
+                }
+            }
+        });
+    }
+
+    async deleteEpic(epicId) {
+        const epic = this.epics.find(e => e.id === epicId);
+        if (!epic) return;
+
+        const tasks = this.tasks.filter(t => t.epic_id === epicId);
+        
+        this.showConfirmModal(
+            'Delete Epic',
+            `Are you sure you want to delete "${epic.name}"? This will also delete ${tasks.length} task(s).`,
+            async () => {
+                try {
+                    await fetch(`/api/epics/${epicId}`, { 
+                        method: 'DELETE',
+                        credentials: 'same-origin'
+                    });
+                    this.epics = this.epics.filter(e => e.id !== epicId);
+                    this.tasks = this.tasks.filter(t => t.epic_id !== epicId);
+                    this.renderEpics();
+                    this.showToast('Epic deleted', 'success');
+                } catch (error) {
+                    console.error('Delete epic error:', error);
+                    this.showToast('Failed to delete epic', 'error');
+                }
+            }
+        );
+    }
+
+    // Task Management
+    showAddTaskModal(epicId) {
+        document.getElementById('taskModal').classList.remove('hidden');
+        document.getElementById('taskContent').focus();
+        
+        // Store the epic ID for task creation
+        this.currentEpicId = epicId;
+    }
+
+    hideTaskModal() {
+        document.getElementById('taskModal').classList.add('hidden');
+        document.getElementById('taskForm').reset();
+        document.getElementById('charCount').textContent = '0';
+    }
+
+    async createTask() {
+        const content = document.getElementById('taskContent').value.trim();
+        const epicId = this.currentEpicId;
+
+        if (!content) {
+            this.showToast('Task content is required', 'error');
+            return;
+        }
+
+        if (content.length > 150) {
+            this.showToast('Task content cannot exceed 150 characters', 'error');
+            return;
+        }
+
+        if (!epicId) {
+            this.showToast('No epic selected', 'error');
+            return;
+        }
+
+        try {
+            // Set flag to prevent WebSocket rendering
+            this.isCreatingTask = true;
+            
+            const response = await fetch('/api/tasks', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'same-origin',
+                body: JSON.stringify({ content, epicId })
+            });
+
+            const task = await response.json();
+            console.log('Task created locally:', task);
+            this.tasks.push(task);
+            console.log('Tasks array after local add:', this.tasks.length);
+            this.renderEpics();
+            this.hideTaskModal();
+            this.showToast('Task created successfully', 'success');
+            
+            // Clear flag after a short delay to allow WebSocket event to be ignored
+            setTimeout(() => {
+                this.isCreatingTask = false;
+            }, 100);
+        } catch (error) {
+            console.error('Create task error:', error);
+            this.showToast(error.message || 'Failed to create task', 'error');
+            this.isCreatingTask = false;
+        }
+    }
+
+    async editTask(taskId) {
+        const task = this.tasks.find(t => t.id === taskId);
+        if (!task) return;
+
+        const contentElement = document.querySelector(`[data-task-id="${taskId}"] .task-content`);
+        contentElement.contentEditable = true;
+        contentElement.classList.add('editing');
+        contentElement.focus();
+        
+        // Select all text
+        const range = document.createRange();
+        range.selectNodeContents(contentElement);
+        const selection = window.getSelection();
+        selection.removeAllRanges();
+        selection.addRange(range);
+
+        const saveEdit = async () => {
+            const newContent = contentElement.textContent.trim();
+            if (newContent && newContent !== task.content) {
+                if (newContent.length > 150) {
+                    this.showToast('Task content cannot exceed 150 characters', 'error');
+                    contentElement.textContent = task.content;
+                    contentElement.contentEditable = false;
+                    contentElement.classList.remove('editing');
+                    return;
+                }
+
+                try {
+                    await fetch(`/api/tasks/${taskId}`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        credentials: 'same-origin',
+                        body: JSON.stringify({ content: newContent })
+                    });
+                    
+                    task.content = newContent;
+                    this.showToast('Task updated', 'success');
+                } catch (error) {
+                    console.error('Update task error:', error);
+                    this.showToast('Failed to update task', 'error');
+                    contentElement.textContent = task.content; // Revert on error
+                }
+            } else {
+                contentElement.textContent = task.content; // Revert if no change
+            }
+            
+            contentElement.contentEditable = false;
+            contentElement.classList.remove('editing');
+        };
+
+        contentElement.addEventListener('blur', saveEdit, { once: true });
+        contentElement.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                saveEdit();
+            } else if (e.key === 'Escape') {
+                contentElement.textContent = task.content;
+                contentElement.contentEditable = false;
+                contentElement.classList.remove('editing');
+            }
+        });
+        
+        // Prevent typing beyond 150 characters and add real-time feedback
+        contentElement.addEventListener('input', (e) => {
+            const currentLength = e.target.textContent.length;
+            
+            // Prevent typing beyond 150 characters
+            if (currentLength > 150) {
+                e.target.textContent = e.target.textContent.substring(0, 150);
+                // Move cursor to end
+                const range = document.createRange();
+                const selection = window.getSelection();
+                range.selectNodeContents(e.target);
+                range.collapse(false);
+                selection.removeAllRanges();
+                selection.addRange(range);
+            }
+            
+            // Visual feedback based on character count
+            const length = e.target.textContent.length;
+            if (length > 120) {
+                contentElement.style.borderColor = '#ffc107';
+                contentElement.style.backgroundColor = '#fff3cd';
+            } else {
+                contentElement.style.borderColor = '#FF6B6B';
+                contentElement.style.backgroundColor = 'white';
+            }
+        });
+        
+        // Prevent paste operations that would exceed limit
+        contentElement.addEventListener('paste', (e) => {
+            e.preventDefault();
+            const paste = (e.clipboardData || window.clipboardData).getData('text');
+            const currentText = e.target.textContent;
+            const newText = currentText + paste;
+            
+            if (newText.length <= 150) {
+                e.target.textContent = newText;
+            } else {
+                // Truncate paste to fit within limit
+                const remainingChars = 150 - currentText.length;
+                if (remainingChars > 0) {
+                    e.target.textContent = currentText + paste.substring(0, remainingChars);
+                }
+            }
+        });
+    }
+
+    async completeTask(taskId) {
+        try {
+            const response = await fetch(`/api/tasks/${taskId}/complete`, { 
+                method: 'POST',
+                credentials: 'same-origin'
+            });
+            const task = await response.json();
+            
+            // Remove from active tasks and add to completed
+            this.tasks = this.tasks.filter(t => t.id !== taskId);
+            this.completedTasks.unshift(task);
+            
+            this.renderEpics();
+            this.renderCompletedTasks();
+            this.showToast('Task completed! 🎉', 'success');
+        } catch (error) {
+            console.error('Complete task error:', error);
+            this.showToast('Failed to complete task', 'error');
+        }
+    }
+
+    async reopenTask(taskId) {
+        try {
+            const response = await fetch(`/api/tasks/${taskId}/reopen`, { 
+                method: 'POST',
+                credentials: 'same-origin'
+            });
+            const task = await response.json();
+            
+            // Remove from completed and add back to active
+            this.completedTasks = this.completedTasks.filter(t => t.id !== taskId);
+            this.tasks.push(task);
+            
+            this.renderEpics();
+            this.renderCompletedTasks();
+            this.showToast('Task reopened', 'success');
+        } catch (error) {
+            console.error('Reopen task error:', error);
+            this.showToast('Failed to reopen task', 'error');
+        }
+    }
+
+    async deleteTask(taskId) {
+        const task = this.tasks.find(t => t.id === taskId);
+        if (!task) return;
+
+        this.showConfirmModal(
+            'Delete Task',
+            `Are you sure you want to delete this task?`,
+            async () => {
+                try {
+                    await fetch(`/api/tasks/${taskId}`, { 
+                        method: 'DELETE',
+                        credentials: 'same-origin'
+                    });
+                    this.tasks = this.tasks.filter(t => t.id !== taskId);
+                    this.renderEpics();
+                    this.showToast('Task deleted', 'success');
+                } catch (error) {
+                    console.error('Delete task error:', error);
+                    this.showToast('Failed to delete task', 'error');
+                }
+            }
+        );
+    }
+
+    // Completed Tasks Panel
+    renderCompletedTasks() {
+        const container = document.getElementById('completedTasks');
+        container.innerHTML = this.completedTasks.map(task => `
+            <div class="completed-task" onclick="app.reopenTask(${task.id})">
+                <div class="completed-task-content">${this.escapeHtml(task.content)}</div>
+                <div class="completed-task-meta">
+                    <span>Completed: ${this.formatDate(task.updated_at)}</span>
+                    <span>Click to reopen</span>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    showCompletedPanel() {
+        document.getElementById('completedPanel').classList.add('open');
+    }
+
+    hideCompletedPanel() {
+        document.getElementById('completedPanel').classList.remove('open');
+    }
+
+    // Activity Panel
+    renderActivityLog() {
+        const container = document.getElementById('activityLog');
+        container.innerHTML = this.activityLog.map(activity => `
+            <div class="activity-item">
+                <div class="activity-action">${this.formatActivityAction(activity)}</div>
+                <div class="activity-details">${this.formatActivityDetails(activity)}</div>
+                <div class="activity-time">${this.formatRelativeTime(activity.timestamp)}</div>
+            </div>
+        `).join('');
+    }
+
+    updateActivityTimes() {
+        // Update relative times every minute
+        const timeElements = document.querySelectorAll('.activity-time');
+        timeElements.forEach((element, index) => {
+            if (this.activityLog[index]) {
+                element.textContent = this.formatRelativeTime(this.activityLog[index].timestamp);
+            }
+        });
+    }
+
+    formatActivityAction(activity) {
+        // If we have a detailed message in the details field, use that
+        if (activity.details && activity.details.trim()) {
+            // Clean up escaped quotes and return the clean message
+            return activity.details.replace(/\\"/g, '"').replace(/^"|"$/g, '');
+        }
+        
+        // Fallback to generic actions
+        const actions = {
+            'task_created': 'Task created',
+            'task_updated': 'Task updated',
+            'task_completed': 'Task completed',
+            'task_deleted': 'Task deleted',
+            'epic_created': 'Epic created',
+            'epic_updated': 'Epic updated',
+            'epic_deleted': 'Epic deleted'
+        };
+        return actions[activity.action_type] || activity.action_type;
+    }
+
+    formatActivityDetails(activity) {
+        // If we already have a detailed message in the action, don't add extra details
+        if (activity.details && activity.details.trim()) {
+            return '';
+        }
+        
+        // Try to parse details as JSON, but handle cases where it might be plain text
+        let details = {};
+        try {
+            details = JSON.parse(activity.details || '{}');
+        } catch (e) {
+            // If parsing fails, treat details as empty object
+            details = {};
+        }
+        
+        if (activity.task_content) {
+            return `"${activity.task_content}" in ${activity.epic_name || 'Unknown Epic'}`;
+        } else if (activity.epic_name) {
+            return `Epic: ${activity.epic_name}`;
+        }
+        
+        return '';
+    }
+
+    updateStats(stats) {
+        document.getElementById('weeklyCreated').textContent = stats.created;
+        document.getElementById('weeklyCompleted').textContent = stats.completed;
+    }
+
+    async showActivityPanel() {
+        // Reload activity log from server
+        try {
+            const response = await fetch('/api/activity?limit=50', { credentials: 'same-origin' });
+            this.activityLog = await response.json();
+            this.renderActivityLog();
+        } catch (error) {
+            console.error('Failed to load activity log:', error);
+        }
+        
+        document.getElementById('activityPanel').classList.add('open');
+    }
+
+    hideActivityPanel() {
+        document.getElementById('activityPanel').classList.remove('open');
+    }
+
+    toggleActivityPanel() {
+        const panel = document.getElementById('activityPanel');
+        if (panel.classList.contains('open')) {
+            this.hideActivityPanel();
+        } else {
+            this.showActivityPanel();
+        }
+    }
+
+    // WebSocket Setup
+    setupSocket() {
+        this.socket = io();
+        
+        this.socket.on('connect', () => {
+            console.log('Connected to server');
+            this.socket.emit('join_workspace');
+        });
+
+        this.socket.on('disconnect', () => {
+            console.log('Disconnected from server');
+        });
+
+        // Real-time updates
+        this.socket.on('task_created', (task) => {
+            console.log('WebSocket task_created event:', task);
+            console.log('Current tasks before WebSocket add:', this.tasks.length);
+            console.log('isCreatingTask flag:', this.isCreatingTask);
+            
+            // Skip if we're currently creating a task locally
+            if (this.isCreatingTask) {
+                console.log('Skipping WebSocket task_created - local creation in progress');
+                return;
+            }
+            
+            // Only add if not already in the array (prevent duplicates)
+            if (!this.tasks.find(t => t.id === task.id)) {
+                console.log('Adding task via WebSocket');
+                this.tasks.push(task);
+                this.renderEpics();
+            } else {
+                console.log('Task already exists, skipping WebSocket add');
+            }
+        });
+
+        this.socket.on('task_updated', (task) => {
+            const index = this.tasks.findIndex(t => t.id === task.id);
+            if (index !== -1) {
+                this.tasks[index] = task;
+                this.renderEpics();
+            }
+        });
+
+        this.socket.on('task_completed', (task) => {
+            this.tasks = this.tasks.filter(t => t.id !== task.id);
+            this.completedTasks.unshift(task);
+            this.renderEpics();
+            this.renderCompletedTasks();
+        });
+
+        this.socket.on('task_reopened', (task) => {
+            this.completedTasks = this.completedTasks.filter(t => t.id !== task.id);
+            this.tasks.push(task);
+            this.renderEpics();
+            this.renderCompletedTasks();
+        });
+
+        this.socket.on('task_deleted', (data) => {
+            this.tasks = this.tasks.filter(t => t.id !== data.id);
+            this.completedTasks = this.completedTasks.filter(t => t.id !== data.id);
+            this.renderEpics();
+            this.renderCompletedTasks();
+        });
+
+        this.socket.on('epic_created', (epic) => {
+            console.log('WebSocket epic_created event:', epic);
+            console.log('Current epics before WebSocket add:', this.epics.length);
+            console.log('isCreatingEpic flag:', this.isCreatingEpic);
+            
+            // Skip if we're currently creating an epic locally
+            if (this.isCreatingEpic) {
+                console.log('Skipping WebSocket epic_created - local creation in progress');
+                return;
+            }
+            
+            // Only add if not already in the array (prevent duplicates)
+            if (!this.epics.find(e => e.id === epic.id)) {
+                console.log('Adding epic via WebSocket');
+                this.epics.push(epic);
+                this.renderEpics();
+            } else {
+                console.log('Epic already exists, skipping WebSocket add');
+            }
+        });
+
+        this.socket.on('epic_updated', (epic) => {
+            const index = this.epics.findIndex(e => e.id === epic.id);
+            if (index !== -1) {
+                this.epics[index] = epic;
+                this.renderEpics();
+            }
+        });
+
+        this.socket.on('epic_deleted', (data) => {
+            this.epics = this.epics.filter(e => e.id !== data.id);
+            this.tasks = this.tasks.filter(t => t.epic_id !== data.id);
+            this.renderEpics();
+        });
+
+        this.socket.on('activity_created', (activity) => {
+            // Add new activity to the beginning of the log
+            this.activityLog.unshift(activity);
+            // Keep only the last 50 activities
+            if (this.activityLog.length > 50) {
+                this.activityLog = this.activityLog.slice(0, 50);
+            }
+            // Re-render if activity panel is open
+            const activityPanel = document.getElementById('activityPanel');
+            if (activityPanel && activityPanel.classList.contains('open')) {
+                this.renderActivityLog();
+            }
+        });
+    }
+
+    // Utility Methods
+    showConfirmModal(title, message, onConfirm) {
+        document.getElementById('confirmTitle').textContent = title;
+        document.getElementById('confirmMessage').textContent = message;
+        document.getElementById('confirmModal').classList.remove('hidden');
+        
+        document.getElementById('confirmOk').onclick = () => {
+            this.hideConfirmModal();
+            onConfirm();
+        };
+    }
+
+    hideConfirmModal() {
+        document.getElementById('confirmModal').classList.add('hidden');
+    }
+
+    hideAllModals() {
+        document.querySelectorAll('.modal').forEach(modal => {
+            modal.classList.add('hidden');
+        });
+    }
+
+    showLoading() {
+        document.getElementById('loadingSpinner').classList.remove('hidden');
+    }
+
+    hideLoading() {
+        document.getElementById('loadingSpinner').classList.add('hidden');
+    }
+
+    showToast(message, type = 'info') {
+        const container = document.getElementById('toastContainer');
+        const toast = document.createElement('div');
+        toast.className = `toast ${type}`;
+        toast.textContent = message;
+        
+        container.appendChild(toast);
+        
+        setTimeout(() => {
+            toast.remove();
+        }, 3000);
+    }
+
+    formatDate(dateString) {
+        const date = new Date(dateString);
+        const now = new Date();
+        const diffMs = now - date;
+        const diffSeconds = Math.floor(diffMs / 1000);
+        const diffMinutes = Math.floor(diffSeconds / 60);
+        const diffHours = Math.floor(diffMinutes / 60);
+        const diffDays = Math.floor(diffHours / 24);
+        
+        if (diffSeconds < 60) {
+            return 'Just now';
+        } else if (diffMinutes < 60) {
+            return diffMinutes === 1 ? '1 minute ago' : `${diffMinutes} minutes ago`;
+        } else if (diffHours < 24) {
+            return diffHours === 1 ? '1 hour ago' : `${diffHours} hours ago`;
+        } else if (diffDays === 1) {
+            return 'Yesterday';
+        } else if (diffDays < 7) {
+            return `${diffDays} days ago`;
+        } else if (diffDays < 30) {
+            const weeks = Math.floor(diffDays / 7);
+            return weeks === 1 ? '1 week ago' : `${weeks} weeks ago`;
+        } else if (diffDays < 365) {
+            const months = Math.floor(diffDays / 30);
+            return months === 1 ? '1 month ago' : `${months} months ago`;
+        } else {
+            const years = Math.floor(diffDays / 365);
+            return years === 1 ? '1 year ago' : `${years} years ago`;
+        }
+    }
+
+    formatRelativeTime(dateString) {
+        // Parse the UTC timestamp from server
+        const date = new Date(dateString);
+        const now = new Date();
+        const diffMs = now - date;
+        const diffSeconds = Math.floor(diffMs / 1000);
+        const diffMinutes = Math.floor(diffSeconds / 60);
+        const diffHours = Math.floor(diffMinutes / 60);
+        const diffDays = Math.floor(diffHours / 24);
+        
+        if (diffSeconds < 60) {
+            return 'Just now';
+        } else if (diffMinutes < 60) {
+            return diffMinutes === 1 ? '1 minute ago' : `${diffMinutes} minutes ago`;
+        } else if (diffHours < 24) {
+            return diffHours === 1 ? '1 hour ago' : `${diffHours} hours ago`;
+        } else if (diffDays === 1) {
+            return 'Yesterday';
+        } else if (diffDays < 7) {
+            return `${diffDays} days ago`;
+        } else if (diffDays < 30) {
+            const weeks = Math.floor(diffDays / 7);
+            return weeks === 1 ? '1 week ago' : `${weeks} weeks ago`;
+        } else if (diffDays < 365) {
+            const months = Math.floor(diffDays / 30);
+            return months === 1 ? '1 month ago' : `${months} months ago`;
+        } else {
+            const years = Math.floor(diffDays / 365);
+            return years === 1 ? '1 year ago' : `${years} years ago`;
+        }
+    }
+
+    escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+}
+
+// Initialize the app when DOM is loaded
+document.addEventListener('DOMContentLoaded', () => {
+    window.app = new SandRocketApp();
+});
