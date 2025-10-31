@@ -163,7 +163,7 @@ class Database {
       [name, pastilleColor, position, utcTimestamp]
     );
     
-    await this.logActivity('epic_created', null, result.id, { name, pastilleColor, position });
+    // Don't log here - routes will log with proper formatting
     return result;
   }
 
@@ -208,11 +208,11 @@ class Database {
       [epicId, content, position, utcTimestamp, utcTimestamp]
     );
     
-    await this.logActivity('task_created', result.id, epicId, { content, position });
+    // Don't log here - routes will log with proper formatting
     return result;
   }
 
-  async updateTask(id, updates) {
+  async updateTask(id, updates, shouldLogActivity = true) {
     const setClause = Object.keys(updates).map(key => `${key} = ?`).join(', ');
     const values = Object.values(updates);
     values.push(id);
@@ -220,8 +220,11 @@ class Database {
     
     await this.run(`UPDATE tasks SET ${setClause}, updated_at = ? WHERE id = ?`, [...values.slice(0, -1), utcTimestamp, id]);
     
-    const task = await this.get('SELECT * FROM tasks WHERE id = ?', [id]);
-    await this.logActivity('task_updated', id, task?.epic_id, updates);
+    // Only log activity if explicitly requested (skip for position-only updates)
+    if (shouldLogActivity && !(Object.keys(updates).length === 1 && updates.position !== undefined)) {
+      const task = await this.get('SELECT * FROM tasks WHERE id = ?', [id]);
+      await this.logActivity('task_updated', id, task?.epic_id, updates);
+    }
   }
 
   async deleteTask(id) {

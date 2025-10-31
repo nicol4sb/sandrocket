@@ -631,6 +631,17 @@ p, span, div {
     border-radius: 0 8px 8px 0;
 }
 
+.activity-item-clickable {
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.activity-item-clickable:hover {
+    background: #e9ecef;
+    transform: translateX(3px);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
 .activity-action {
     font-weight: 500;
     color: #2c3e50;
@@ -641,6 +652,14 @@ p, span, div {
     font-size: 0.9rem;
     color: #6c757d;
     margin-bottom: 0.25rem;
+}
+
+.activity-hint {
+    font-size: 0.8rem;
+    color: #FF6B6B;
+    font-style: italic;
+    margin-bottom: 0.25rem;
+    margin-top: 0.25rem;
 }
 
 .activity-time {

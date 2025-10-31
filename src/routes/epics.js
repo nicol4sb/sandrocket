@@ -18,7 +18,7 @@ module.exports = (db, io) => {
       const result = await db.createEpic(name, pastilleColor);
       const epic = await db.get('SELECT * FROM epics WHERE id = ?', [result.id]);
       
-      await db.logActivity('epic_created', null, epic.id, `Epic created: ${epic.name}`);
+      await db.logActivity('epic_created', null, epic.id, `Created epic "${epic.name}"`);
       
       const activity = await db.get('SELECT * FROM activity_log WHERE epic_id = ? ORDER BY timestamp DESC LIMIT 1', [epic.id]);
       if (activity) {
@@ -55,7 +55,7 @@ module.exports = (db, io) => {
       const epic = await db.getEpicById(id);
       await db.deleteEpic(id);
       
-      await db.logActivity('epic_deleted', null, parseInt(id), `Deleted epic: ${epic ? epic.name : 'Unknown'}`);
+      await db.logActivity('epic_deleted', null, parseInt(id), `Deleted epic "${epic ? epic.name : 'Unknown'}"`);
       
       io.emit('epic_deleted', { id: parseInt(id) });
       res.json({ success: true });

@@ -8,6 +8,7 @@ class SandRocketApp {
         this.activityLog = [];
         this.currentUser = 'user';
         this.draggedTask = null;
+        this.reorderingTasks = new Set(); // Track tasks being reordered to prevent duplicates
         
         this.init();
     }
@@ -352,6 +353,7 @@ class SandRocketApp {
 
             epicElement.addEventListener('drop', (e) => {
                 e.preventDefault();
+                e.stopPropagation(); // Prevent event bubbling
                 epicElement.classList.remove('drag-over');
                 
                 const taskId = e.dataTransfer.getData('text/plain');
@@ -379,6 +381,9 @@ class SandRocketApp {
                     
                     this.moveTaskToEpic(parseInt(taskId), newEpicId, insertPosition);
                 }
+                
+                // Clear dragged task to prevent duplicate drops
+                this.draggedTask = null;
             });
 
         // Setup task drag and drop within the epic
@@ -440,6 +445,7 @@ class SandRocketApp {
 
         taskElement.addEventListener('drop', (e) => {
             e.preventDefault();
+            e.stopPropagation(); // Prevent event bubbling
             taskElement.classList.remove('drag-over', 'drag-over-bottom');
             
             const taskId = e.dataTransfer.getData('text/plain');
@@ -456,67 +462,94 @@ class SandRocketApp {
                     this.reorderTasks(draggedTaskId, targetTaskId, isAbove);
                 }
             }
+            
+            // Clear dragged task to prevent duplicate drops
+            this.draggedTask = null;
         });
     }
 
     async moveTaskToEpic(taskId, newEpicId, insertPosition = null) {
         try {
-            // First, update the epic_id
-            await fetch(`/api/tasks/${taskId}`, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                credentials: 'same-origin',
-                body: JSON.stringify({ epic_id: newEpicId })
-            });
-            
-            // If insertPosition is specified, reorder tasks in the target epic
-            if (insertPosition !== null) {
-                // Get all tasks in the target epic, sorted by position
-                const targetEpicTasks = this.tasks
-                    .filter(t => t.epic_id === newEpicId && !t.is_completed)
-                    .sort((a, b) => a.position - b.position);
-                
-                // Find the moved task
-                const movedTask = this.tasks.find(t => t.id === taskId);
-                if (movedTask) {
-                    // Remove the moved task from its current position
-                    const filteredTasks = targetEpicTasks.filter(t => t.id !== taskId);
-                    
-                    // Insert the moved task at the specified position
-                    filteredTasks.splice(insertPosition, 0, movedTask);
-                    
-                    // Update positions for all tasks in the target epic
-                    const updates = filteredTasks.map((t, index) => ({
-                        id: t.id,
-                        position: index
-                    }));
-                    
-                    // Send batch update to server
-                    const response = await fetch('/api/tasks/reorder', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        credentials: 'same-origin',
-                        body: JSON.stringify({ updates })
-                    });
-                    
-                    if (!response.ok) {
-                        throw new Error(`HTTP error! status: ${response.status}`);
-                    }
-                    
-                    // Update local data
-                    updates.forEach(update => {
-                        const localTask = this.tasks.find(t => t.id === update.id);
-                        if (localTask) {
-                            localTask.position = update.position;
-                        }
-                    });
-                }
+            // Prevent duplicate concurrent move calls for the same task
+            if (this.reorderingTasks.has(taskId)) {
+                return; // Already moving/reordering this task
             }
+            this.reorderingTasks.add(taskId);
             
-            // Update local task data
+            // Get original task info before moving
+            const originalTask = this.tasks.find(t => t.id === taskId);
+            const oldEpicId = originalTask ? originalTask.epic_id : null;
+            
+            // Get old position in original epic
+            const oldEpicTasks = this.tasks
+                .filter(t => t.epic_id === oldEpicId && !t.is_completed)
+                .sort((a, b) => a.position - b.position);
+            const oldPosition = oldEpicTasks.findIndex(t => t.id === taskId);
+            
+            // Update local task data immediately for responsive UI
             const localTask = this.tasks.find(t => t.id === taskId);
             if (localTask) {
                 localTask.epic_id = newEpicId;
+            }
+            
+            // If insertPosition is specified, prepare position updates
+            let updates = [];
+            let newPosition = insertPosition;
+            
+            if (insertPosition !== null) {
+                // Get all tasks in the target epic (including the moved task now)
+                const targetEpicTasks = this.tasks
+                    .filter(t => (t.epic_id === newEpicId || t.id === taskId) && !t.is_completed)
+                    .sort((a, b) => {
+                        // Keep original position order, but handle the moved task
+                        if (a.id === taskId) return -1; // Moved task goes first
+                        if (b.id === taskId) return 1;
+                        return a.position - b.position;
+                    });
+                
+                // Remove the moved task from its current position
+                const filteredTasks = targetEpicTasks.filter(t => t.id !== taskId);
+                
+                // Insert the moved task at the specified position
+                filteredTasks.splice(insertPosition, 0, originalTask);
+                
+                // Update positions for all tasks in the target epic
+                updates = filteredTasks.map((t, index) => ({
+                    id: t.id,
+                    position: index
+                }));
+            } else if (oldEpicId !== newEpicId) {
+                // Just epic change, no position - still need to call reorder to update epic_id
+                updates = [{ id: taskId, position: originalTask.position }];
+            }
+            
+            // Single API call: update epic_id and positions together
+            if (oldEpicId !== newEpicId || insertPosition !== null) {
+                const response = await fetch('/api/tasks/reorder', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'same-origin',
+                    body: JSON.stringify({ 
+                        updates,
+                        movedTaskId: taskId,
+                        oldEpicId: oldEpicId,
+                        newEpicId: newEpicId,
+                        oldPosition: oldPosition,
+                        newPosition: newPosition !== null ? newPosition : undefined
+                    })
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                // Update local data with positions
+                updates.forEach(update => {
+                    const localTask = this.tasks.find(t => t.id === update.id);
+                    if (localTask) {
+                        localTask.position = update.position;
+                    }
+                });
             }
             
             this.renderEpics();
@@ -524,26 +557,37 @@ class SandRocketApp {
         } catch (error) {
             console.error('Move task error:', error);
             this.showToast('Failed to move task', 'error');
+        } finally {
+            // Always remove from reordering set
+            this.reorderingTasks.delete(taskId);
         }
     }
 
-    async reorderTasks(taskId, targetTaskId) {
+    async reorderTasks(taskId, targetTaskId, isAbove = false) {
         try {
             // Validate inputs
             if (!taskId || !targetTaskId || taskId === targetTaskId) {
                 return; // No need to reorder if same task or invalid IDs
             }
+            
+            // Prevent duplicate concurrent reorder calls for the same task
+            if (this.reorderingTasks.has(taskId)) {
+                return; // Already reordering this task
+            }
+            this.reorderingTasks.add(taskId);
 
             // Get current positions and calculate new position
             const task = this.tasks.find(t => t.id === taskId);
             const targetTask = this.tasks.find(t => t.id === targetTaskId);
             
             if (!task || !targetTask) {
+                this.reorderingTasks.delete(taskId);
                 return;
             }
 
             if (task.epic_id !== targetTask.epic_id) {
-                return;
+                this.reorderingTasks.delete(taskId);
+                return; // Different epics, should use moveTaskToEpic instead
             }
 
             // Get all tasks in the same epic, sorted by position
@@ -553,15 +597,18 @@ class SandRocketApp {
             
             const draggedIndex = epicTasks.findIndex(t => t.id === taskId);
             const targetIndex = epicTasks.findIndex(t => t.id === targetTaskId);
+            const oldPosition = draggedIndex + 1; // 1-based for display
             
             if (draggedIndex === -1 || targetIndex === -1) {
+                this.reorderingTasks.delete(taskId);
                 return;
             }
 
             // Remove the dragged task from its current position
             epicTasks.splice(draggedIndex, 1);
-            // Insert it at the new position
-            epicTasks.splice(targetIndex, 0, task);
+            // Insert it at the new position (adjust based on isAbove flag)
+            const newTargetIndex = isAbove ? targetIndex : targetIndex + 1;
+            epicTasks.splice(newTargetIndex, 0, task);
             
             // Update positions for all affected tasks
             const updates = epicTasks.map((t, index) => ({
@@ -569,12 +616,25 @@ class SandRocketApp {
                 position: index
             }));
             
-            // Send batch update to server
+            const newPosition = epicTasks.findIndex(t => t.id === taskId) + 1; // 1-based for display
+            
+            // Get epic name for logging
+            const epic = this.epics.find(e => e.id === task.epic_id);
+            const epicName = epic ? epic.name : 'Unknown';
+            
+            // Send batch update to server with position change info
             const response = await fetch('/api/tasks/reorder', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 credentials: 'same-origin',
-                body: JSON.stringify({ updates })
+                body: JSON.stringify({ 
+                    updates,
+                    movedTaskId: taskId,
+                    oldEpicId: task.epic_id,
+                    newEpicId: task.epic_id,
+                    oldPosition: oldPosition - 1, // Convert back to 0-based for server
+                    newPosition: newPosition - 1 // Convert back to 0-based for server
+                })
             });
 
             if (!response.ok) {
@@ -595,6 +655,9 @@ class SandRocketApp {
         } catch (error) {
             console.error('Reorder task error:', error);
             this.showToast('Failed to reorder task', 'error');
+        } finally {
+            // Always remove from reordering set
+            this.reorderingTasks.delete(taskId);
         }
     }
 
@@ -1193,13 +1256,37 @@ class SandRocketApp {
     // Activity Panel
     renderActivityLog() {
         const container = document.getElementById('activityLog');
-        container.innerHTML = this.activityLog.map(activity => `
-            <div class="activity-item">
-                <div class="activity-action">${this.formatActivityAction(activity)}</div>
-                <div class="activity-details">${this.formatActivityDetails(activity)}</div>
+        if (!this.activityLog || this.activityLog.length === 0) {
+            container.innerHTML = '<div class="activity-item" style="text-align: center; color: #6c757d; font-style: italic;">No activity yet. Start by creating an epic or task!</div>';
+            return;
+        }
+        
+        container.innerHTML = this.activityLog.map(activity => {
+            // Check if this is a completed task entry that can be reopened
+            const actionText = this.formatActivityAction(activity);
+            const isCompletedTask = activity.task_id && 
+                (activity.action_type === 'task_completed' || 
+                 (activity.action_type === 'task_updated' && actionText.toLowerCase().includes('completed')));
+            
+            const clickableClass = isCompletedTask ? 'activity-item-clickable' : '';
+            const onClick = isCompletedTask ? `onclick="app.reopenTask(${activity.task_id})"` : '';
+            const clickHint = isCompletedTask ? '<div class="activity-hint">Click to reopen</div>' : '';
+            const details = this.formatActivityDetails(activity);
+            
+            // Skip empty action text (e.g., generic "Updated task")
+            if (!actionText || !actionText.trim()) {
+                return '';
+            }
+            
+            return `
+            <div class="activity-item ${clickableClass}" ${onClick}>
+                <div class="activity-action">${actionText}</div>
+                ${details ? `<div class="activity-details">${details}</div>` : ''}
+                ${clickHint}
                 <div class="activity-time">${this.formatRelativeTime(activity.timestamp)}</div>
             </div>
-        `).join('');
+        `;
+        }).join('');
     }
 
     updateActivityTimes() {
@@ -1213,10 +1300,57 @@ class SandRocketApp {
     }
 
     formatActivityAction(activity) {
-        // If we have a detailed message in the details field, use that
+        // If we have a detailed message in the details field, use that as the main message
         if (activity.details && activity.details.trim()) {
             // Clean up escaped quotes and return the clean message
-            return activity.details.replace(/\\"/g, '"').replace(/^"|"$/g, '');
+            let message = activity.details.replace(/\\"/g, '"').replace(/^"|"$/g, '');
+            
+            // Skip JSON-only details (old format from database methods)
+            if (message.startsWith('{') && message.endsWith('}')) {
+                // This is JSON from old logging format, ignore it and build from activity data instead
+                message = null;
+            } else if (message && (message.includes('Moved') || message.includes('Edited') || message.includes('Completed') || message.includes('Reopened') || message.includes('Deleted') || message.includes('Created'))) {
+                // This is a proper human-readable message with an action verb
+                return message;
+            }
+        }
+        
+        // Build natural language messages from activity data
+        if (activity.task_content) {
+            const taskContent = this.escapeHtml(activity.task_content);
+            const epicName = activity.epic_name ? ` in <strong>${this.escapeHtml(activity.epic_name)}</strong>` : '';
+            
+            switch (activity.action_type) {
+                case 'task_created':
+                    return `Created task "${taskContent}"${epicName}`;
+                case 'task_completed':
+                    return `Completed task "${taskContent}"${epicName}`;
+                case 'task_deleted':
+                    return `Deleted task "${taskContent}"${epicName}`;
+                case 'task_updated':
+                    // For task_updated, use the details field if it has a proper message
+                    // Otherwise show generic message
+                    if (activity.details && activity.details.trim() && !activity.details.trim().startsWith('{')) {
+                        return '';
+                    }
+                    return `Updated task "${taskContent}"${epicName}`;
+                default:
+                    return `Task "${taskContent}"${epicName}`;
+            }
+        }
+        
+        if (activity.epic_name) {
+            const epicName = this.escapeHtml(activity.epic_name);
+            switch (activity.action_type) {
+                case 'epic_created':
+                    return `Created epic <strong>${epicName}</strong>`;
+                case 'epic_updated':
+                    return `Updated epic <strong>${epicName}</strong>`;
+                case 'epic_deleted':
+                    return `Deleted epic <strong>${epicName}</strong>`;
+                default:
+                    return `Epic <strong>${epicName}</strong>`;
+            }
         }
         
         // Fallback to generic actions
@@ -1233,24 +1367,18 @@ class SandRocketApp {
     }
 
     formatActivityDetails(activity) {
-        // If we already have a detailed message in the action, don't add extra details
+        // If details already contain a full message, don't duplicate info
         if (activity.details && activity.details.trim()) {
-            return '';
+            const detailsText = activity.details.replace(/\\"/g, '"').replace(/^"|"$/g, '');
+            // If details already contain task/epic info, don't add more
+            if (detailsText.includes('"') || detailsText.includes('Epic:') || detailsText.includes('epic')) {
+                return '';
+            }
         }
         
-        // Try to parse details as JSON, but handle cases where it might be plain text
-        let details = {};
-        try {
-            details = JSON.parse(activity.details || '{}');
-        } catch (e) {
-            // If parsing fails, treat details as empty object
-            details = {};
-        }
-        
-        if (activity.task_content) {
-            return `"${activity.task_content}" in ${activity.epic_name || 'Unknown Epic'}`;
-        } else if (activity.epic_name) {
-            return `Epic: ${activity.epic_name}`;
+        // Add contextual details for tasks
+        if (activity.task_content && activity.epic_name) {
+            return `In epic <strong>${this.escapeHtml(activity.epic_name)}</strong>`;
         }
         
         return '';
@@ -1404,16 +1532,27 @@ class SandRocketApp {
         });
 
         this.socket.on('activity_created', (activity) => {
-            // Add new activity to the beginning of the log
-            this.activityLog.unshift(activity);
-            // Keep only the last 50 activities
-            if (this.activityLog.length > 50) {
-                this.activityLog = this.activityLog.slice(0, 50);
-            }
-            // Re-render if activity panel is open
-            const activityPanel = document.getElementById('activityPanel');
-            if (activityPanel && activityPanel.classList.contains('open')) {
-                this.renderActivityLog();
+            // Check if this activity already exists (prevent duplicates)
+            const exists = this.activityLog.some(a => 
+                a.id === activity.id || 
+                (a.task_id === activity.task_id && 
+                 a.action_type === activity.action_type && 
+                 a.details === activity.details &&
+                 Math.abs(new Date(a.timestamp) - new Date(activity.timestamp)) < 1000) // Within 1 second
+            );
+            
+            if (!exists) {
+                // Add new activity to the beginning of the log
+                this.activityLog.unshift(activity);
+                // Keep only the last 50 activities
+                if (this.activityLog.length > 50) {
+                    this.activityLog = this.activityLog.slice(0, 50);
+                }
+                // Re-render if activity panel is open
+                const activityPanel = document.getElementById('activityPanel');
+                if (activityPanel && activityPanel.classList.contains('open')) {
+                    this.renderActivityLog();
+                }
             }
         });
     }
