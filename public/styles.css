@@ -309,9 +309,8 @@ p, span, div {
 
 /* Main Content */
 .main-content {
-    padding: 2rem;
-    max-width: 1400px;
-    margin: 0 auto;
+    padding: 2rem 0;
+    width: 100%;
 }
 
 /* Epics Container */
@@ -319,8 +318,10 @@ p, span, div {
     display: flex;
     gap: 2rem;
     overflow-x: auto;
-    padding-bottom: 1rem;
+    padding: 0 1rem 1rem 1rem;
     align-items: flex-start;
+    justify-content: center;
+    scroll-behavior: smooth;
 }
 
 .epic-column {
@@ -818,16 +819,18 @@ p, span, div {
     }
     
     .main-content {
-        padding: 1rem;
+        padding: 1rem 0;
     }
     
     .epics-container {
         flex-direction: column;
         gap: 1rem;
+        padding: 0 0.5rem 1rem 0.5rem;
     }
     
     .epic-column {
         min-width: auto;
+        width: 100%;
     }
     
     .completed-panel {

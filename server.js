@@ -41,7 +41,9 @@ app.use(session({
   saveUninitialized: false,
   cookie: { 
     secure: false, // Set to true in production with HTTPS
-    maxAge: 24 * 60 * 60 * 1000 // 24 hours
+    maxAge: 8 * 60 * 60 * 1000, // 8 hours
+    httpOnly: true, // Prevents JavaScript access (XSS protection)
+    sameSite: 'strict' // CSRF protection
   }
 }));
 
@@ -60,8 +62,19 @@ db.init().catch(console.error);
 // Authentication routes
 app.post('/api/auth/login', async (req, res) => {
   try {
-    const { password } = req.body;
-    const isValid = await db.verifyPassword(password);
+    const { passwordHash } = req.body;
+    
+    if (!passwordHash) {
+      return res.status(400).json({ error: 'Password hash required' });
+    }
+    
+    // Debug logging (remove in production)
+    console.log('Received password hash length:', passwordHash?.length);
+    console.log('Received password hash prefix:', passwordHash?.substring(0, 10));
+    
+    const isValid = await db.verifyPasswordHash(passwordHash);
+    
+    console.log('Password verification result:', isValid);
     
     if (isValid) {
       req.session.authenticated = true;

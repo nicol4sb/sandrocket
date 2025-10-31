@@ -15,7 +15,6 @@ class SandRocketApp {
     async init() {
         this.setupEventListeners();
         await this.checkAuthStatus();
-        this.setupKeyboardShortcuts();
         
         // Update activity times every minute
         setInterval(() => {
@@ -110,8 +109,30 @@ class SandRocketApp {
         // Keyboard shortcuts
         document.addEventListener('keydown', (e) => {
             if (e.key === 'Escape') {
+                // Close modals
                 this.hideAllModals();
+                
+                // Close activity panel if open
+                const activityPanel = document.getElementById('activityPanel');
+                if (activityPanel && activityPanel.classList.contains('open')) {
+                    this.hideActivityPanel();
+                }
+                
+                // Close completed panel if open
+                const completedPanel = document.getElementById('completedPanel');
+                if (completedPanel && completedPanel.classList.contains('open')) {
+                    this.hideCompletedPanel();
+                }
             }
+        });
+
+        // Window resize - adjust epics alignment
+        let resizeTimeout;
+        window.addEventListener('resize', () => {
+            clearTimeout(resizeTimeout);
+            resizeTimeout = setTimeout(() => {
+                this.adjustEpicsAlignment();
+            }, 100);
         });
     }
 
@@ -134,18 +155,36 @@ class SandRocketApp {
         }
     }
 
+    async hashPassword(password) {
+        // Hash password using Web Crypto API (SHA-256) before sending
+        const encoder = new TextEncoder();
+        const data = encoder.encode(password);
+        const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+        const hashArray = Array.from(new Uint8Array(hashBuffer));
+        const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+        return hashHex;
+    }
+
     async login() {
         const password = document.getElementById('password').value;
         
         try {
             this.showLoading();
+            
+            // Hash password before sending
+            const passwordHash = await this.hashPassword(password);
+            
+            // Debug logging
+            console.log('Password hash length:', passwordHash.length);
+            console.log('Password hash prefix:', passwordHash.substring(0, 10));
+            
             const response = await fetch('/api/auth/login', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
                 credentials: 'same-origin',
-                body: JSON.stringify({ password }),
+                body: JSON.stringify({ passwordHash }),
             });
 
             const data = await response.json();
@@ -230,6 +269,28 @@ class SandRocketApp {
             const epicElement = this.createEpicElement(epic);
             container.appendChild(epicElement);
         });
+        
+        // Check if content overflows and adjust alignment
+        this.adjustEpicsAlignment();
+    }
+
+    adjustEpicsAlignment() {
+        const container = document.getElementById('epicsContainer');
+        if (!container) return;
+        
+        // Wait for next frame to ensure layout is complete
+        requestAnimationFrame(() => {
+            const containerWidth = container.clientWidth;
+            const scrollWidth = container.scrollWidth;
+            
+            // If content overflows, use flex-start (left-align)
+            // Otherwise, use center
+            if (scrollWidth > containerWidth) {
+                container.style.justifyContent = 'flex-start';
+            } else {
+                container.style.justifyContent = 'center';
+            }
+        });
     }
 
     createEpicElement(epic) {
@@ -244,7 +305,7 @@ class SandRocketApp {
         epicDiv.innerHTML = `
             <div class="epic-header">
                 <div class="epic-pastille" style="background-color: ${epic.pastille_color}"></div>
-                <div class="epic-name clickable-text" contenteditable="false" onclick="app.editEpicName(${epic.id})" title="Click to edit">${epic.name}</div>
+                <div class="epic-name clickable-text" contenteditable="false" onclick="app.editEpicName(${epic.id}, event)" title="Click to edit">${epic.name}</div>
                 <div class="epic-actions">
                     <button onclick="app.showAddTaskModal(${epic.id})" title="Add task">+</button>
                     <button onclick="app.deleteEpic(${epic.id})" title="Delete epic">🗑️</button>
@@ -267,7 +328,7 @@ class SandRocketApp {
         
         return `
             <div class="task-item" data-task-id="${task.id}" draggable="true">
-                <div class="task-content clickable-text" contenteditable="false" onclick="app.editTask(${task.id})" title="Click to edit">${this.escapeHtml(task.content)}</div>
+                <div class="task-content clickable-text" contenteditable="false" onclick="app.editTask(${task.id}, event)" title="Click to edit">${this.escapeHtml(task.content)}</div>
                 <div class="task-meta">
                     <span class="task-date" title="Created: ${createdDate}">${this.formatDate(task.created_at)}</span>
                     <div class="task-actions">
@@ -596,7 +657,7 @@ class SandRocketApp {
         }
     }
 
-    async editEpicName(epicId) {
+    async editEpicName(epicId, clickEvent) {
         const epic = this.epics.find(e => e.id === epicId);
         if (!epic) return;
 
@@ -612,12 +673,52 @@ class SandRocketApp {
         charCounter.textContent = `${nameElement.textContent.length}/150`;
         nameElement.parentNode.appendChild(charCounter);
         
-        // Select all text
-        const range = document.createRange();
-        range.selectNodeContents(nameElement);
-        const selection = window.getSelection();
-        selection.removeAllRanges();
-        selection.addRange(range);
+        // Set cursor position at click location
+        if (clickEvent) {
+            setTimeout(() => {
+                const x = clickEvent.clientX;
+                const y = clickEvent.clientY;
+                
+                // Try modern API first (Chrome/Edge)
+                if (document.caretRangeFromPoint) {
+                    const range = document.caretRangeFromPoint(x, y);
+                    if (range) {
+                        const selection = window.getSelection();
+                        selection.removeAllRanges();
+                        selection.addRange(range);
+                        return;
+                    }
+                }
+                
+                // Fallback for Firefox
+                if (document.caretPositionFromPoint) {
+                    const caretPos = document.caretPositionFromPoint(x, y);
+                    if (caretPos) {
+                        const range = document.createRange();
+                        range.setStart(caretPos.offsetNode, caretPos.offset);
+                        range.collapse(true);
+                        const selection = window.getSelection();
+                        selection.removeAllRanges();
+                        selection.addRange(range);
+                        return;
+                    }
+                }
+                
+                // Fallback: select all if we can't determine position
+                const range = document.createRange();
+                range.selectNodeContents(nameElement);
+                const selection = window.getSelection();
+                selection.removeAllRanges();
+                selection.addRange(range);
+            }, 0);
+        } else {
+            // No click event: select all text
+            const range = document.createRange();
+            range.selectNodeContents(nameElement);
+            const selection = window.getSelection();
+            selection.removeAllRanges();
+            selection.addRange(range);
+        }
 
         const saveEdit = async () => {
             const newName = nameElement.textContent.trim();
@@ -818,7 +919,7 @@ class SandRocketApp {
         }
     }
 
-    async editTask(taskId) {
+    async editTask(taskId, clickEvent) {
         const task = this.tasks.find(t => t.id === taskId);
         if (!task) return;
 
@@ -827,12 +928,52 @@ class SandRocketApp {
         contentElement.classList.add('editing');
         contentElement.focus();
         
-        // Select all text
-        const range = document.createRange();
-        range.selectNodeContents(contentElement);
-        const selection = window.getSelection();
-        selection.removeAllRanges();
-        selection.addRange(range);
+        // Set cursor position at click location
+        if (clickEvent) {
+            setTimeout(() => {
+                const x = clickEvent.clientX;
+                const y = clickEvent.clientY;
+                
+                // Try modern API first (Chrome/Edge)
+                if (document.caretRangeFromPoint) {
+                    const range = document.caretRangeFromPoint(x, y);
+                    if (range) {
+                        const selection = window.getSelection();
+                        selection.removeAllRanges();
+                        selection.addRange(range);
+                        return;
+                    }
+                }
+                
+                // Fallback for Firefox
+                if (document.caretPositionFromPoint) {
+                    const caretPos = document.caretPositionFromPoint(x, y);
+                    if (caretPos) {
+                        const range = document.createRange();
+                        range.setStart(caretPos.offsetNode, caretPos.offset);
+                        range.collapse(true);
+                        const selection = window.getSelection();
+                        selection.removeAllRanges();
+                        selection.addRange(range);
+                        return;
+                    }
+                }
+                
+                // Fallback: select all if we can't determine position
+                const range = document.createRange();
+                range.selectNodeContents(contentElement);
+                const selection = window.getSelection();
+                selection.removeAllRanges();
+                selection.addRange(range);
+            }, 0);
+        } else {
+            // No click event: select all text
+            const range = document.createRange();
+            range.selectNodeContents(contentElement);
+            const selection = window.getSelection();
+            selection.removeAllRanges();
+            selection.addRange(range);
+        }
 
         const saveEdit = async () => {
             const newContent = contentElement.textContent.trim();
@@ -940,6 +1081,30 @@ class SandRocketApp {
             
             this.renderEpics();
             this.renderCompletedTasks();
+            
+            // Update stats immediately
+            try {
+                const statsResponse = await fetch('/api/stats/weekly', { credentials: 'same-origin' });
+                const stats = await statsResponse.json();
+                this.updateStats(stats);
+            } catch (error) {
+                console.error('Failed to update stats:', error);
+            }
+            
+            // Update activity log immediately
+            try {
+                const activityResponse = await fetch('/api/activity?limit=50', { credentials: 'same-origin' });
+                this.activityLog = await activityResponse.json();
+                
+                // Re-render activity log if panel is open
+                const activityPanel = document.getElementById('activityPanel');
+                if (activityPanel && activityPanel.classList.contains('open')) {
+                    this.renderActivityLog();
+                }
+            } catch (error) {
+                console.error('Failed to update activity log:', error);
+            }
+            
             this.showToast('Task completed! 🎉', 'success');
         } catch (error) {
             console.error('Complete task error:', error);
@@ -961,6 +1126,30 @@ class SandRocketApp {
             
             this.renderEpics();
             this.renderCompletedTasks();
+            
+            // Update stats immediately
+            try {
+                const statsResponse = await fetch('/api/stats/weekly', { credentials: 'same-origin' });
+                const stats = await statsResponse.json();
+                this.updateStats(stats);
+            } catch (error) {
+                console.error('Failed to update stats:', error);
+            }
+            
+            // Update activity log immediately
+            try {
+                const activityResponse = await fetch('/api/activity?limit=50', { credentials: 'same-origin' });
+                this.activityLog = await activityResponse.json();
+                
+                // Re-render activity log if panel is open
+                const activityPanel = document.getElementById('activityPanel');
+                if (activityPanel && activityPanel.classList.contains('open')) {
+                    this.renderActivityLog();
+                }
+            } catch (error) {
+                console.error('Failed to update activity log:', error);
+            }
+            
             this.showToast('Task reopened', 'success');
         } catch (error) {
             console.error('Reopen task error:', error);
@@ -1159,6 +1348,25 @@ class SandRocketApp {
             this.completedTasks.unshift(task);
             this.renderEpics();
             this.renderCompletedTasks();
+            
+            // Update stats immediately
+            fetch('/api/stats/weekly', { credentials: 'same-origin' })
+                .then(response => response.json())
+                .then(stats => this.updateStats(stats))
+                .catch(error => console.error('Failed to update stats:', error));
+            
+            // Update activity log immediately
+            fetch('/api/activity?limit=50', { credentials: 'same-origin' })
+                .then(response => response.json())
+                .then(activities => {
+                    this.activityLog = activities;
+                    // Re-render activity log if panel is open
+                    const activityPanel = document.getElementById('activityPanel');
+                    if (activityPanel && activityPanel.classList.contains('open')) {
+                        this.renderActivityLog();
+                    }
+                })
+                .catch(error => console.error('Failed to update activity log:', error));
         });
 
         this.socket.on('task_reopened', (task) => {
@@ -1166,6 +1374,25 @@ class SandRocketApp {
             this.tasks.push(task);
             this.renderEpics();
             this.renderCompletedTasks();
+            
+            // Update stats immediately
+            fetch('/api/stats/weekly', { credentials: 'same-origin' })
+                .then(response => response.json())
+                .then(stats => this.updateStats(stats))
+                .catch(error => console.error('Failed to update stats:', error));
+            
+            // Update activity log immediately
+            fetch('/api/activity?limit=50', { credentials: 'same-origin' })
+                .then(response => response.json())
+                .then(activities => {
+                    this.activityLog = activities;
+                    // Re-render activity log if panel is open
+                    const activityPanel = document.getElementById('activityPanel');
+                    if (activityPanel && activityPanel.classList.contains('open')) {
+                        this.renderActivityLog();
+                    }
+                })
+                .catch(error => console.error('Failed to update activity log:', error));
         });
 
         this.socket.on('task_deleted', (data) => {

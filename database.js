@@ -1,5 +1,6 @@
 const sqlite3 = require('sqlite3').verbose();
 const bcrypt = require('bcryptjs');
+const crypto = require('crypto');
 const path = require('path');
 
 class Database {
@@ -95,10 +96,11 @@ class Database {
       }
     }
 
-    // Set default password if not exists
+    // Set default password if not exists (using new format: bcrypt(SHA-256(password)))
     const passwordConfig = await this.get('SELECT value FROM app_config WHERE key = ?', ['password']);
     if (!passwordConfig) {
-      const hashedPassword = await bcrypt.hash('rocket123', 10);
+      const sha256Hash = crypto.createHash('sha256').update('rocket123').digest('hex');
+      const hashedPassword = await bcrypt.hash(sha256Hash, 10);
       await this.run('INSERT INTO app_config (key, value) VALUES (?, ?)', ['password', hashedPassword]);
     }
   }
@@ -290,13 +292,38 @@ class Database {
   }
 
   async setPassword(newPassword) {
-    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    // Hash password with SHA-256 first, then bcrypt the hash
+    const sha256Hash = crypto.createHash('sha256').update(newPassword).digest('hex');
+    const hashedPassword = await bcrypt.hash(sha256Hash, 10);
     await this.run('INSERT OR REPLACE INTO app_config (key, value) VALUES (?, ?)', ['password', hashedPassword]);
   }
 
   async verifyPassword(password) {
     const hashedPassword = await this.getPassword();
-    return await bcrypt.compare(password, hashedPassword);
+    if (!hashedPassword) return false;
+    
+    // First, try to verify as plain password (for backward compatibility with old passwords)
+    const isPlainPasswordValid = await bcrypt.compare(password, hashedPassword);
+    if (isPlainPasswordValid) {
+      // Migrate old password to new format (hash with SHA-256, then bcrypt)
+      const sha256Hash = crypto.createHash('sha256').update(password).digest('hex');
+      const newHash = await bcrypt.hash(sha256Hash, 10);
+      await this.run('INSERT OR REPLACE INTO app_config (key, value) VALUES (?, ?)', ['password', newHash]);
+      return true;
+    }
+    
+    // Try to verify as SHA-256 hash (new format)
+    const sha256Hash = crypto.createHash('sha256').update(password).digest('hex');
+    return await bcrypt.compare(sha256Hash, hashedPassword);
+  }
+
+  async verifyPasswordHash(passwordHash) {
+    // Verify SHA-256 hash against bcrypt(SHA-256(password))
+    const hashedPassword = await this.getPassword();
+    if (!hashedPassword) return false;
+    
+    // Compare the received SHA-256 hash with the stored bcrypt hash
+    return await bcrypt.compare(passwordHash, hashedPassword);
   }
 
   close() {
