@@ -174,10 +174,6 @@ class SandRocketApp {
             // Hash password before sending
             const passwordHash = await this.hashPassword(password);
             
-            // Debug logging
-            console.log('Password hash length:', passwordHash.length);
-            console.log('Password hash prefix:', passwordHash.substring(0, 10));
-            
             const response = await fetch('/api/auth/login', {
                 method: 'POST',
                 headers: {
@@ -260,12 +256,10 @@ class SandRocketApp {
     }
 
     renderEpics() {
-        console.log('renderEpics called, epics count:', this.epics.length);
         const container = document.getElementById('epicsContainer');
         container.innerHTML = '';
 
         this.epics.forEach(epic => {
-            console.log('Rendering epic:', epic.id, epic.name);
             const epicElement = this.createEpicElement(epic);
             container.appendChild(epicElement);
         });
@@ -545,12 +539,10 @@ class SandRocketApp {
             const targetTask = this.tasks.find(t => t.id === targetTaskId);
             
             if (!task || !targetTask) {
-                console.warn('Task or target task not found');
                 return;
             }
 
             if (task.epic_id !== targetTask.epic_id) {
-                console.warn('Tasks are in different epics, cannot reorder');
                 return;
             }
 
@@ -563,7 +555,6 @@ class SandRocketApp {
             const targetIndex = epicTasks.findIndex(t => t.id === targetTaskId);
             
             if (draggedIndex === -1 || targetIndex === -1) {
-                console.warn('Could not find task indices');
                 return;
             }
 
@@ -639,9 +630,7 @@ class SandRocketApp {
             });
 
             const epic = await response.json();
-            console.log('Epic created locally:', epic);
             this.epics.push(epic);
-            console.log('Epics array after local add:', this.epics.length);
             this.renderEpics();
             this.hideEpicModal();
             this.showToast('Epic created successfully', 'success');
@@ -901,9 +890,7 @@ class SandRocketApp {
             });
 
             const task = await response.json();
-            console.log('Task created locally:', task);
             this.tasks.push(task);
-            console.log('Tasks array after local add:', this.tasks.length);
             this.renderEpics();
             this.hideTaskModal();
             this.showToast('Task created successfully', 'success');
@@ -1305,33 +1292,20 @@ class SandRocketApp {
         this.socket = io();
         
         this.socket.on('connect', () => {
-            console.log('Connected to server');
             this.socket.emit('join_workspace');
-        });
-
-        this.socket.on('disconnect', () => {
-            console.log('Disconnected from server');
         });
 
         // Real-time updates
         this.socket.on('task_created', (task) => {
-            console.log('WebSocket task_created event:', task);
-            console.log('Current tasks before WebSocket add:', this.tasks.length);
-            console.log('isCreatingTask flag:', this.isCreatingTask);
-            
             // Skip if we're currently creating a task locally
             if (this.isCreatingTask) {
-                console.log('Skipping WebSocket task_created - local creation in progress');
                 return;
             }
             
             // Only add if not already in the array (prevent duplicates)
             if (!this.tasks.find(t => t.id === task.id)) {
-                console.log('Adding task via WebSocket');
                 this.tasks.push(task);
                 this.renderEpics();
-            } else {
-                console.log('Task already exists, skipping WebSocket add');
             }
         });
 
@@ -1403,23 +1377,15 @@ class SandRocketApp {
         });
 
         this.socket.on('epic_created', (epic) => {
-            console.log('WebSocket epic_created event:', epic);
-            console.log('Current epics before WebSocket add:', this.epics.length);
-            console.log('isCreatingEpic flag:', this.isCreatingEpic);
-            
             // Skip if we're currently creating an epic locally
             if (this.isCreatingEpic) {
-                console.log('Skipping WebSocket epic_created - local creation in progress');
                 return;
             }
             
             // Only add if not already in the array (prevent duplicates)
             if (!this.epics.find(e => e.id === epic.id)) {
-                console.log('Adding epic via WebSocket');
                 this.epics.push(epic);
                 this.renderEpics();
-            } else {
-                console.log('Epic already exists, skipping WebSocket add');
             }
         });
 
