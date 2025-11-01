@@ -124,7 +124,7 @@ sand-rocket/
 #### Deployment Strategy
 - **Single file deployment** - just copy the folder and run `npm start`
 - **Easy backup** - copy `rocket.db` file to backup all data
-- **Port configuration** - runs on configurable port (default 3000)
+- **Port configuration** - runs on configurable port (default 9000)
 - **Process management** - can use PM2 for production deployment
 
 #### Performance Considerations
@@ -174,7 +174,7 @@ sand-rocket/
    npm install
    npm start
    ```
-4. Open your browser and go to `http://localhost:3000`
+4. Open your browser and go to `http://localhost:9000`
 5. Use the default password: `rocket123`
 
 ### First Time Setup
