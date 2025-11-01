@@ -38,9 +38,21 @@ module.exports = (db, io) => {
     try {
       const { id } = req.params;
       const updates = req.body;
+      const originalEpic = await db.get('SELECT * FROM epics WHERE id = ?', [id]);
       await db.updateEpic(id, updates);
       
       const epic = await db.get('SELECT * FROM epics WHERE id = ?', [id]);
+      
+      // Log activity for epic name changes
+      if (updates.name && updates.name !== originalEpic.name) {
+        await db.logActivity('epic_updated', null, id, `Updated epic "${epic.name}"`);
+        const activity = await db.get('SELECT * FROM activity_log WHERE epic_id = ? ORDER BY timestamp DESC LIMIT 1', [id]);
+        if (activity) {
+          activity.timestamp = new Date(activity.timestamp).toISOString();
+          io.emit('activity_created', activity);
+        }
+      }
+      
       io.emit('epic_updated', epic);
       res.json(epic);
     } catch (error) {
@@ -56,6 +68,12 @@ module.exports = (db, io) => {
       await db.deleteEpic(id);
       
       await db.logActivity('epic_deleted', null, parseInt(id), `Deleted epic "${epic ? epic.name : 'Unknown'}"`);
+      
+      const activity = await db.get('SELECT * FROM activity_log WHERE epic_id = ? ORDER BY timestamp DESC LIMIT 1', [id]);
+      if (activity) {
+        activity.timestamp = new Date(activity.timestamp).toISOString();
+        io.emit('activity_created', activity);
+      }
       
       io.emit('epic_deleted', { id: parseInt(id) });
       res.json({ success: true });

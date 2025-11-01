@@ -170,6 +170,12 @@ module.exports = (db, io) => {
       const taskContent = task && task.content ? (task.content.length > 50 ? task.content.substring(0, 50) + '...' : task.content) : 'Unknown';
       await db.logActivity('task_deleted', parseInt(id), task ? task.epic_id : null, `Deleted task "${taskContent}"`);
       
+      const activity = await db.get('SELECT * FROM activity_log WHERE task_id = ? ORDER BY timestamp DESC LIMIT 1', [parseInt(id)]);
+      if (activity) {
+        activity.timestamp = new Date(activity.timestamp).toISOString();
+        io.emit('activity_created', activity);
+      }
+      
       io.emit('task_deleted', { id: parseInt(id) });
       res.json({ success: true });
     } catch (error) {

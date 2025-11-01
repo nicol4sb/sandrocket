@@ -337,54 +337,65 @@ class SandRocketApp {
 
     setupEpicDragAndDrop(epicElement) {
         const tasksContainer = epicElement.querySelector('.tasks-container');
+        const epicId = parseInt(epicElement.dataset.epicId);
         
-        // Make epic droppable for moving tasks between epics
-        epicElement.addEventListener('dragover', (e) => {
+        // Make both epic and tasks container droppable for moving tasks between epics
+        const handleDragOver = (e) => {
             e.preventDefault();
+            e.stopPropagation(); // Prevent task drop handlers from firing
             epicElement.classList.add('drag-over');
-        });
-
-        epicElement.addEventListener('dragleave', (e) => {
+        };
+        
+        const handleDragLeave = (e) => {
             // Only remove class if we're actually leaving the epic element
             if (!epicElement.contains(e.relatedTarget)) {
                 epicElement.classList.remove('drag-over');
             }
-        });
-
-            epicElement.addEventListener('drop', (e) => {
-                e.preventDefault();
-                e.stopPropagation(); // Prevent event bubbling
-                epicElement.classList.remove('drag-over');
+        };
+        
+        const handleDrop = (e) => {
+            e.preventDefault();
+            e.stopPropagation(); // Prevent event bubbling
+            epicElement.classList.remove('drag-over');
+            
+            const taskId = e.dataTransfer.getData('text/plain');
+            if (taskId && this.draggedTask) {
+                const newEpicId = parseInt(epicElement.dataset.epicId);
                 
-                const taskId = e.dataTransfer.getData('text/plain');
-                if (taskId && this.draggedTask) {
-                    const newEpicId = parseInt(epicElement.dataset.epicId);
+                // Find the drop position within the epic
+                const taskElements = Array.from(tasksContainer.querySelectorAll('.task-item'));
+                
+                // Calculate drop position based on mouse Y coordinate
+                const dropY = e.clientY;
+                let insertPosition = 0;
+                
+                for (let i = 0; i < taskElements.length; i++) {
+                    const taskRect = taskElements[i].getBoundingClientRect();
+                    const taskCenterY = taskRect.top + taskRect.height / 2;
                     
-                    // Find the drop position within the epic
-                    const tasksContainer = epicElement.querySelector('.tasks-container');
-                    const taskElements = Array.from(tasksContainer.querySelectorAll('.task-item'));
-                    
-                    // Calculate drop position based on mouse Y coordinate
-                    const dropY = e.clientY;
-                    let insertPosition = 0;
-                    
-                    for (let i = 0; i < taskElements.length; i++) {
-                        const taskRect = taskElements[i].getBoundingClientRect();
-                        const taskCenterY = taskRect.top + taskRect.height / 2;
-                        
-                        if (dropY < taskCenterY) {
-                            insertPosition = i;
-                            break;
-                        }
-                        insertPosition = i + 1;
+                    if (dropY < taskCenterY) {
+                        insertPosition = i;
+                        break;
                     }
-                    
-                    this.moveTaskToEpic(parseInt(taskId), newEpicId, insertPosition);
+                    insertPosition = i + 1;
                 }
                 
-                // Clear dragged task to prevent duplicate drops
-                this.draggedTask = null;
-            });
+                this.moveTaskToEpic(parseInt(taskId), newEpicId, insertPosition);
+            }
+            
+            // Clear dragged task to prevent duplicate drops
+            this.draggedTask = null;
+        };
+        
+        // Attach handlers to both epic element and tasks container
+        epicElement.addEventListener('dragover', handleDragOver);
+        tasksContainer.addEventListener('dragover', handleDragOver);
+        
+        epicElement.addEventListener('dragleave', handleDragLeave);
+        tasksContainer.addEventListener('dragleave', handleDragLeave);
+        
+        epicElement.addEventListener('drop', handleDrop);
+        tasksContainer.addEventListener('drop', handleDrop);
 
         // Setup task drag and drop within the epic
         const taskElements = tasksContainer.querySelectorAll('.task-item');
@@ -453,7 +464,40 @@ class SandRocketApp {
                 const targetTaskId = parseInt(taskElement.dataset.taskId);
                 const draggedTaskId = parseInt(taskId);
                 
-                if (draggedTaskId !== targetTaskId) {
+                // Get the epic IDs to check if we're moving between epics
+                const draggedTask = this.tasks.find(t => t.id === draggedTaskId);
+                const targetTask = this.tasks.find(t => t.id === targetTaskId);
+                
+                if (draggedTask && targetTask && draggedTask.epic_id !== targetTask.epic_id) {
+                    // Moving between epics - calculate position and move directly
+                    const epicElement = taskElement.closest('.epic-column');
+                    if (epicElement) {
+                        const newEpicId = parseInt(epicElement.dataset.epicId);
+                        const tasksContainer = epicElement.querySelector('.tasks-container');
+                        const taskElements = Array.from(tasksContainer.querySelectorAll('.task-item'));
+                        
+                        // Calculate drop position based on mouse Y coordinate
+                        const dropY = e.clientY;
+                        let insertPosition = 0;
+                        
+                        for (let i = 0; i < taskElements.length; i++) {
+                            const taskRect = taskElements[i].getBoundingClientRect();
+                            const taskCenterY = taskRect.top + taskRect.height / 2;
+                            
+                            if (dropY < taskCenterY) {
+                                insertPosition = i;
+                                break;
+                            }
+                            insertPosition = i + 1;
+                        }
+                        
+                        this.moveTaskToEpic(draggedTaskId, newEpicId, insertPosition);
+                        return;
+                    }
+                }
+                
+                if (draggedTaskId !== targetTaskId && draggedTask && targetTask && draggedTask.epic_id === targetTask.epic_id) {
+                    // Same epic, just reordering
                     // Determine if we're dropping above or below the target
                     const rect = taskElement.getBoundingClientRect();
                     const midpoint = rect.top + rect.height / 2;
@@ -478,49 +522,66 @@ class SandRocketApp {
             
             // Get original task info before moving
             const originalTask = this.tasks.find(t => t.id === taskId);
-            const oldEpicId = originalTask ? originalTask.epic_id : null;
+            if (!originalTask) {
+                this.reorderingTasks.delete(taskId);
+                return;
+            }
+            
+            const oldEpicId = originalTask.epic_id;
             
             // Get old position in original epic
             const oldEpicTasks = this.tasks
-                .filter(t => t.epic_id === oldEpicId && !t.is_completed)
+                .filter(t => t.epic_id === oldEpicId && !t.is_completed && t.id !== taskId)
                 .sort((a, b) => a.position - b.position);
-            const oldPosition = oldEpicTasks.findIndex(t => t.id === taskId);
+            const oldPosition = this.tasks
+                .filter(t => t.epic_id === oldEpicId && !t.is_completed)
+                .sort((a, b) => a.position - b.position)
+                .findIndex(t => t.id === taskId);
             
-            // Update local task data immediately for responsive UI
-            const localTask = this.tasks.find(t => t.id === taskId);
-            if (localTask) {
-                localTask.epic_id = newEpicId;
-            }
-            
-            // If insertPosition is specified, prepare position updates
+            // Prepare position updates
             let updates = [];
             let newPosition = insertPosition;
             
-            if (insertPosition !== null) {
-                // Get all tasks in the target epic (including the moved task now)
+            if (insertPosition !== null && oldEpicId !== newEpicId) {
+                // Moving between epics with specific position
+                // Get all tasks currently in the TARGET epic (excluding the moved task)
                 const targetEpicTasks = this.tasks
-                    .filter(t => (t.epic_id === newEpicId || t.id === taskId) && !t.is_completed)
-                    .sort((a, b) => {
-                        // Keep original position order, but handle the moved task
-                        if (a.id === taskId) return -1; // Moved task goes first
-                        if (b.id === taskId) return 1;
-                        return a.position - b.position;
-                    });
-                
-                // Remove the moved task from its current position
-                const filteredTasks = targetEpicTasks.filter(t => t.id !== taskId);
+                    .filter(t => t.epic_id === newEpicId && !t.is_completed && t.id !== taskId)
+                    .sort((a, b) => a.position - b.position);
                 
                 // Insert the moved task at the specified position
-                filteredTasks.splice(insertPosition, 0, originalTask);
+                targetEpicTasks.splice(insertPosition, 0, originalTask);
                 
                 // Update positions for all tasks in the target epic
-                updates = filteredTasks.map((t, index) => ({
+                updates = targetEpicTasks.map((t, index) => ({
+                    id: t.id,
+                    position: index
+                }));
+            } else if (insertPosition !== null && oldEpicId === newEpicId) {
+                // Same epic, just reordering - this shouldn't happen via moveTaskToEpic
+                // but handle it anyway
+                const epicTasks = this.tasks
+                    .filter(t => t.epic_id === oldEpicId && !t.is_completed && t.id !== taskId)
+                    .sort((a, b) => a.position - b.position);
+                
+                epicTasks.splice(insertPosition, 0, originalTask);
+                updates = epicTasks.map((t, index) => ({
                     id: t.id,
                     position: index
                 }));
             } else if (oldEpicId !== newEpicId) {
-                // Just epic change, no position - still need to call reorder to update epic_id
-                updates = [{ id: taskId, position: originalTask.position }];
+                // Just epic change, no specific position - append to end
+                const targetEpicTasks = this.tasks
+                    .filter(t => t.epic_id === newEpicId && !t.is_completed && t.id !== taskId)
+                    .sort((a, b) => a.position - b.position);
+                
+                // Add moved task at the end
+                targetEpicTasks.push(originalTask);
+                updates = targetEpicTasks.map((t, index) => ({
+                    id: t.id,
+                    position: index
+                }));
+                newPosition = targetEpicTasks.length - 1;
             }
             
             // Single API call: update epic_id and positions together
@@ -543,7 +604,12 @@ class SandRocketApp {
                     throw new Error(`HTTP error! status: ${response.status}`);
                 }
                 
-                // Update local data with positions
+                // Update local data - epic_id and positions
+                const localTask = this.tasks.find(t => t.id === taskId);
+                if (localTask) {
+                    localTask.epic_id = newEpicId;
+                }
+                
                 updates.forEach(update => {
                     const localTask = this.tasks.find(t => t.id === update.id);
                     if (localTask) {
@@ -772,7 +838,11 @@ class SandRocketApp {
             selection.addRange(range);
         }
 
+        let isSaving = false; // Prevent duplicate saves
         const saveEdit = async () => {
+            if (isSaving) return; // Already saving
+            isSaving = true;
+            
             const newName = nameElement.textContent.trim();
             if (newName && newName !== epic.name) {
                 // Check character limit upfront
@@ -781,6 +851,7 @@ class SandRocketApp {
                     nameElement.textContent = epic.name;
                     nameElement.contentEditable = false;
                     nameElement.classList.remove('editing');
+                    isSaving = false;
                     return;
                 }
 
@@ -794,6 +865,18 @@ class SandRocketApp {
                     
                     epic.name = newName;
                     this.showToast('Epic updated', 'success');
+                    
+                    // Update activity log if panel is open
+                    const activityPanel = document.getElementById('activityPanel');
+                    if (activityPanel && activityPanel.classList.contains('open')) {
+                        try {
+                            const activityResponse = await fetch('/api/activity?limit=50', { credentials: 'same-origin' });
+                            this.activityLog = await activityResponse.json();
+                            this.renderActivityLog();
+                        } catch (error) {
+                            console.error('Failed to update activity log:', error);
+                        }
+                    }
                 } catch (error) {
                     console.error('Update epic error:', error);
                     this.showToast('Failed to update epic', 'error');
@@ -810,14 +893,23 @@ class SandRocketApp {
             if (charCounter && charCounter.parentNode) {
                 charCounter.parentNode.removeChild(charCounter);
             }
+            isSaving = false;
         };
 
-        nameElement.addEventListener('blur', saveEdit, { once: true });
-        nameElement.addEventListener('keydown', (e) => {
+        const blurHandler = () => {
+            // Remove keydown listener to prevent double save
+            nameElement.removeEventListener('keydown', keydownHandler);
+            saveEdit();
+        };
+        
+        const keydownHandler = (e) => {
             if (e.key === 'Enter') {
                 e.preventDefault();
+                nameElement.removeEventListener('blur', blurHandler); // Remove blur to prevent double save
                 saveEdit();
             } else if (e.key === 'Escape') {
+                nameElement.removeEventListener('blur', blurHandler);
+                nameElement.removeEventListener('keydown', keydownHandler);
                 nameElement.textContent = epic.name;
                 nameElement.contentEditable = false;
                 nameElement.classList.remove('editing');
@@ -827,7 +919,10 @@ class SandRocketApp {
                     charCounter.parentNode.removeChild(charCounter);
                 }
             }
-        });
+        };
+        
+        nameElement.addEventListener('blur', blurHandler, { once: true });
+        nameElement.addEventListener('keydown', keydownHandler);
         
         // Prevent typing beyond 150 characters and add real-time feedback
         nameElement.addEventListener('input', (e) => {
@@ -1025,7 +1120,11 @@ class SandRocketApp {
             selection.addRange(range);
         }
 
+        let isSaving = false; // Prevent duplicate saves
         const saveEdit = async () => {
+            if (isSaving) return; // Already saving
+            isSaving = true;
+            
             const newContent = contentElement.textContent.trim();
             if (newContent && newContent !== task.content) {
                 if (newContent.length > 150) {
@@ -1033,6 +1132,7 @@ class SandRocketApp {
                     contentElement.textContent = task.content;
                     contentElement.contentEditable = false;
                     contentElement.classList.remove('editing');
+                    isSaving = false;
                     return;
                 }
 
@@ -1046,6 +1146,18 @@ class SandRocketApp {
                     
                     task.content = newContent;
                     this.showToast('Task updated', 'success');
+                    
+                    // Update activity log if panel is open
+                    const activityPanel = document.getElementById('activityPanel');
+                    if (activityPanel && activityPanel.classList.contains('open')) {
+                        try {
+                            const activityResponse = await fetch('/api/activity?limit=50', { credentials: 'same-origin' });
+                            this.activityLog = await activityResponse.json();
+                            this.renderActivityLog();
+                        } catch (error) {
+                            console.error('Failed to update activity log:', error);
+                        }
+                    }
                 } catch (error) {
                     console.error('Update task error:', error);
                     this.showToast('Failed to update task', 'error');
@@ -1057,19 +1169,31 @@ class SandRocketApp {
             
             contentElement.contentEditable = false;
             contentElement.classList.remove('editing');
+            isSaving = false;
         };
 
-        contentElement.addEventListener('blur', saveEdit, { once: true });
-        contentElement.addEventListener('keydown', (e) => {
+        const blurHandler = () => {
+            // Remove keydown listener to prevent double save
+            contentElement.removeEventListener('keydown', keydownHandler);
+            saveEdit();
+        };
+        
+        const keydownHandler = (e) => {
             if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
+                contentElement.removeEventListener('blur', blurHandler); // Remove blur to prevent double save
                 saveEdit();
             } else if (e.key === 'Escape') {
+                contentElement.removeEventListener('blur', blurHandler);
+                contentElement.removeEventListener('keydown', keydownHandler);
                 contentElement.textContent = task.content;
                 contentElement.contentEditable = false;
                 contentElement.classList.remove('editing');
             }
-        });
+        };
+        
+        contentElement.addEventListener('blur', blurHandler, { once: true });
+        contentElement.addEventListener('keydown', keydownHandler);
         
         // Prevent typing beyond 150 characters and add real-time feedback
         contentElement.addEventListener('input', (e) => {
@@ -1442,6 +1566,18 @@ class SandRocketApp {
             if (index !== -1) {
                 this.tasks[index] = task;
                 this.renderEpics();
+                
+                // Update activity log if panel is open
+                const activityPanel = document.getElementById('activityPanel');
+                if (activityPanel && activityPanel.classList.contains('open')) {
+                    fetch('/api/activity?limit=50', { credentials: 'same-origin' })
+                        .then(response => response.json())
+                        .then(activities => {
+                            this.activityLog = activities;
+                            this.renderActivityLog();
+                        })
+                        .catch(error => console.error('Failed to update activity log:', error));
+                }
             }
         });
 
@@ -1502,6 +1638,18 @@ class SandRocketApp {
             this.completedTasks = this.completedTasks.filter(t => t.id !== data.id);
             this.renderEpics();
             this.renderCompletedTasks();
+            
+            // Update activity log if panel is open
+            const activityPanel = document.getElementById('activityPanel');
+            if (activityPanel && activityPanel.classList.contains('open')) {
+                fetch('/api/activity?limit=50', { credentials: 'same-origin' })
+                    .then(response => response.json())
+                    .then(activities => {
+                        this.activityLog = activities;
+                        this.renderActivityLog();
+                    })
+                    .catch(error => console.error('Failed to update activity log:', error));
+            }
         });
 
         this.socket.on('epic_created', (epic) => {
@@ -1522,6 +1670,18 @@ class SandRocketApp {
             if (index !== -1) {
                 this.epics[index] = epic;
                 this.renderEpics();
+                
+                // Update activity log if panel is open
+                const activityPanel = document.getElementById('activityPanel');
+                if (activityPanel && activityPanel.classList.contains('open')) {
+                    fetch('/api/activity?limit=50', { credentials: 'same-origin' })
+                        .then(response => response.json())
+                        .then(activities => {
+                            this.activityLog = activities;
+                            this.renderActivityLog();
+                        })
+                        .catch(error => console.error('Failed to update activity log:', error));
+                }
             }
         });
 
@@ -1529,6 +1689,18 @@ class SandRocketApp {
             this.epics = this.epics.filter(e => e.id !== data.id);
             this.tasks = this.tasks.filter(t => t.epic_id !== data.id);
             this.renderEpics();
+            
+            // Update activity log if panel is open
+            const activityPanel = document.getElementById('activityPanel');
+            if (activityPanel && activityPanel.classList.contains('open')) {
+                fetch('/api/activity?limit=50', { credentials: 'same-origin' })
+                    .then(response => response.json())
+                    .then(activities => {
+                        this.activityLog = activities;
+                        this.renderActivityLog();
+                    })
+                    .catch(error => console.error('Failed to update activity log:', error));
+            }
         });
 
         this.socket.on('activity_created', (activity) => {
