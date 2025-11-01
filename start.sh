@@ -50,7 +50,7 @@ if [ ! -d "public" ]; then
 fi
 
 # Set default port if not specified
-PORT=${PORT:-3000}
+PORT=${PORT:-9000}
 
 echo ""
 echo "🚀 Launching Sand Rocket server..."

@@ -1,5 +1,5 @@
 module.exports = {
-  port: process.env.PORT || 3000,
+  port: process.env.PORT || 9000,
   sessionSecret: process.env.SESSION_SECRET || 'sand-rocket-secret-key',
   sessionConfig: {
     resave: false,
