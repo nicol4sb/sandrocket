@@ -5,6 +5,7 @@
 A **session cookie** is a small piece of data stored in your browser that allows the server to remember who you are across multiple requests. Think of it like a "membership card" that proves you're logged in.
 
 ## What is the Session ID (sid)?
+Yessss
 
 The **Session ID** (usually stored in a cookie named `connect.sid` in Express sessions) is a unique, random identifier that the server generates and sends to your browser. This ID acts as a "key" that links your browser to session data stored on the server.
 
