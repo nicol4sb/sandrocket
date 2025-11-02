@@ -14,6 +14,13 @@ module.exports = (db) => {
       
       if (isValid) {
         req.session.authenticated = true;
+        // Ensure session is saved before responding
+        await new Promise((resolve, reject) => {
+          req.session.save((err) => {
+            if (err) reject(err);
+            else resolve();
+          });
+        });
         res.json({ success: true });
       } else {
         res.status(401).json({ error: 'Invalid password' });

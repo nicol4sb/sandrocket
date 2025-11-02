@@ -5,10 +5,11 @@ module.exports = {
     resave: false,
     saveUninitialized: false,
     cookie: { 
-      secure: true, // Requires HTTPS
+      // secure: false for HTTP (set to true in production with HTTPS)
+      secure: process.env.COOKIE_SECURE === 'true',
       maxAge: 8 * 60 * 60 * 1000, // 8 hours
       httpOnly: true,
-      sameSite: 'strict'
+      sameSite: process.env.COOKIE_SAME_SITE || 'lax'
     }
   },
   rateLimit: {

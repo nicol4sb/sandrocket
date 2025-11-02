@@ -286,20 +286,57 @@ class SandRocketApp {
                 fetch('/api/stats/weekly', { credentials: 'same-origin' })
             ]);
 
-            this.epics = await epicsResponse.json();
-            this.tasks = await tasksResponse.json();
-            this.completedTasks = await completedResponse.json();
-            this.activityLog = await activityResponse.json();
-            const stats = await statsResponse.json();
+            // Parse responses and check for errors
+            const epicsData = await epicsResponse.json().catch(() => null);
+            if (!epicsResponse.ok || !Array.isArray(epicsData)) {
+                const errorMsg = (epicsData && epicsData.error) || `Failed to load epics: ${epicsResponse.status}`;
+                throw new Error(errorMsg);
+            }
+            this.epics = epicsData;
+            
+            const tasksData = await tasksResponse.json().catch(() => null);
+            if (!tasksResponse.ok || !Array.isArray(tasksData)) {
+                const errorMsg = (tasksData && tasksData.error) || `Failed to load tasks: ${tasksResponse.status}`;
+                throw new Error(errorMsg);
+            }
+            this.tasks = tasksData;
+            
+            // Ensure arrays
+            this.epics = Array.isArray(this.epics) ? this.epics : [];
+            this.tasks = Array.isArray(this.tasks) ? this.tasks : [];
+            
+            // Handle optional responses
+            if (completedResponse.ok) {
+                this.completedTasks = await completedResponse.json();
+                this.completedTasks = Array.isArray(this.completedTasks) ? this.completedTasks : [];
+            } else {
+                this.completedTasks = [];
+            }
+            
+            if (activityResponse.ok) {
+                this.activityLog = await activityResponse.json();
+                this.activityLog = Array.isArray(this.activityLog) ? this.activityLog : [];
+            } else {
+                this.activityLog = [];
+            }
+            
+            if (statsResponse.ok) {
+                const stats = await statsResponse.json();
+                this.updateStats(stats);
+            }
 
             this.renderEpics();
             this.renderCompletedTasks();
             this.renderActivityLog();
-            this.updateStats(stats);
             
         } catch (error) {
             console.error('Load data error:', error);
-            this.showToast('Failed to load data', 'error');
+            this.showToast(error.message || 'Failed to load data', 'error');
+            // Ensure arrays are initialized even on error
+            this.epics = this.epics || [];
+            this.tasks = this.tasks || [];
+            this.completedTasks = this.completedTasks || [];
+            this.activityLog = this.activityLog || [];
         } finally {
             this.hideLoading();
         }
