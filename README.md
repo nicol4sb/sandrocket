@@ -38,7 +38,27 @@ A collaborative todo app designed to motivate participants to plan and execute t
   - Completely solid and opaque - no transparency
   - Clear drop zone indicators with colored borders and backgrounds
   - No complex animations or spacing - just clean, simple feedback
-  - **Intuitive Behavior**: Drag over any task to see where it will be dropped, with clear visual cues 
+  - **Intuitive Behavior**: Drag over any task to see where it will be dropped, with clear visual cues
+
+### Mobile Experience
+The mobile interface is optimized for small screens with a focus on information density and efficient space usage:
+
+- **Compact Layout**: Reduced padding and margins throughout the interface to maximize content visibility
+- **Optimized Typography**: Adjusted font sizes for better readability while maintaining information density
+  - Header: Compact 1.2rem title with 24px icon
+  - Epic names: 1.1rem for clear hierarchy
+  - Task content: 0.9rem for optimal text density
+  - Metadata: 0.75rem for secondary information without clutter
+- **Fixed Header with Auto-Hide**: The top banner is fixed at the top for quick access to actions, but automatically hides when scrolling down to maximize screen real estate. It reappears when scrolling up, ensuring easy access to navigation without taking up precious vertical space
+- **Full-Width Panels**: Activity and completed task panels expand to full width on mobile for maximum content visibility
+- **Touch-Optimized Controls**: Buttons and interactive elements are sized appropriately for touch (minimum 44px touch targets)
+- **Efficient Space Allocation**: 
+  - Zero wasted space with edge-to-edge content
+  - Tasks and epics take priority - panels only appear when needed
+  - Stats and metadata are compact but still readable
+- **Responsive Breakpoints**: 
+  - Tablet (≤768px): Optimized horizontal layout with fixed header behavior
+  - Mobile (≤480px): Further optimized for small screens with compact spacing 
 
 ### Interaction Design
 - All text fields editable when clicked (titles, body, links)

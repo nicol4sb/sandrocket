@@ -15,6 +15,7 @@ class SandRocketApp {
 
     async init() {
         this.setupEventListeners();
+        this.setupScrollBehavior();
         await this.checkAuthStatus();
         
         // Update activity times every minute
@@ -134,6 +135,54 @@ class SandRocketApp {
             resizeTimeout = setTimeout(() => {
                 this.adjustEpicsAlignment();
             }, 100);
+        });
+    }
+
+    setupScrollBehavior() {
+        // Only apply scroll behavior on mobile devices (screen width <= 768px)
+        if (window.innerWidth > 768) {
+            return;
+        }
+        
+        let lastScrollY = window.scrollY;
+        let ticking = false;
+        const header = document.querySelector('.header');
+        
+        if (!header) return;
+        
+        const updateHeader = () => {
+            const currentScrollY = window.scrollY;
+            
+            // Only hide/show if scrolled more than 10px to prevent jitter
+            if (Math.abs(currentScrollY - lastScrollY) < 10) {
+                ticking = false;
+                return;
+            }
+            
+            if (currentScrollY > lastScrollY && currentScrollY > 50) {
+                // Scrolling down - hide header
+                header.classList.add('hidden');
+            } else if (currentScrollY < lastScrollY) {
+                // Scrolling up - show header
+                header.classList.remove('hidden');
+            }
+            
+            lastScrollY = currentScrollY;
+            ticking = false;
+        };
+        
+        window.addEventListener('scroll', () => {
+            if (!ticking) {
+                window.requestAnimationFrame(updateHeader);
+                ticking = true;
+            }
+        }, { passive: true });
+        
+        // Re-check on resize in case user rotates device or window is resized
+        window.addEventListener('resize', () => {
+            if (window.innerWidth > 768) {
+                header.classList.remove('hidden');
+            }
         });
     }
 
