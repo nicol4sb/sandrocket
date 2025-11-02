@@ -9,6 +9,10 @@ yarn-error.log*
 *.db-shm
 *.db-wal
 
+# SSL Certificates
+*.pem
+cert.conf
+
 # Environment variables
 .env
 .env.local

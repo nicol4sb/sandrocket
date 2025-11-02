@@ -457,6 +457,19 @@ class SandRocketApp {
 
 
     setupTaskDragAndDrop(taskElement) {
+        // Check if touch is supported
+        const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+        
+        if (isTouchDevice) {
+            // Touch-based drag and drop for mobile
+            this.setupTouchDragAndDrop(taskElement);
+        } else {
+            // Mouse-based drag and drop for desktop
+            this.setupMouseDragAndDrop(taskElement);
+        }
+    }
+
+    setupMouseDragAndDrop(taskElement) {
         taskElement.addEventListener('dragstart', (e) => {
             this.draggedTask = { id: parseInt(taskElement.dataset.taskId) };
             taskElement.classList.add('dragging');
@@ -505,60 +518,348 @@ class SandRocketApp {
 
         taskElement.addEventListener('drop', (e) => {
             e.preventDefault();
-            e.stopPropagation(); // Prevent event bubbling
+            e.stopPropagation();
             taskElement.classList.remove('drag-over', 'drag-over-bottom');
             
             const taskId = e.dataTransfer.getData('text/plain');
             if (taskId && this.draggedTask) {
-                const targetTaskId = parseInt(taskElement.dataset.taskId);
-                const draggedTaskId = parseInt(taskId);
+                this.handleTaskDrop(parseInt(taskId), taskElement, e.clientY);
+            }
+            
+            this.draggedTask = null;
+        });
+    }
+
+    setupTouchDragAndDrop(taskElement) {
+        let touchStartY = 0;
+        let touchStartX = 0;
+        let isDragging = false;
+        let dragGhost = null;
+        let startOffset = { x: 0, y: 0 };
+        let touchIdentifier = null;
+        let touchMoved = false;
+        let dragTimer = null;
+        let preventTextSelection = false;
+        let hasScrolled = false;
+        let initialScrollY = 0;
+        let touchStartTime = 0;
+        let isContentArea = false;
+        
+        // Set draggable to false for touch devices to prevent conflicts
+        taskElement.draggable = false;
+        
+        // Prevent text selection during drag
+        const preventSelection = (e) => {
+            if (preventTextSelection) {
+                e.preventDefault();
+            }
+        };
+        
+        taskElement.addEventListener('touchstart', (e) => {
+            // Don't interfere with buttons
+            if (e.target.closest('.task-actions')) {
+                return;
+            }
+            
+            // Check if touching content area
+            isContentArea = e.target.closest('.task-content') !== null;
+            
+            const touch = e.touches[0];
+            touchStartY = touch.clientY;
+            touchStartX = touch.clientX;
+            touchIdentifier = touch.identifier;
+            touchMoved = false;
+            isDragging = false;
+            preventTextSelection = false;
+            hasScrolled = false;
+            initialScrollY = window.scrollY || document.documentElement.scrollTop;
+            touchStartTime = Date.now();
+            
+            // Long tap (hold) starts drag - 500ms delay to clearly distinguish from short tap
+            dragTimer = setTimeout(() => {
+                // Only start drag if:
+                // 1. Touch hasn't moved much (still holding in place)
+                // 2. Page hasn't scrolled (no scrolling occurred)
+                // 3. Still touching the same element
+                const currentTouch = Array.from(e.touches || []).find(t => t?.identifier === touchIdentifier);
+                if (currentTouch && 
+                    !touchMoved && 
+                    Math.abs(currentTouch.clientY - touchStartY) < 20 &&
+                    Math.abs(currentTouch.clientX - touchStartX) < 20 &&
+                    !hasScrolled) {
+                    
+                    isDragging = true;
+                    preventTextSelection = true;
+                    this.draggedTask = { id: parseInt(taskElement.dataset.taskId) };
+                    
+                    // Prevent text selection immediately
+                    document.body.style.userSelect = 'none';
+                    document.body.style.webkitUserSelect = 'none';
+                    if (window.getSelection) {
+                        window.getSelection().removeAllRanges();
+                    }
+                    document.addEventListener('selectstart', preventSelection);
+                    
+                    // Add visual feedback - pulse/highlight the task
+                    taskElement.style.transform = 'scale(1.02)';
+                    taskElement.style.transition = 'transform 0.1s';
+                    
+                    // Create drag ghost
+                    const rect = taskElement.getBoundingClientRect();
+                    dragGhost = taskElement.cloneNode(true);
+                    dragGhost.classList.add('drag-ghost');
+                    dragGhost.style.position = 'fixed';
+                    dragGhost.style.left = `${rect.left}px`;
+                    dragGhost.style.top = `${rect.top}px`;
+                    dragGhost.style.width = `${rect.width}px`;
+                    dragGhost.style.opacity = '0.9';
+                    dragGhost.style.pointerEvents = 'none';
+                    dragGhost.style.zIndex = '10000';
+                    dragGhost.style.transform = 'rotate(2deg)';
+                    dragGhost.style.boxShadow = '0 10px 25px rgba(0, 0, 0, 0.3)';
+                    document.body.appendChild(dragGhost);
+                    
+                    taskElement.classList.add('dragging');
+                    startOffset.x = currentTouch.clientX - rect.left;
+                    startOffset.y = currentTouch.clientY - rect.top;
+                } else {
+                    // Touch moved or scrolled, cancel drag and restore selection
+                    dragTimer = null;
+                    document.body.style.userSelect = '';
+                    document.body.style.webkitUserSelect = '';
+                }
+            }, 500); // 500ms long tap - clear distinction from short tap (150ms)
+            
+            const touchMoveHandler = (e) => {
+                const currentTouch = Array.from(e.touches).find(t => t.identifier === touchIdentifier);
+                if (!currentTouch) return;
                 
-                // Get the epic IDs to check if we're moving between epics
-                const draggedTask = this.tasks.find(t => t.id === draggedTaskId);
-                const targetTask = this.tasks.find(t => t.id === targetTaskId);
+                const deltaY = currentTouch.clientY - touchStartY;
+                const deltaX = currentTouch.clientX - touchStartX;
+                const absDeltaY = Math.abs(deltaY);
+                const absDeltaX = Math.abs(deltaX);
+                const currentScrollY = window.scrollY || document.documentElement.scrollTop;
                 
-                if (draggedTask && targetTask && draggedTask.epic_id !== targetTask.epic_id) {
-                    // Moving between epics - calculate position and move directly
-                    const epicElement = taskElement.closest('.epic-column');
-                    if (epicElement) {
-                        const newEpicId = parseInt(epicElement.dataset.epicId);
-                        const tasksContainer = epicElement.querySelector('.tasks-container');
-                        const taskElements = Array.from(tasksContainer.querySelectorAll('.task-item'));
-                        
-                        // Calculate drop position based on mouse Y coordinate
-                        const dropY = e.clientY;
-                        let insertPosition = 0;
-                        
-                        for (let i = 0; i < taskElements.length; i++) {
-                            const taskRect = taskElements[i].getBoundingClientRect();
-                            const taskCenterY = taskRect.top + taskRect.height / 2;
-                            
-                            if (dropY < taskCenterY) {
-                                insertPosition = i;
-                                break;
-                            }
-                            insertPosition = i + 1;
+                // If dragging, prevent scrolling and handle drag
+                if (isDragging) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    
+                    // Ensure text selection is disabled during drag
+                    document.body.style.userSelect = 'none';
+                    document.body.style.webkitUserSelect = 'none';
+                    if (window.getSelection) {
+                        window.getSelection().removeAllRanges();
+                    }
+                    
+                    // Update ghost position
+                    if (dragGhost) {
+                        dragGhost.style.left = `${currentTouch.clientX - startOffset.x}px`;
+                        dragGhost.style.top = `${currentTouch.clientY - startOffset.y}px`;
+                    }
+                    
+                    // Find element under touch
+                    const elementBelow = document.elementFromPoint(currentTouch.clientX, currentTouch.clientY);
+                    const targetTask = elementBelow?.closest('.task-item');
+                    const targetEpic = elementBelow?.closest('.epic-column');
+                    
+                    // Remove all drag-over classes
+                    document.querySelectorAll('.task-item, .epic-column').forEach(el => {
+                        el.classList.remove('drag-over', 'drag-over-bottom');
+                    });
+                    
+                    if (targetTask && targetTask !== taskElement) {
+                        const rect = targetTask.getBoundingClientRect();
+                        const midpoint = rect.top + rect.height / 2;
+                        if (currentTouch.clientY < midpoint) {
+                            targetTask.classList.add('drag-over');
+                        } else {
+                            targetTask.classList.add('drag-over-bottom');
                         }
-                        
-                        this.moveTaskToEpic(draggedTaskId, newEpicId, insertPosition);
+                    } else if (targetEpic) {
+                        targetEpic.classList.add('drag-over');
+                    }
+                    return;
+                }
+                
+                // Detect scrolling - if scroll position changed significantly, user is scrolling
+                if (Math.abs(currentScrollY - initialScrollY) > 10) {
+                    hasScrolled = true;
+                    if (dragTimer) {
+                        clearTimeout(dragTimer);
+                        dragTimer = null;
+                    }
+                    // Allow normal scrolling - restore text selection
+                    document.body.style.userSelect = '';
+                    document.body.style.webkitUserSelect = '';
+                    document.removeEventListener('touchmove', touchMoveHandler);
+                    document.removeEventListener('touchend', touchEndHandler);
+                    return;
+                }
+                
+                // If moved significantly before drag starts, determine intent
+                if (!isDragging && dragTimer) {
+                    // Mark as moved - will prevent edit on tap
+                    if (absDeltaY > 10 || absDeltaX > 10) {
+                        touchMoved = true;
+                    }
+                    
+                    // If movement is small and wait time passed, likely starting drag - prevent scroll
+                    if (absDeltaY < 30 && absDeltaX < 30) {
+                        // Small movement - might be drag, prevent scrolling temporarily
+                        if (Date.now() - touchStartTime > 400) {
+                            e.preventDefault();
+                        }
+                    } else if (absDeltaY > absDeltaX * 2 && absDeltaY > 30) {
+                        // Primarily vertical large movement - likely scrolling, cancel drag
+                        touchMoved = true;
+                        hasScrolled = true;
+                        clearTimeout(dragTimer);
+                        dragTimer = null;
+                        document.body.style.userSelect = '';
+                        document.body.style.webkitUserSelect = '';
+                        document.removeEventListener('touchmove', touchMoveHandler);
+                        document.removeEventListener('touchend', touchEndHandler);
+                        return;
+                    } else if (absDeltaY > 20 || absDeltaX > 20) {
+                        // Significant movement - cancel drag
+                        touchMoved = true;
+                        clearTimeout(dragTimer);
+                        dragTimer = null;
+                        document.body.style.userSelect = '';
+                        document.body.style.webkitUserSelect = '';
+                        document.removeEventListener('touchmove', touchMoveHandler);
+                        document.removeEventListener('touchend', touchEndHandler);
                         return;
                     }
                 }
-                
-                if (draggedTaskId !== targetTaskId && draggedTask && targetTask && draggedTask.epic_id === targetTask.epic_id) {
-                    // Same epic, just reordering
-                    // Determine if we're dropping above or below the target
-                    const rect = taskElement.getBoundingClientRect();
-                    const midpoint = rect.top + rect.height / 2;
-                    const isAbove = e.clientY < midpoint;
-                    
-                    this.reorderTasks(draggedTaskId, targetTaskId, isAbove);
-                }
-            }
+            };
             
-            // Clear dragged task to prevent duplicate drops
-            this.draggedTask = null;
-        });
+            const touchEndHandler = (e) => {
+                const touchDuration = Date.now() - touchStartTime;
+                
+                // Cancel timers
+                if (dragTimer) {
+                    clearTimeout(dragTimer);
+                    dragTimer = null;
+                }
+                
+                // Restore transform
+                taskElement.style.transform = '';
+                
+                // Restore text selection
+                document.body.style.userSelect = '';
+                document.body.style.webkitUserSelect = '';
+                document.removeEventListener('selectstart', preventSelection);
+                
+                if (isDragging && dragGhost) {
+                    // Was dragging - handle drop
+                    e.preventDefault();
+                    
+                    const currentTouch = e.changedTouches[0];
+                    const elementBelow = document.elementFromPoint(currentTouch.clientX, currentTouch.clientY);
+                    const targetTask = elementBelow?.closest('.task-item');
+                    
+                    if (targetTask && targetTask !== taskElement && this.draggedTask) {
+                        this.handleTaskDrop(this.draggedTask.id, targetTask, currentTouch.clientY);
+                    } else if (elementBelow?.closest('.epic-column')) {
+                        const targetEpic = elementBelow.closest('.epic-column');
+                        const newEpicId = parseInt(targetEpic.dataset.epicId);
+                        const tasksContainer = targetEpic.querySelector('.tasks-container');
+                        const taskElements = Array.from(tasksContainer.querySelectorAll('.task-item'));
+                        
+                        let insertPosition = taskElements.length;
+                        for (let i = 0; i < taskElements.length; i++) {
+                            const taskRect = taskElements[i].getBoundingClientRect();
+                            if (currentTouch.clientY < taskRect.top + taskRect.height / 2) {
+                                insertPosition = i;
+                                break;
+                            }
+                        }
+                        
+                        this.moveTaskToEpic(this.draggedTask.id, newEpicId, insertPosition);
+                    }
+                    
+                    // Cleanup
+                    taskElement.classList.remove('dragging');
+                    if (dragGhost) {
+                        dragGhost.remove();
+                        dragGhost = null;
+                    }
+                    document.querySelectorAll('.drag-over, .drag-over-bottom').forEach(el => {
+                        el.classList.remove('drag-over', 'drag-over-bottom');
+                    });
+                    document.body.style.overflow = '';
+                    this.draggedTask = null;
+                } else if (!touchMoved && !hasScrolled && isContentArea) {
+                    // Short tap on content (not moved, not scrolled) - trigger edit
+                    // Only if tap was quick (< 400ms) and on content area
+                    if (touchDuration < 400) {
+                        const taskId = parseInt(taskElement.dataset.taskId);
+                        const currentTouch = e.changedTouches[0];
+                        const clickEvent = {
+                            clientX: currentTouch.clientX,
+                            clientY: currentTouch.clientY
+                        };
+                        this.editTask(taskId, clickEvent);
+                    }
+                }
+                
+                isDragging = false;
+                touchMoved = false;
+                preventTextSelection = false;
+                hasScrolled = false;
+                isContentArea = false;
+                
+                document.removeEventListener('touchmove', touchMoveHandler);
+                document.removeEventListener('touchend', touchEndHandler);
+            };
+            
+            document.addEventListener('touchmove', touchMoveHandler, { passive: false });
+            document.addEventListener('touchend', touchEndHandler, { once: true });
+        }, { passive: true });
+    }
+
+    handleTaskDrop(draggedTaskId, targetTaskElement, clientY) {
+        const targetTaskId = parseInt(targetTaskElement.dataset.taskId);
+        
+        // Get the epic IDs to check if we're moving between epics
+        const draggedTask = this.tasks.find(t => t.id === draggedTaskId);
+        const targetTask = this.tasks.find(t => t.id === targetTaskId);
+        
+        if (draggedTask && targetTask && draggedTask.epic_id !== targetTask.epic_id) {
+            // Moving between epics
+            const epicElement = targetTaskElement.closest('.epic-column');
+            if (epicElement) {
+                const newEpicId = parseInt(epicElement.dataset.epicId);
+                const tasksContainer = epicElement.querySelector('.tasks-container');
+                const taskElements = Array.from(tasksContainer.querySelectorAll('.task-item'));
+                
+                let insertPosition = taskElements.length;
+                for (let i = 0; i < taskElements.length; i++) {
+                    const taskRect = taskElements[i].getBoundingClientRect();
+                    const taskCenterY = taskRect.top + taskRect.height / 2;
+                    
+                    if (clientY < taskCenterY) {
+                        insertPosition = i;
+                        break;
+                    }
+                    insertPosition = i + 1;
+                }
+                
+                this.moveTaskToEpic(draggedTaskId, newEpicId, insertPosition);
+                return;
+            }
+        }
+        
+        if (draggedTaskId !== targetTaskId && draggedTask && targetTask && draggedTask.epic_id === targetTask.epic_id) {
+            // Same epic, just reordering
+            const rect = targetTaskElement.getBoundingClientRect();
+            const midpoint = rect.top + rect.height / 2;
+            const isAbove = clientY < midpoint;
+            
+            this.reorderTasks(draggedTaskId, targetTaskId, isAbove);
+        }
     }
 
     async moveTaskToEpic(taskId, newEpicId, insertPosition = null) {

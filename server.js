@@ -1,10 +1,12 @@
 const express = require('express');
-const http = require('http');
+const https = require('https');
+const fs = require('fs');
 const socketIo = require('socket.io');
 const session = require('express-session');
 const rateLimit = require('express-rate-limit');
 const cors = require('cors');
 const path = require('path');
+const os = require('os');
 const Database = require('./database');
 const config = require('./src/config');
 const { requireAuth } = require('./src/middleware/auth');
@@ -15,7 +17,23 @@ const activityRoutes = require('./src/routes/activity');
 const setupSocket = require('./src/websocket/socketHandler');
 
 const app = express();
-const server = http.createServer(app);
+
+// Load SSL certificates
+const certPath = path.join(__dirname, 'cert.pem');
+const keyPath = path.join(__dirname, 'key.pem');
+
+if (!fs.existsSync(certPath) || !fs.existsSync(keyPath)) {
+  console.error('❌ SSL certificates not found!');
+  console.error('   Generate them with: openssl req -x509 -newkey rsa:4096 -keyout key.pem -out cert.pem -days 365 -nodes -config cert.conf');
+  process.exit(1);
+}
+
+const sslOptions = {
+  cert: fs.readFileSync(certPath),
+  key: fs.readFileSync(keyPath)
+};
+
+const server = https.createServer(sslOptions, app);
 const io = socketIo(server, {
   cors: config.cors
 });
@@ -62,10 +80,30 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: 'Internal server error' });
 });
 
+// Get local network IP
+function getLocalIp() {
+  const networkInterfaces = os.networkInterfaces();
+  for (const interfaceName of Object.keys(networkInterfaces)) {
+    for (const iface of networkInterfaces[interfaceName]) {
+      if (iface.family === 'IPv4' && !iface.internal) {
+        return iface.address;
+      }
+    }
+  }
+  return null;
+}
+
 // Start server
 server.listen(config.port, () => {
-  console.log(`🚀 Sand Rocket server running on port ${config.port}`);
-  console.log(`📱 Open your browser to http://localhost:${config.port}`);
+  const localIp = getLocalIp();
+  
+  console.log(`🚀 Sand Rocket server running on HTTPS port ${config.port}`);
+  console.log(`📱 Local: https://localhost:${config.port}`);
+  if (localIp) {
+    console.log(`📱 Network: https://${localIp}:${config.port}`);
+    console.log(`   (Accept the self-signed certificate warning on your phone)`);
+  }
+  console.log(`🔒 HTTPS enabled`);
   console.log(`🔑 Default password: rocket123`);
 });
 

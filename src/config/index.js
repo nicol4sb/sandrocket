@@ -5,7 +5,7 @@ module.exports = {
     resave: false,
     saveUninitialized: false,
     cookie: { 
-      secure: process.env.NODE_ENV === 'production', // HTTPS only in production
+      secure: true, // Requires HTTPS
       maxAge: 8 * 60 * 60 * 1000, // 8 hours
       httpOnly: true,
       sameSite: 'strict'
