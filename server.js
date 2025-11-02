@@ -1,6 +1,5 @@
 const express = require('express');
-const https = require('https');
-const fs = require('fs');
+const http = require('http');
 const socketIo = require('socket.io');
 const session = require('express-session');
 const rateLimit = require('express-rate-limit');
@@ -17,23 +16,7 @@ const activityRoutes = require('./src/routes/activity');
 const setupSocket = require('./src/websocket/socketHandler');
 
 const app = express();
-
-// Load SSL certificates
-const certPath = path.join(__dirname, 'cert.pem');
-const keyPath = path.join(__dirname, 'key.pem');
-
-if (!fs.existsSync(certPath) || !fs.existsSync(keyPath)) {
-  console.error('❌ SSL certificates not found!');
-  console.error('   Generate them with: openssl req -x509 -newkey rsa:4096 -keyout key.pem -out cert.pem -days 365 -nodes -config cert.conf');
-  process.exit(1);
-}
-
-const sslOptions = {
-  cert: fs.readFileSync(certPath),
-  key: fs.readFileSync(keyPath)
-};
-
-const server = https.createServer(sslOptions, app);
+const server = http.createServer(app);
 const io = socketIo(server, {
   cors: config.cors
 });
@@ -97,13 +80,12 @@ function getLocalIp() {
 server.listen(config.port, () => {
   const localIp = getLocalIp();
   
-  console.log(`🚀 Sand Rocket server running on HTTPS port ${config.port}`);
-  console.log(`📱 Local: https://localhost:${config.port}`);
+  console.log(`🚀 Sand Rocket server running on port ${config.port}`);
+  console.log(`📱 Local: http://localhost:${config.port}`);
   if (localIp) {
-    console.log(`📱 Network: https://${localIp}:${config.port}`);
-    console.log(`   (Accept the self-signed certificate warning on your phone)`);
+    console.log(`📱 Network: http://${localIp}:${config.port}`);
+    console.log(`   (Use this on your phone when connected to the same network)`);
   }
-  console.log(`🔒 HTTPS enabled`);
   console.log(`🔑 Default password: rocket123`);
 });
 
