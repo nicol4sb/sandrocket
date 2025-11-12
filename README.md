@@ -1,215 +1,35 @@
 
 # Sand Rocket - Task Management App
 
-## Project Overview
-A collaborative todo app designed to motivate participants to plan and execute tasks together. The app features a unique Tintin rocket theme with post-it style tasks that can be organized and managed by two users sharing a password-protected workspace.
+## Overview
 
-## Task Management
+Sand Rocket is a collaborative task planning app with a Tintin-rocket personality. Authenticated users spin up focused projects, organize work into epics and tasks, and stay in sync through real-time updates.
 
-### Task Properties
-- Tasks can have up to 150 characters
-- Each task has a creation date and time (shown on hover over the title)
-- Tasks can be edited after creation
-- Tasks can be marked as done with a single click
-- Completed tasks move to a list below (last closed at top) with visual post-it disappearing for sense of achievement
-- Completed tasks can be reopened from the list
-- Tasks can be deleted with confirmation dialog
+## Key Features
 
-### Task Organization
-- Tasks are ordered within their epic
-- If a task is dragged into another epic, change its epic
-
-## Epic Management
-
-### Epic Structure
-- Epics have a name and a pastille (visual indicator)
-- A task always belongs to one and one only epic
-- Epic assignment can be changed during task edition
-- Epics should be presented as vertical swimlanes and can be rearranged by horizontal drag and drop, left to right.
-
-## User Experience (UX)
-
-### Visual Design
-- Modern, high contrast styling for excellent text readability
-- Top banner should float when scrolling down
-- ensure the space is allocated to the epics and tasks first. closed tasks and the action log should not take space on the landing page
-- **Paper-like Drag & Drop**: Simple, intuitive drag and drop that feels like handling real paper notes:
-  - Dragged tasks have subtle rotation (2°) and shadow for natural paper feel
-  - Completely solid and opaque - no transparency
-  - Clear drop zone indicators with colored borders and backgrounds
-  - No complex animations or spacing - just clean, simple feedback
-  - **Intuitive Behavior**: Drag over any task to see where it will be dropped, with clear visual cues
-
-### Mobile Experience
-The mobile interface is optimized for small screens with a focus on information density and efficient space usage:
-
-- **Compact Layout**: Reduced padding and margins throughout the interface to maximize content visibility
-- **Optimized Typography**: Adjusted font sizes for better readability while maintaining information density
-  - Header: Compact 1.2rem title with 24px icon
-  - Epic names: 1.1rem for clear hierarchy
-  - Task content: 0.9rem for optimal text density
-  - Metadata: 0.75rem for secondary information without clutter
-- **Fixed Header with Auto-Hide**: The top banner is fixed at the top for quick access to actions, but automatically hides when scrolling down to maximize screen real estate. It reappears when scrolling up, ensuring easy access to navigation without taking up precious vertical space
-- **Full-Width Panels**: Activity and completed task panels expand to full width on mobile for maximum content visibility
-- **Touch-Optimized Controls**: Buttons and interactive elements are sized appropriately for touch (minimum 44px touch targets)
-- **Efficient Space Allocation**: 
-  - Zero wasted space with edge-to-edge content
-  - Tasks and epics take priority - panels only appear when needed
-  - Stats and metadata are compact but still readable
-- **Responsive Breakpoints**: 
-  - Tablet (≤768px): Optimized horizontal layout with fixed header behavior
-  - Mobile (≤480px): Further optimized for small screens with compact spacing 
-
-### Interaction Design
-- All text fields editable when clicked (titles, body, links)
-- double click in the field enters edit mode, and selects the whole text
-- Text should be wrapped in tasks
-- Task deletion via cross icon in top right
-- Task creation with appropriate UI component (e.g., + sign)
-- Nice UX effects like sliding into completed list for enjoyable task completion
-### Collaboration Features
-- Offer the ability to browse the full plan on the main page, and then in maybe foldable areas or tabs I want two reports : 
-#### a detailed action log with comprehensive activity tracking
-- **Task Actions**: Creation, updates, completion, deletion, and reordering with epic context
-- **Epic Actions**: Creation and updates with color and position details
-- **Rich Details**: Each log entry includes task content, epic names, positions, and timestamps
-- **Metrics**: Number of tasks created and completed in the past week
-- **Real-time Updates**: Live activity feed for collaborative awareness
-#### a list of the closed tasks ordered with the most recently closed at the top - I can reopen them from there also. When I reopen, they disappear from the closed list -
-
-## Architecture & Technical Requirements
-
-### System Architecture
-**Single Node.js Application** - A lean, monolithic approach that serves both API and frontend from one process, perfect for a 2-person collaborative tool.
-
-#### Core Components
-- **Express.js Server** - Handles HTTP requests, serves static files, and manages WebSocket connections
-- **SQLite Database** - Embedded file-based database (`rocket.db`) for easy backup and portability - create a few epics and tasks attached to these epics for the initial look
-
-- **WebSocket Server** - Real-time collaboration using Socket.io for live updates between users
-- **Static Frontend** - Vanilla JavaScript with modern CSS, served directly by Express
-
-#### Data Layer
-```
-rocket.db (SQLite)
-├── epics (id, name, pastille_color, position, created_at)
-├── tasks (id, epic_id, content, position, is_completed, created_at, updated_at)
-├── activity_log (id, user_id, action_type, task_id, details, timestamp)
-└── app_config (key, value) -- for shared password, etc.
-```
-
-#### File Structure
-```
-sand-rocket/
-├── server.js              # Main Express server
-├── database.js            # SQLite setup and queries
-├── rocket.db              # SQLite database file (backup-friendly!)
-├── public/                # Static frontend files
-│   ├── index.html         # Main app page
-│   ├── styles.css         # Rocket-themed styling
-│   ├── app.js             # Frontend logic & drag-drop
-│   └── rocket.svg         # Tintin rocket illustration
-├── package.json           # Dependencies
-└── README.md
-```
-
-#### Real-time Collaboration
-- **WebSocket connections** maintain live sync between users
-- **Optimistic updates** for smooth UX (update UI immediately, sync with server)
-- **Conflict resolution** using last-write-wins with timestamps
-- **Activity broadcasting** shows real-time actions in the folding log panel
-
-#### Security & Authentication
-- **Password Security**: 
-  - Passwords are hashed using bcrypt with salt rounds (10)
-  - Default password: `rocket123` (can be changed via database)
-  - Password verification uses secure bcrypt comparison
-  - No plaintext passwords stored anywhere
-- **Session Management**:
-  - Express-session with secure session cookies
-  - Session secret key for cookie signing
-  - 24-hour session expiration
-  - Secure cookie settings (can be enabled for HTTPS in production)
-- **Rate Limiting**:
-  - API endpoints limited to 100 requests per 15 minutes per IP
-  - Prevents brute force attacks and API abuse
-- **Input Validation**:
-  - Character limits enforced (150 chars for tasks/epics)
-  - SQL injection prevention through parameterized queries
-  - XSS protection through HTML escaping
-- **CORS Configuration**:
-  - Configured for same-origin requests
-  - WebSocket connections properly secured
-
-#### Deployment Strategy
-- **Single file deployment** - just copy the folder and run `npm start`
-- **Easy backup** - copy `rocket.db` file to backup all data
-- **Port configuration** - runs on configurable port (default 9000)
-- **Process management** - can use PM2 for production deployment
-
-#### Performance Considerations
-- **SQLite WAL mode** for better concurrent access
-- **Connection pooling** for database operations
-- **Efficient queries** with proper indexing on epic_id, position, etc.
-- **Client-side caching** of epic/task data with periodic refresh
-- **Debounced updates** for drag-and-drop operations
-
-#### Development Workflow
-- **Hot reload** for frontend changes during development
-- **Database migrations** handled via simple SQL scripts
-- **Logging** to console and optional file for debugging
-- **Error handling** with graceful degradation for network issues
-
-### Architecture Summary
-**Sand Rocket** is built as a lean, single-process Node.js application that serves both API and frontend. The core stack includes:
-
-- **Backend**: Express.js server with SQLite database (`rocket.db`)
-- **Frontend**: Vanilla JavaScript with modern CSS, served statically
-- **Real-time**: WebSocket connections for live collaboration
-- **Data**: File-based SQLite for easy backup and portability
-- **Auth**: Simple shared password with session management
-
-**Key Benefits:**
-- 🚀 **Zero-config deployment** - just run `npm start`
-- 💾 **Easy backup** - copy the `rocket.db` file
-- ⚡ **Real-time collaboration** - instant updates between users
-- 🎨 **Rocket-themed UI** - Tintin-inspired visual design
-- 🔧 **Minimal dependencies** - lean and maintainable
+- Create projects with shareable invite links and role-aware membership.
+- Drag-and-drop tasks with instant visual feedback and optimistic updates.
+- Track history with an activity log and weekly metrics.
+- Responsive design optimized for both desktop and mobile.
 
 ## Quick Start
 
-### Prerequisites
-- Node.js (version 14 or higher)
-- npm
+1. Install dependencies: `npm install`
+2. Configure Firebase credentials in `.env` (see `docs/development/setup.md`)
+3. Provide a Firebase Admin service account JSON via `FIREBASE_ADMIN_CREDENTIALS`
+4. Launch the app: `npm start`
+5. Visit `http://localhost:9000` and sign in with your Firebase user
 
-### Installation & Running
-1. Clone or download this repository
-2. Navigate to the project directory
-3. Run the startup script:
-   ```bash
-   ./start.sh
-   ```
-   Or manually:
-   ```bash
-   npm install
-   npm start
-   ```
-4. Open your browser and go to `http://localhost:9000`
-5. Use the default password: `rocket123`
+## Documentation
 
-### First Time Setup
-- The app will create a SQLite database (`rocket.db`) automatically
-- Default password is `rocket123` (you can change this later)
-- A default "General" epic will be created for you to start with
-
-### Features Available 
-✅ **Task Management**: Create, edit, complete, and delete tasks (max 150 characters)  
-✅ **Epic Organization**: Create and manage epics with color-coded pastilles  
-✅ **Drag & Drop**: Simple, intuitive paper-like drag and drop - Move tasks between epics by dragging, and change priority of tasks by moving them up and down within one epic. Dragged tasks have a subtle paper-like effect with rotation and shadow, while drop zones show clear visual feedback.
-✅ **Real-time Collaboration**: Live updates when multiple users are working  
-✅ **Activity Log**: Track all actions in the folding activity panel  
-✅ **Authentication**: Simple shared password protection  
-✅ **Responsive Design**: Works on desktop and mobile devices  
+- Architecture overview – `docs/architecture/overview.md`
+- Modular boundaries & interfaces – `docs/architecture/modules.md`
+- Development setup – `docs/development/setup.md`
+- Coding standards – `docs/development/coding-standards.md`
+- Testing strategy – `docs/development/testing.md`
+- Operations runbook – `docs/operations/runbook.md`
+- Troubleshooting guide – `docs/operations/troubleshooting.md`
 
 ## Project Goals
-The primary purpose is to motivate participants to plan and execute tasks - make phone calls, drive decisions, and take action on important items.
+
+The primary purpose is to motivate participants to plan and execute tasks—make phone calls, drive decisions, and take action on important items with a collaborative board that stays in lockstep.
