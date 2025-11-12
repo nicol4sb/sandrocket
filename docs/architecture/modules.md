@@ -20,9 +20,10 @@ packages/
 
 - **Projects** – Project lifecycle, invite link issuance, membership rules.
 - **Epics** – Swimlane ordering, color assignments, constraint enforcement.
-- **Tasks** – Task creation, updates, completion handling, position management.
+- **Tasks** – Task creation, updates, completion handling, position management, and a fluid drag-and-drop experience where surrounding tasks animate out of the way to preview the final drop state.
 - **Collaboration** – Event publishing, activity log aggregation, notification fan-out.
 - **Analytics** – Weekly metrics and historical trends for engagement tracking.
+- **Auth** – Gateway abstraction over Firebase Authentication with adapters for the real service, emulator, or in-memory mock.
 
 Each module exports service interfaces (e.g. `TaskService`, `ProjectMembershipService`), domain events, and DTOs. Delivery layers depend on those interfaces; infrastructure packages provide concrete adapters.
 
@@ -31,6 +32,10 @@ Each module exports service interfaces (e.g. `TaskService`, `ProjectMembershipSe
 - Repository interfaces abstract persistence (`TaskRepository`, `ProjectRepository`).
 - Gateways wrap external concerns (`AuthGateway`, `MessagingGateway`).
 - Event emitters follow a consistent signature so both realtime and analytics consumers can subscribe with minimal coupling.
+- Auth adapters include:
+  - `FirebaseAuthGateway` for production.
+  - `FirebaseEmulatorGateway` for local development.
+  - `InMemoryAuthGateway` for unit and integration tests, providing deterministic user fixtures and token verification.
 
 ## Configuration & Environment
 

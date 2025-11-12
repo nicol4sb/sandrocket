@@ -29,6 +29,18 @@
    ```
 5. Visit `http://localhost:9000` and sign in with a Firebase-authenticated user.
 
+## Local Firebase Options
+
+- **Use the Firebase Emulator Suite** when you want realistic auth flows without touching production:
+  1. Install CLI tools: `npm install -g firebase-tools`.
+  2. Start the emulator: `firebase emulators:start --only auth`.
+  3. Set `FIREBASE_AUTH_EMULATOR_HOST=localhost:9099` and call `connectAuthEmulator` in the client.
+  4. Seed test users via the emulator UI or scripts.
+- **Mock auth gateway** for offline work or automated tests:
+  - Set `AUTH_PROVIDER=mock` (or another flag) to wire in the in-memory adapter.
+  - Provide fixtures in `packages/infrastructure/auth/in-memory/` to create users/projects instantly.
+  - Tokens are synthetic, so no external services are required.
+
 ## Local Database
 
 - `rocket.db` is created automatically in the project root.

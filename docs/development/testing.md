@@ -12,6 +12,7 @@ This guide explains how to validate Sand Rocket from fast inner-loop checks to f
 
 - Target: services, value objects, and domain rules in `packages/core`.
 - Environment: no database, no HTTP—use in-memory adapters.
+- Auth: wire the `InMemoryAuthGateway` so tests can seed users without Firebase.
 - Command (example):
   ```bash
   npm run test:unit
@@ -22,6 +23,7 @@ This guide explains how to validate Sand Rocket from fast inner-loop checks to f
 
 - Target: Express routes, repositories, and adapters working together.
 - Environment: start the app modules in process, but use a temporary SQLite file (`rocket.test.db`).
+- Auth: either use the Firebase Emulator Gateway (by starting the auth emulator before the suite) or the in-memory gateway for faster runs.
 - Recommended flow:
   1. Create a temp database before each suite.
   2. Run HTTP requests with Supertest (or similar).
@@ -36,6 +38,7 @@ This guide explains how to validate Sand Rocket from fast inner-loop checks to f
 
 - Target: full user journeys—login, create project, add epics/tasks, edit and delete items.
 - Environment: run the real server (`npm start`) with sandbox Firebase credentials and a dedicated database.
+- Auth: point the frontend and backend to the Firebase Emulator when possible (`FIREBASE_AUTH_EMULATOR_HOST` + `connectAuthEmulator`), or use a staging Firebase project reserved for automated tests.
 - Recommended toolset: Playwright or Cypress for browser automation.
 - Typical flow:
   1. Launch the server (optionally via a helper script that starts it in the background).

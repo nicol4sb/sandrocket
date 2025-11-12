@@ -8,7 +8,7 @@ Sand Rocket is a collaborative task planning app with a Tintin-rocket personalit
 ## Key Features
 
 - Create projects with shareable invite links and role-aware membership.
-- Drag-and-drop tasks with instant visual feedback and optimistic updates.
+- Drag-and-drop tasks with smooth animations; neighboring tasks slide in real time to preview the final position before you drop.
 - Track history with an activity log and weekly metrics.
 - Responsive design optimized for both desktop and mobile.
 
