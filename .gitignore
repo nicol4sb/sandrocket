@@ -1,3 +1,14 @@
+node_modules
+dist
+build
+coverage
+.DS_Store
+*.log
+.env
+.env.*
+rocket.db
+tmp
+*.tsbuildinfo
 # Dependencies
 node_modules/
 npm-debug.log*

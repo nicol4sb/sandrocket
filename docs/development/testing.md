@@ -8,6 +8,20 @@ This guide explains how to validate Sand Rocket from fast inner-loop checks to f
 - **Integration tests** – API + SQLite against a throwaway database.
 - **End-to-end (E2E)** – Real server plus browser automation to mimic a user.
 
+Recommended npm scripts (define these in `package.json`):
+
+```json
+{
+  "scripts": {
+    "test:unit": "vitest run --config vitest.unit.config.ts",
+    "test:integration": "vitest run --config vitest.integration.config.ts",
+    "test:e2e": "playwright test",
+    "test:full": "npm run test:unit && npm run test:integration && npm run test:e2e",
+    "firebase:emulator": "firebase emulators:start --only auth"
+  }
+}
+```
+
 ## Unit Tests
 
 - Target: services, value objects, and domain rules in `packages/core`.
@@ -42,12 +56,13 @@ This guide explains how to validate Sand Rocket from fast inner-loop checks to f
 - Recommended toolset: Playwright or Cypress for browser automation.
 - Typical flow:
   1. Launch the server (optionally via a helper script that starts it in the background).
-  2. Wait for readiness (HTTP health check).
-  3. Execute the E2E suite:
+  2. If using the emulator, start it via `npm run firebase:emulator` (in a separate process) and export `USE_FIREBASE_EMULATOR=true`.
+  3. Wait for readiness (HTTP health check).
+  4. Execute the E2E suite:
      ```bash
      npm run test:e2e
      ```
-  4. Tear down by deleting the temporary database and stopping the server.
+  5. Tear down by deleting the temporary database and stopping the server/emulator.
 - Purpose: validate that the product behaves as a user expects, covering UI wiring, realtime updates, and authentication end-to-end.
 
 ## Umbrella Script
@@ -67,4 +82,6 @@ This guide explains how to validate Sand Rocket from fast inner-loop checks to f
 - Use feature flags or dedicated Firebase projects for automated sign-ins.
 - Parallelize where possible (unit tests in watch mode, E2E selectively on CI).
 - Document fixtures and helper utilities so new contributors can extend coverage quickly.
+- Store fixtures under `tests/fixtures/` (users, projects, tasks). Provide factory helpers that can seed either the in-memory gateway or the emulator automatically.
+- CI pipelines should call `npm run firebase:emulator -- --project sandrocket-test` to ensure predictable tenant IDs.
 

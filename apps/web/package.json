@@ -1,0 +1,27 @@
+{
+  "name": "@sandrocket/web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --project tsconfig.json && vite build",
+    "preview": "vite preview",
+    "lint": "eslint \"src/**/*.{ts,tsx}\"",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@sandrocket/contracts": "file:../../packages/contracts",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.4",
+    "@types/react-dom": "^18.3.0",
+    "@vitejs/plugin-react": "^4.2.0",
+    "eslint": "^8.57.0",
+    "typescript": "^5.4.0",
+    "vite": "^5.1.4"
+  }
+}
+

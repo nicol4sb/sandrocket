@@ -28,7 +28,12 @@ rocket.db (SQLite)
 └── invite_tokens
 ```
 
-The database runs in WAL mode for better concurrency, and indices on frequently filtered columns (such as `epic_id`, `position`, and `project_id`) keep queries fast.
+The database runs in WAL mode for better concurrency, and indices on frequently filtered columns (such as `epic_id` and `position`) keep queries fast. Tasks reference epics only; project context is derived by joining through the owning epic.
+
+## Platform Services
+
+- **MaintenanceScheduler** – nightly job that orchestrates backups, retention pruning, and orphan-project cleanup.
+- Backups run daily and retain the last five snapshots, purging older copies automatically.
 
 ## Collaboration & Events
 
@@ -40,6 +45,6 @@ The database runs in WAL mode for better concurrency, and indices on frequently 
 
 - Single Node.js process; easy to host on platforms like Fly.io, Render, or a simple VM.
 - `npm start` launches the server on the configured port (`PORT`, default `9000`).
-- Backups involve copying `rocket.db`; no external dependencies beyond Firebase Authentication.
+- Backups involve copying `rocket.db`; no external dependencies required (authentication is self-contained).
 - Process managers such as PM2 are recommended for production restarts and monitoring.
 

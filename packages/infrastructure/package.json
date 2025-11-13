@@ -1,0 +1,35 @@
+{
+  "name": "@sandrocket/infrastructure",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsc --project tsconfig.build.json",
+    "config:check": "tsx src/config/check-config.ts",
+    "lint": "eslint \"src/**/*.{ts,tsx}\"",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@sandrocket/core": "file:../core",
+    "@sandrocket/contracts": "file:../contracts",
+    "bcryptjs": "^2.4.3",
+    "better-sqlite3": "^9.4.0",
+    "dotenv": "^16.4.5",
+    "jsonwebtoken": "^9.0.2",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/bcryptjs": "^2.4.2",
+    "@types/jsonwebtoken": "^9.0.7",
+    "@types/better-sqlite3": "^7.6.8"
+  }
+}
+

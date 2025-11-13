@@ -1,0 +1,23 @@
+{
+  "compilerOptions": {
+    "target": "ES2021",
+    "module": "ESNext",
+    "moduleResolution": "Node",
+    "lib": ["ES2021"],
+    "allowJs": false,
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "skipLibCheck": true,
+    "strict": true,
+    "resolveJsonModule": true,
+    "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true,
+    "baseUrl": ".",
+    "paths": {
+      "@sandrocket/core": ["packages/core/src"],
+      "@sandrocket/contracts": ["packages/contracts/src"],
+      "@sandrocket/infrastructure": ["packages/infrastructure/src"]
+    }
+  }
+}
+

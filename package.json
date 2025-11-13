@@ -1,0 +1,32 @@
+{
+  "name": "sandrocket",
+  "version": "0.1.0",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "npm run build --workspaces --if-present",
+    "dev": "npm run dev:api",
+    "dev:api": "npm run build --workspace apps/web && npm run dev --workspace apps/api",
+    "dev:web": "npm run dev --workspace apps/web",
+    "lint": "npm run lint --workspaces --if-present",
+    "config:check": "npm run config:check --workspace packages/infrastructure",
+    "start": "npm run build --workspace apps/web && npm run start --workspace apps/api",
+    "test": "npm run test --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "devDependencies": {
+    "@typescript-eslint/eslint-plugin": "^6.21.0",
+    "@typescript-eslint/parser": "^6.21.0",
+    "@types/node": "^20.15.3",
+    "eslint": "^8.57.0",
+    "tsx": "^4.7.0",
+    "typescript": "^5.4.0"
+  }
+}
+

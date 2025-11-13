@@ -1,0 +1,28 @@
+{
+  "name": "@sandrocket/core",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    },
+    "./auth": {
+      "import": "./dist/auth/index.js",
+      "types": "./dist/auth/index.d.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsc --project tsconfig.build.json",
+    "lint": "eslint \"src/**/*.{ts,tsx}\"",
+    "test": "echo \"No tests yet\"",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "zod": "^3.23.8"
+  }
+}
+

@@ -15,20 +15,24 @@ Sand Rocket is a collaborative task planning app with a Tintin-rocket personalit
 ## Quick Start
 
 1. Install dependencies: `npm install`
-2. Configure Firebase credentials in `.env` (see `docs/development/setup.md`)
-3. Provide a Firebase Admin service account JSON via `FIREBASE_ADMIN_CREDENTIALS`
-4. Launch the app: `npm start`
-5. Visit `http://localhost:9000` and sign in with your Firebase user
+2. (Optional) Copy `config/env.example` to `.env` to customize settings
+3. Launch the app: `npm start`
+4. Visit `http://localhost:9000` and create an account or sign in
 
 ## Documentation
 
 - Architecture overview – `docs/architecture/overview.md`
+- Authentication system – `docs/architecture/auth.md`
 - Modular boundaries & interfaces – `docs/architecture/modules.md`
+- Frontend architecture – `docs/architecture/frontend.md`
+- Domain contracts & events – `docs/architecture/contracts.md`
+- UX interaction notes – `docs/architecture/ux.md`
 - Development setup – `docs/development/setup.md`
 - Coding standards – `docs/development/coding-standards.md`
 - Testing strategy – `docs/development/testing.md`
 - Operations runbook – `docs/operations/runbook.md`
 - Troubleshooting guide – `docs/operations/troubleshooting.md`
+- Security & compliance – `docs/operations/security.md`
 
 ## Project Goals
 

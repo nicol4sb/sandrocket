@@ -1,0 +1,17 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "jsx": "react-jsx",
+    "types": ["vite/client"],
+    "baseUrl": ".",
+    "module": "ESNext",
+    "moduleResolution": "Node",
+    "lib": ["ES2021", "DOM", "DOM.Iterable"],
+    "paths": {
+      "@/*": ["src/*"],
+      "@sandrocket/contracts": ["../../packages/contracts/src"]
+    }
+  },
+  "include": ["src", "vite.config.ts"]
+}
+
