@@ -1,11 +1,10 @@
 import { z } from 'zod';
-export const createEpicRequestSchema = z.object({
-    name: z.string().min(1, 'Epic name is required'),
+export const createProjectRequestSchema = z.object({
+    name: z.string().min(1, 'Project name is required'),
     description: z.string().max(1000).optional().nullable()
 });
-export const epicSchema = z.object({
+export const projectSchema = z.object({
     id: z.string(),
-    projectId: z.string(),
     name: z.string(),
     description: z.string().nullable(),
     createdAt: z.string(),

@@ -1,6 +1,11 @@
 node_modules
+# Ignore generic dist/build by default, but keep prod artifacts we ship
 dist
 build
+!apps/web/dist/
+!apps/web/dist/**
+!apps/api/dist/
+!apps/api/dist/**
 coverage
 .DS_Store
 *.log
