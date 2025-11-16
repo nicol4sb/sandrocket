@@ -93,6 +93,54 @@ app.post(
   })
 );
 
+app.post(
+  '/api/auth/refresh',
+  asyncHandler(async (req, res) => {
+    const token = req.cookies[config.security.sessionCookieName];
+
+    if (!token) {
+      res.status(401).json({
+        error: 'auth/no-token',
+        message: 'No token provided'
+      });
+      return;
+    }
+
+    try {
+      const result = await authService.refreshToken(token);
+      respondWithAuthSuccess(res, result, config, 200);
+    } catch (error) {
+      if (error instanceof AuthError) {
+        res.status(401).json({
+          error: error.code,
+          message: error.message
+        });
+        return;
+      }
+      // Handle token verification errors (expired, invalid, etc.)
+      if (error instanceof Error && error.message.includes('Token')) {
+        res.status(401).json({
+          error: 'auth/invalid-token',
+          message: error.message
+        });
+        return;
+      }
+      throw error;
+    }
+  })
+);
+
+app.post('/api/auth/logout', (_req, res) => {
+  // Clear the auth cookie
+  res.clearCookie(config.security.sessionCookieName, {
+    httpOnly: true,
+    secure: config.security.sessionCookieSecure,
+    sameSite: 'lax',
+    path: '/'
+  });
+  res.status(200).json({ message: 'Logged out successfully' });
+});
+
 const moduleDir = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(moduleDir, '..', '..', '..');
 const frontendDistDir = join(repoRoot, 'apps', 'web', 'dist');

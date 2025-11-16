@@ -1,4 +1,4 @@
-import jwt, { Secret, SignOptions } from 'jsonwebtoken';
+import jwt, { JwtPayload, Secret, SignOptions, VerifyOptions } from 'jsonwebtoken';
 import { AuthTokenPayload, TokenService } from '@sandrocket/core';
 
 export interface JwtTokenServiceOptions {
@@ -26,6 +26,33 @@ export class JwtTokenService implements TokenService {
     };
 
     return jwt.sign(payload, this.secret, options);
+  }
+
+  async verifyToken(token: string): Promise<AuthTokenPayload> {
+    const options: VerifyOptions = {
+      issuer: this.issuer
+    };
+
+    try {
+      const decoded = jwt.verify(token, this.secret, options) as JwtPayload;
+      
+      if (!decoded.userId || !decoded.email) {
+        throw new Error('Invalid token payload');
+      }
+
+      return {
+        userId: decoded.userId as string,
+        email: decoded.email as string
+      };
+    } catch (error) {
+      if (error instanceof jwt.TokenExpiredError) {
+        throw new Error('Token expired');
+      }
+      if (error instanceof jwt.JsonWebTokenError) {
+        throw new Error('Invalid token');
+      }
+      throw error;
+    }
   }
 }
 

@@ -1,4 +1,4 @@
-import { ChangeEvent, FormEvent, useMemo, useState } from 'react';
+import { ChangeEvent, FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import {
   AuthSuccessResponse,
   ErrorResponse,
@@ -25,6 +25,97 @@ function App() {
     () => import.meta.env.VITE_API_BASE_URL ?? DEFAULT_BASE_URL,
     []
   );
+
+  const refreshIntervalRef = useRef<number | null>(null);
+  const isRefreshSetupRef = useRef<string | null>(null);
+
+  // Set up periodic token refresh
+  useEffect(() => {
+    // Refresh token function - doesn't update result to avoid triggering effect
+    const refreshToken = async () => {
+      try {
+        const response = await fetch(`${baseUrl}/auth/refresh`, {
+          method: 'POST',
+          credentials: 'include'
+        });
+
+        if (!response.ok) {
+          // Token is invalid/expired, clear result to show login form
+          if (response.status === 401) {
+            setResult(null);
+            setError('Session expired. Please log in again.');
+            // Clear the setup flag so we can re-setup if user logs in again
+            isRefreshSetupRef.current = null;
+            if (refreshIntervalRef.current !== null) {
+              clearInterval(refreshIntervalRef.current);
+              refreshIntervalRef.current = null;
+            }
+          }
+          return;
+        }
+
+        const data = await response.json() as AuthSuccessResponse;
+        // Update result with new token, but use functional update to avoid
+        // triggering this effect again (since we only depend on user.id)
+        setResult((prev) => {
+          if (prev && prev.user.id === data.user.id) {
+            // Same user, just update token
+            return { ...prev, token: data.token };
+          }
+          // New user or first time, return full data
+          return data;
+        });
+        setError(null);
+      } catch (err) {
+        console.error('Token refresh error:', err);
+        // Don't show error to user for background refresh failures
+        // Only clear result if we're sure the session is invalid
+      }
+    };
+
+    // Only set up refresh if user is authenticated and we haven't set it up for this user yet
+    if (result) {
+      const userId = result.user.id;
+      
+      // Only set up interval once per user
+      if (isRefreshSetupRef.current !== userId) {
+        // Clear any existing interval first
+        if (refreshIntervalRef.current !== null) {
+          clearInterval(refreshIntervalRef.current);
+          refreshIntervalRef.current = null;
+        }
+
+        // Mark as set up for this user
+        isRefreshSetupRef.current = userId;
+
+        // Refresh immediately on mount/authentication
+        refreshToken();
+
+        // Then refresh every 10 seconds (for testing)
+        refreshIntervalRef.current = window.setInterval(() => {
+          refreshToken();
+        }, 10 * 1000); // 10 seconds
+
+        return () => {
+          if (refreshIntervalRef.current !== null) {
+            clearInterval(refreshIntervalRef.current);
+            refreshIntervalRef.current = null;
+          }
+          isRefreshSetupRef.current = null;
+        };
+      }
+    } else {
+      // User logged out, clear setup
+      if (refreshIntervalRef.current !== null) {
+        clearInterval(refreshIntervalRef.current);
+        refreshIntervalRef.current = null;
+      }
+      isRefreshSetupRef.current = null;
+    }
+
+    // Return undefined cleanup function if not authenticated
+    return undefined;
+  }, [result?.user.id, baseUrl]);
 
   const validateEmail = (emailValue: string): string | null => {
     if (!emailValue.trim()) {
@@ -123,6 +214,24 @@ function App() {
     setResult(null);
   };
 
+  const handleLogout = async () => {
+    try {
+      await fetch(`${baseUrl}/auth/logout`, {
+        method: 'POST',
+        credentials: 'include'
+      });
+    } catch (err) {
+      console.error('Logout error:', err);
+    } finally {
+      // Clear state regardless of API call success
+      setResult(null);
+      setError(null);
+      setEmail('');
+      setPassword('');
+      setDisplayName('');
+    }
+  };
+
   return (
     <main>
       <section className="auth-card">
@@ -214,10 +323,9 @@ function App() {
                 <dd>{result.user.displayName}</dd>
               </div>
             </dl>
-            <p className="token">
-              <span>JWT</span>
-              <code>{result.token}</code>
-            </p>
+            <button type="button" onClick={handleLogout} className="logout-button">
+              Logout
+            </button>
           </section>
         ) : null}
       </section>

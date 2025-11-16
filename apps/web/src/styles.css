@@ -186,3 +186,16 @@ footer {
   border: 1px solid rgba(13, 18, 36, 0.12);
 }
 
+.logout-button {
+  margin-top: 1rem;
+  background: rgba(235, 87, 87, 0.1);
+  color: #c03535;
+  border: 1px solid rgba(235, 87, 87, 0.3);
+}
+
+.logout-button:hover {
+  background: rgba(235, 87, 87, 0.15);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(235, 87, 87, 0.2);
+}
+

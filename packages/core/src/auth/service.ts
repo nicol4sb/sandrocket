@@ -16,6 +16,7 @@ export interface LoginInput {
 export interface AuthService {
   register(input: RegisterInput): Promise<AuthResult>;
   login(input: LoginInput): Promise<AuthResult>;
+  refreshToken(token: string): Promise<AuthResult>;
   getUser(userId: string): Promise<PublicUser | null>;
 }
 
@@ -103,6 +104,25 @@ class AuthServiceImpl implements AuthService {
     });
 
     return { token, user: toPublicUser(user) };
+  }
+
+  async refreshToken(token: string): Promise<AuthResult> {
+    // Verify the token (will throw if invalid or expired)
+    const payload = await this.deps.tokenService.verifyToken(token);
+
+    // Fetch the user to ensure they still exist
+    const user = await this.deps.users.findById(payload.userId);
+    if (!user) {
+      throw new AuthError('auth/user-not-found', 'User not found');
+    }
+
+    // Generate a new token
+    const newToken = await this.deps.tokenService.createToken({
+      userId: user.id,
+      email: user.email
+    });
+
+    return { token: newToken, user: toPublicUser(user) };
   }
 
   async getUser(userId: string): Promise<PublicUser | null> {

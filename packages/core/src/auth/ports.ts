@@ -13,5 +13,6 @@ export interface PasswordHasher {
 
 export interface TokenService {
   createToken(payload: AuthTokenPayload): Promise<string>;
+  verifyToken(token: string): Promise<AuthTokenPayload>;
 }
 
