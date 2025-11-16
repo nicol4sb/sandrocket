@@ -8,9 +8,11 @@
   ],
   "scripts": {
     "build": "npm run build --workspaces --if-present",
-    "dev": "npm run dev:api",
-    "dev:api": "npm run build --workspace apps/web && npm run dev --workspace apps/api",
+    "dev": "npm run dev:web & npm run dev:api && wait",
+    "dev:api": "npm run dev --workspace apps/api",
     "dev:web": "npm run dev --workspace apps/web",
+    "build:prod": "npm run build --workspaces --if-present",
+    "prod": "npm run build:prod && node server.js",
     "lint": "npm run lint --workspaces --if-present",
     "config:check": "npm run config:check --workspace packages/infrastructure",
     "start": "npm run build --workspace apps/web && npm run start --workspace apps/api",

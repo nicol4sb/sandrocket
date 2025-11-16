@@ -12,33 +12,36 @@ body {
 }
 
 main {
-  width: min(420px, 90vw);
-  margin: 4rem auto;
+  width: min(1100px, 95vw);
+  margin: 3rem auto;
 }
 
 .auth-card {
   background: white;
   border-radius: 1rem;
   box-shadow: 0 10px 40px rgba(13, 18, 36, 0.1);
-  padding: 3rem;
+  padding: 2rem;
   display: flex;
   flex-direction: column;
   gap: 1.5rem;
 }
 
 header {
-  text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
 }
 
 header h1 {
-  margin: 0;
-  font-size: 2.4rem;
+  margin: 0.25rem 0;
+  font-size: 1.6rem;
   letter-spacing: -0.02em;
 }
 
 header p {
-  margin: 0.5rem 0 0;
+  margin: 0.25rem 0 0;
   color: rgba(13, 18, 36, 0.65);
+  font-size: 0.95rem;
 }
 
 form {
@@ -187,15 +190,83 @@ footer {
 }
 
 .logout-button {
-  margin-top: 1rem;
-  background: rgba(235, 87, 87, 0.1);
-  color: #c03535;
-  border: 1px solid rgba(235, 87, 87, 0.3);
+  margin-left: auto;
+  background: transparent;
+  color: rgba(13, 18, 36, 0.65);
+  border: none;
+  padding: 0.25rem 0.5rem;
 }
 
-.logout-button:hover {
-  background: rgba(235, 87, 87, 0.15);
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(235, 87, 87, 0.2);
+.dashboard {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1.5rem;
 }
+
+.projects-list {
+  display: grid;
+  gap: 1rem;
+}
+
+.epic-columns {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 1rem;
+}
+
+.epic-card {
+  border: 1px solid rgba(13, 18, 36, 0.12);
+  border-radius: 0.75rem;
+  padding: 0.75rem;
+  background: #fff;
+}
+
+.project-card {
+  border: 1px solid rgba(13, 18, 36, 0.12);
+  border-radius: 0.75rem;
+  padding: 1rem;
+  background: #fff;
+}
+
+.epics {
+  margin-top: 0.5rem;
+}
+
+.columns {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1rem;
+  margin-top: 0.5rem;
+}
+
+.column {
+  background: #f8f9fe;
+  border: 1px dashed rgba(13, 18, 36, 0.12);
+  padding: 0.75rem;
+  border-radius: 0.5rem;
+  min-height: 80px;
+}
+
+.column.backlog { background: #f7faff; }
+.column.in_progress { background: #fffaf7; }
+.column.done { background: #f7fff9; }
+
+.column.drag-over {
+  outline: 2px solid #2250f4;
+  outline-offset: -2px;
+  background: #eaf1ff;
+}
+
+.task {
+  background: #fff;
+  border: 1px solid rgba(13, 18, 36, 0.12);
+  border-radius: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  margin: 0.5rem 0;
+  cursor: grab;
+}
+
+.task.backlog { border-left: 4px solid #2250f4; }
+.task.in_progress { border-left: 4px solid #f49a22; }
+.task.done { border-left: 4px solid #22a06b; opacity: 0.95; }
 
