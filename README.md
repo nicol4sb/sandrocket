@@ -1,4 +1,3 @@
-
 # Sand Rocket - Task Management App
 
 ## Overview
@@ -19,7 +18,7 @@ Sand Rocket is a collaborative task planning app with a Tintin-rocket personalit
 3. Development (HMR): `npm run dev`
    - Frontend at `http://localhost:5173` (Vite, hot reload)
    - API at `http://localhost:9000`
-4. Production-style (single server): `npm start` or `node server.js 
+4. Production-style (single server): `npm start` or `node server.js
    - Serves the built frontend from the API at `http://localhost:9000`
 
 ## DevOps / Production
@@ -34,26 +33,29 @@ This project supports a simple, low-RAM friendly deployment using a single Node 
 
 ### CI/CD or manual deploy to a small server (no compiling on server)
 
-1) Build artifacts locally (or in CI):
+1. Build artifacts locally (or in CI):
+
    - `npm run build:prod`
    - This produces:
      - API build at `apps/api/dist/main.js`
      - Frontend build at `apps/web/dist/`
    - Note: These dist folders are committed to git (see .gitignore exceptions) so your server can `git pull` and run without compiling.
 
-2) Deploy the repo with artifacts to the server (rsync/zip/clone + pull):
+2. Deploy the repo with artifacts to the server (rsync/zip/clone + pull):
+
    - Ensure the built folders are present (`apps/api/dist`, `apps/web/dist`) and `server.js` at repo root
    - Place `.env` at the repo root on the server
 
-3) Start the app on the server:
+3. Start the app on the server:
    - `node server.js`
    - The API listens on the configured port (default 9000) and serves the frontend from `apps/web/dist`
 
 Notes:
+
 - `server.js` dynamically imports the compiled API (`apps/api/dist/main.js`) and does not require TypeScript runtime.
 - You can also run `npm start` if build artifacts already exist; it will rebuild the frontend then start the API.
 - For development with hot-reload, prefer `npm run dev` which runs Vite (frontend) and the API watcher in parallel.
- - If you ever want to exclude artifacts from git, remove the exceptions in `.gitignore` for `apps/web/dist` and `apps/api/dist`.
+- If you ever want to exclude artifacts from git, remove the exceptions in `.gitignore` for `apps/web/dist` and `apps/api/dist`.
 
 ## Documentation
 

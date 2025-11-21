@@ -11,12 +11,12 @@ import { AuthError, createAuthService } from '@sandrocket/core';
 import { BcryptPasswordHasher, JwtTokenService, SqliteUserRepository, initializeSqliteDatabase, loadConfig } from '@sandrocket/infrastructure';
 import { createProjectService } from '@sandrocket/core';
 import { SqliteProjectRepository, SqliteEpicRepository } from '@sandrocket/infrastructure';
-import { createProjectRequestSchema } from '@sandrocket/contracts';
+import { createProjectRequestSchema, updateProjectRequestSchema } from '@sandrocket/contracts';
 import { createEpicService } from '@sandrocket/core';
-import { createEpicRequestSchema } from '@sandrocket/contracts';
+import { createEpicRequestSchema, updateEpicRequestSchema } from '@sandrocket/contracts';
 import { createTaskService } from '@sandrocket/core';
 import { SqliteTaskRepository } from '@sandrocket/infrastructure';
-import { createTaskRequestSchema, updateTaskRequestSchema } from '@sandrocket/contracts';
+import { createTaskRequestSchema, reorderTaskRequestSchema, updateTaskRequestSchema } from '@sandrocket/contracts';
 import { loginRequestSchema, registerRequestSchema } from '@sandrocket/contracts';
 const config = loadConfig();
 const database = initializeSqliteDatabase({
@@ -25,7 +25,7 @@ const database = initializeSqliteDatabase({
 const tokenService = new JwtTokenService({
     secret: config.security.jwtSecret,
     issuer: 'sandrocket',
-    expiresIn: '7d'
+    expiresIn: '20d'
 });
 const authService = createAuthService({
     users: new SqliteUserRepository(database),
@@ -73,17 +73,19 @@ app.get('/api/epics/:epicId/tasks', asyncHandler(async (req, res) => {
     }
     const payload = await tokenService.verifyToken(token);
     const { epicId } = req.params;
-    const tasks = await taskService.listTasks(epicId);
+    const epicIdNum = Number(epicId);
+    const tasks = await taskService.listTasks(epicIdNum);
     const body = {
         tasks: tasks.map((t) => ({
             id: t.id,
             epicId: t.epicId,
-            title: t.title,
+            creatorUserId: t.creatorUserId,
             description: t.description,
             status: t.status,
             position: t.position,
             createdAt: t.createdAt.toISOString(),
-            updatedAt: t.updatedAt.toISOString()
+            updatedAt: t.updatedAt.toISOString(),
+            lastEditedByUserId: t.lastEditedByUserId
         }))
     };
     res.json(body);
@@ -96,24 +98,26 @@ app.post('/api/epics/:epicId/tasks', asyncHandler(async (req, res) => {
     }
     const payload = await tokenService.verifyToken(token);
     const { epicId } = req.params;
+    const epicIdNum = Number(epicId);
     const body = parseBody(createTaskRequestSchema, req, res);
     if (!body) {
         return;
     }
     const created = await taskService.createTask({
-        epicId,
-        title: body.title,
-        description: body.description ?? null
+        epicId: epicIdNum,
+        creatorUserId: payload.userId,
+        description: body.description
     });
     const response = {
         id: created.id,
         epicId: created.epicId,
-        title: created.title,
+        creatorUserId: created.creatorUserId,
         description: created.description,
         status: created.status,
         position: created.position,
         createdAt: created.createdAt.toISOString(),
-        updatedAt: created.updatedAt.toISOString()
+        updatedAt: created.updatedAt.toISOString(),
+        lastEditedByUserId: created.lastEditedByUserId
     };
     res.status(201).json(response);
 }));
@@ -125,13 +129,15 @@ app.patch('/api/tasks/:taskId', asyncHandler(async (req, res) => {
     }
     const payload = await tokenService.verifyToken(token);
     const { taskId } = req.params;
+    const taskIdNum = Number(taskId);
     const body = parseBody(updateTaskRequestSchema, req, res);
     if (!body) {
         return;
     }
     const updated = await taskService.updateTask({
-        id: taskId,
-        ...body
+        id: taskIdNum,
+        ...body,
+        lastEditedByUserId: payload.userId
     });
     if (!updated) {
         res.status(404).json({ error: 'not-found', message: 'Task not found' });
@@ -140,12 +146,45 @@ app.patch('/api/tasks/:taskId', asyncHandler(async (req, res) => {
     const response = {
         id: updated.id,
         epicId: updated.epicId,
-        title: updated.title,
+        creatorUserId: updated.creatorUserId,
         description: updated.description,
         status: updated.status,
         position: updated.position,
         createdAt: updated.createdAt.toISOString(),
-        updatedAt: updated.updatedAt.toISOString()
+        updatedAt: updated.updatedAt.toISOString(),
+        lastEditedByUserId: updated.lastEditedByUserId
+    };
+    res.json(response);
+}));
+app.patch('/api/tasks/:taskId/position', asyncHandler(async (req, res) => {
+    const token = req.cookies[config.security.sessionCookieName];
+    if (!token) {
+        res.status(401).json({ error: 'auth/no-token', message: 'No token' });
+        return;
+    }
+    const payload = await tokenService.verifyToken(token);
+    const { taskId } = req.params;
+    const taskIdNum = Number(taskId);
+    const body = parseBody(reorderTaskRequestSchema, req, res);
+    if (!body) {
+        return;
+    }
+    // Use moveTask service method which handles status and position
+    const updated = await taskService.moveTask(taskIdNum, body.status, body.position);
+    if (!updated) {
+        res.status(404).json({ error: 'not-found', message: 'Task not found' });
+        return;
+    }
+    const response = {
+        id: updated.id,
+        epicId: updated.epicId,
+        creatorUserId: updated.creatorUserId,
+        description: updated.description,
+        status: updated.status,
+        position: updated.position,
+        createdAt: updated.createdAt.toISOString(),
+        updatedAt: updated.updatedAt.toISOString(),
+        lastEditedByUserId: updated.lastEditedByUserId
     };
     res.json(response);
 }));
@@ -159,7 +198,8 @@ app.get('/api/projects/:projectId/epics', asyncHandler(async (req, res) => {
     const payload = await tokenService.verifyToken(token);
     // Only allow access if user owns the project; for now rely on list projects then fetch epics
     const { projectId } = req.params;
-    const epics = await epicService.listEpics(projectId);
+    const projectIdNum = Number(projectId);
+    const epics = await epicService.listEpics(projectIdNum);
     const body = {
         epics: epics.map((e) => ({
             id: e.id,
@@ -185,7 +225,7 @@ app.post('/api/projects/:projectId/epics', asyncHandler(async (req, res) => {
         return;
     }
     const created = await epicService.createEpic({
-        projectId,
+        projectId: Number(projectId),
         name: body.name,
         description: body.description ?? null
     });
@@ -196,6 +236,32 @@ app.post('/api/projects/:projectId/epics', asyncHandler(async (req, res) => {
         description: created.description,
         createdAt: created.createdAt.toISOString(),
         updatedAt: created.updatedAt.toISOString()
+    });
+}));
+app.patch('/api/epics/:epicId', asyncHandler(async (req, res) => {
+    const token = req.cookies[config.security.sessionCookieName];
+    if (!token) {
+        res.status(401).json({ error: 'auth/no-token', message: 'No token' });
+        return;
+    }
+    const payload = await tokenService.verifyToken(token);
+    const { epicId } = req.params;
+    const epicIdNum = Number(epicId);
+    const body = parseBody(updateEpicRequestSchema, req, res);
+    if (!body)
+        return;
+    const updated = await epicService.updateEpic({ id: epicIdNum, ...body });
+    if (!updated) {
+        res.status(404).json({ error: 'not-found', message: 'Epic not found' });
+        return;
+    }
+    res.json({
+        id: updated.id,
+        projectId: updated.projectId,
+        name: updated.name,
+        description: updated.description,
+        createdAt: updated.createdAt.toISOString(),
+        updatedAt: updated.updatedAt.toISOString()
     });
 }));
 app.post('/api/auth/login', asyncHandler(async (req, res) => {
@@ -296,25 +362,140 @@ app.post('/api/projects', asyncHandler(async (req, res) => {
     if (!body) {
         return;
     }
-    const created = await projectService.createProject({
-        ownerUserId: payload.userId,
-        name: body.name,
-        description: body.description ?? null
+    try {
+        const created = await projectService.createProject({
+            ownerUserId: payload.userId,
+            name: body.name,
+            description: body.description ?? null
+        });
+        res.status(201).json({
+            id: created.id,
+            name: created.name,
+            description: created.description,
+            createdAt: created.createdAt.toISOString(),
+            updatedAt: created.updatedAt.toISOString()
+        });
+    }
+    catch (err) {
+        // eslint-disable-next-line no-console
+        console.error('Error creating project:', err);
+        res.status(500).json({
+            error: 'internal-error',
+            message: err instanceof Error ? err.message : 'Failed to create project'
+        });
+    }
+}));
+app.patch('/api/projects/:projectId', asyncHandler(async (req, res) => {
+    const token = req.cookies[config.security.sessionCookieName];
+    if (!token) {
+        res.status(401).json({ error: 'auth/no-token', message: 'No token' });
+        return;
+    }
+    const payload = await tokenService.verifyToken(token);
+    const { projectId } = req.params;
+    const projectIdNum = Number(projectId);
+    const body = parseBody(updateProjectRequestSchema, req, res);
+    if (!body) {
+        return;
+    }
+    const updated = await projectService.updateProject({
+        id: projectIdNum,
+        ...body
     });
-    res.status(201).json({
-        id: created.id,
-        name: created.name,
-        description: created.description,
-        createdAt: created.createdAt.toISOString(),
-        updatedAt: created.updatedAt.toISOString()
+    if (!updated) {
+        res.status(404).json({ error: 'not-found', message: 'Project not found' });
+        return;
+    }
+    res.json({
+        id: updated.id,
+        name: updated.name,
+        description: updated.description,
+        createdAt: updated.createdAt.toISOString(),
+        updatedAt: updated.updatedAt.toISOString()
     });
 }));
+app.delete('/api/projects/:projectId', asyncHandler(async (req, res) => {
+    const token = req.cookies[config.security.sessionCookieName];
+    if (!token) {
+        res.status(401).json({ error: 'auth/no-token', message: 'No token' });
+        return;
+    }
+    const payload = await tokenService.verifyToken(token);
+    const { projectId } = req.params;
+    const projectIdNum = Number(projectId);
+    const deleted = await projectService.deleteProject(projectIdNum);
+    if (!deleted) {
+        res.status(404).json({ error: 'not-found', message: 'Project not found' });
+        return;
+    }
+    res.status(204).send();
+}));
+app.delete('/api/epics/:epicId', asyncHandler(async (req, res) => {
+    const token = req.cookies[config.security.sessionCookieName];
+    if (!token) {
+        res.status(401).json({ error: 'auth/no-token', message: 'No token' });
+        return;
+    }
+    const payload = await tokenService.verifyToken(token);
+    const { epicId } = req.params;
+    const epicIdNum = Number(epicId);
+    const deleted = await epicService.deleteEpic(epicIdNum);
+    if (!deleted) {
+        res.status(404).json({ error: 'not-found', message: 'Epic not found' });
+        return;
+    }
+    res.status(204).send();
+}));
+app.delete('/api/tasks/:taskId', asyncHandler(async (req, res) => {
+    const token = req.cookies[config.security.sessionCookieName];
+    if (!token) {
+        res.status(401).json({ error: 'auth/no-token', message: 'No token' });
+        return;
+    }
+    const payload = await tokenService.verifyToken(token);
+    const { taskId } = req.params;
+    const taskIdNum = Number(taskId);
+    const deleted = await taskService.deleteTask(taskIdNum);
+    if (!deleted) {
+        res.status(404).json({ error: 'not-found', message: 'Task not found' });
+        return;
+    }
+    res.status(204).send();
+}));
 const moduleDir = dirname(fileURLToPath(import.meta.url));
-const repoRoot = resolve(moduleDir, '..', '..', '..');
+// When compiled, the path is apps/api/dist/apps/api/src/main.js
+// We need to go up 7 levels to get to repo root from: apps/api/dist/apps/api/src
+// But also handle the case where it might be at apps/api/dist/main.js (old structure)
+let repoRoot;
+if (moduleDir.includes('apps/api/dist/apps/api/src')) {
+    // New compiled structure: apps/api/dist/apps/api/src/main.js
+    // Go up 6 levels: src -> api -> apps -> dist -> api -> apps -> repo root
+    repoRoot = resolve(moduleDir, '..', '..', '..', '..', '..', '..');
+}
+else if (moduleDir.includes('apps/api/dist') && !moduleDir.includes('apps/api/dist/apps')) {
+    // Old structure: apps/api/dist/main.js
+    repoRoot = resolve(moduleDir, '..', '..', '..');
+}
+else {
+    // Development mode: apps/api/src/main.ts
+    repoRoot = resolve(moduleDir, '..', '..', '..');
+}
 const frontendDistDir = join(repoRoot, 'apps', 'web', 'dist');
 const hasFrontendBundle = existsSync(frontendDistDir);
 if (hasFrontendBundle) {
-    app.use(express.static(frontendDistDir));
+    // Serve static assets with long cache; index.html will be no-cache below
+    app.use(express.static(frontendDistDir, {
+        setHeaders: (res, filePath) => {
+            if (filePath.endsWith('.html')) {
+                res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+                res.setHeader('Pragma', 'no-cache');
+                res.setHeader('Expires', '0');
+            }
+            else if (filePath.includes('/assets/')) {
+                res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+            }
+        }
+    }));
 }
 const { port } = config.server;
 app.listen(port, () => {
@@ -329,6 +510,9 @@ if (hasFrontendBundle) {
             next();
             return;
         }
+        res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+        res.setHeader('Pragma', 'no-cache');
+        res.setHeader('Expires', '0');
         res.sendFile(resolve(frontendDistDir, 'index.html'));
     });
 }
@@ -392,7 +576,7 @@ function setAuthCookie(res, token, currentConfig) {
         secure: currentConfig.security.sessionCookieSecure,
         sameSite: 'lax',
         path: '/',
-        maxAge: 1000 * 60 * 60 * 24 * 7 // 7 days
+        maxAge: 1000 * 60 * 60 * 24 * 20 // 20 days
     });
 }
 function asyncHandler(handler) {

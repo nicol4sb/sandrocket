@@ -1,7 +1,7 @@
 import { AuthTokenPayload, CreateUserInput, User } from './types';
 
 export interface UserRepository {
-  findById(id: string): Promise<User | null>;
+  findById(id: number): Promise<User | null>;
   findByEmail(email: string): Promise<User | null>;
   create(user: CreateUserInput): Promise<User>;
 }

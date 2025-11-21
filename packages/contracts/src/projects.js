@@ -3,8 +3,12 @@ export const createProjectRequestSchema = z.object({
     name: z.string().min(1, 'Project name is required'),
     description: z.string().max(1000).optional().nullable()
 });
+export const updateProjectRequestSchema = z.object({
+    name: z.string().min(1).optional(),
+    description: z.string().max(1000).optional().nullable()
+});
 export const projectSchema = z.object({
-    id: z.string(),
+    id: z.number().int(),
     name: z.string(),
     description: z.string().nullable(),
     createdAt: z.string(),

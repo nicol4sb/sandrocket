@@ -9,7 +9,7 @@ export class JwtTokenService {
         const options = {
             expiresIn: this.expiresIn,
             issuer: this.issuer,
-            subject: payload.userId
+            subject: String(payload.userId)
         };
         return jwt.sign(payload, this.secret, options);
     }
@@ -19,11 +19,11 @@ export class JwtTokenService {
         };
         try {
             const decoded = jwt.verify(token, this.secret, options);
-            if (!decoded.userId || !decoded.email) {
+            if (decoded.userId === undefined || decoded.email === undefined) {
                 throw new Error('Invalid token payload');
             }
             return {
-                userId: decoded.userId,
+                userId: Number(decoded.userId),
                 email: decoded.email
             };
         }

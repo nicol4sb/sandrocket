@@ -7,7 +7,7 @@ import {
 } from '@sandrocket/core';
 
 interface UserRow {
-  id: string;
+  id: number;
   email: string;
   password_hash: string;
   display_name: string;
@@ -43,12 +43,12 @@ export class SqliteUserRepository implements UserRepository {
       'SELECT * FROM users WHERE display_name = ?'
     );
     this.insertStmt = this.db.prepare(
-      `INSERT INTO users (id, email, password_hash, display_name, created_at, updated_at)
-       VALUES (@id, @email, @password_hash, @display_name, @created_at, @updated_at)`
+      `INSERT INTO users (email, password_hash, display_name, created_at, updated_at)
+       VALUES (@email, @password_hash, @display_name, @created_at, @updated_at)`
     );
   }
 
-  async findById(id: string): Promise<User | null> {
+  async findById(id: number): Promise<User | null> {
     const row = this.findByIdStmt.get(id) as UserRow | undefined;
     return row ? mapRowToUser(row) : null;
   }
@@ -65,8 +65,7 @@ export class SqliteUserRepository implements UserRepository {
 
   async create(input: CreateUserInput): Promise<User> {
     const now = new Date().toISOString();
-    const record: UserRow = {
-      id: randomUUID(),
+    const insertParams = {
       email: input.email,
       password_hash: input.passwordHash,
       display_name: input.displayName,
@@ -75,7 +74,10 @@ export class SqliteUserRepository implements UserRepository {
     };
 
     try {
-      this.insertStmt.run(record);
+      const info = this.insertStmt.run(insertParams);
+      const created = this.findByIdStmt.get(info.lastInsertRowid) as UserRow | undefined;
+      if (!created) throw new Error('Failed to fetch created user');
+      return mapRowToUser(created);
     } catch (error: unknown) {
       // Check for unique constraint violation on display_name
       if (
@@ -92,7 +94,15 @@ export class SqliteUserRepository implements UserRepository {
       throw error;
     }
 
-    return mapRowToUser(record);
+    // Unreachable
+    return mapRowToUser({
+      id: -1,
+      email: '',
+      password_hash: '',
+      display_name: '',
+      created_at: now,
+      updated_at: now
+    });
   }
 }
 

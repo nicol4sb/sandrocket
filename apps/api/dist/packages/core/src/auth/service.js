@@ -1,4 +1,4 @@
-import { AuthError } from './errors';
+import { AuthError } from './errors.js';
 function toPublicUser(user) {
     return {
         id: user.id,

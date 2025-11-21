@@ -1,23 +1,28 @@
 import { z } from 'zod';
 export const taskStatusSchema = z.enum(['backlog', 'in_progress', 'done']);
 export const createTaskRequestSchema = z.object({
-    epicId: z.string().min(1, 'epicId is required'),
-    title: z.string().min(1, 'Title is required'),
-    description: z.string().max(2000).optional().nullable()
+    // epicId is taken from URL params; keep optional for flexibility
+    epicId: z.number().int().optional(),
+    description: z.string().min(1, 'Description is required').max(150, 'Description must be 150 characters or less')
 });
 export const updateTaskRequestSchema = z.object({
-    title: z.string().min(1).optional(),
-    description: z.string().max(2000).optional().nullable(),
+    description: z.string().min(1).max(150, 'Description must be 150 characters or less').optional(),
     status: taskStatusSchema.optional(),
     position: z.number().int().min(0).optional()
 });
 export const taskSchema = z.object({
-    id: z.string(),
-    epicId: z.string(),
-    title: z.string(),
-    description: z.string().nullable(),
+    id: z.number().int(),
+    epicId: z.number().int(),
+    creatorUserId: z.number().int(),
+    description: z.string(),
     status: taskStatusSchema,
     position: z.number().int(),
     createdAt: z.string(),
-    updatedAt: z.string()
+    updatedAt: z.string(),
+    lastEditedByUserId: z.number().int().nullable()
+});
+export const reorderTaskRequestSchema = z.object({
+    epicId: z.number().int(),
+    status: taskStatusSchema,
+    position: z.number().int().min(0)
 });

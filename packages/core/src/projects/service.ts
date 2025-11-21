@@ -1,9 +1,11 @@
-import { ProjectRepository } from './ports';
-import { CreateProjectInput, PublicProject, Project } from './types';
+import { ProjectRepository } from './ports.js';
+import { CreateProjectInput, PublicProject, Project, UpdateProjectInput } from './types.js';
 
 export interface ProjectService {
   createProject(input: CreateProjectInput): Promise<PublicProject>;
-  listProjects(ownerUserId: string): Promise<PublicProject[]>;
+  listProjects(ownerUserId: number): Promise<PublicProject[]>;
+  updateProject(input: UpdateProjectInput): Promise<PublicProject | null>;
+  deleteProject(id: number): Promise<boolean>;
 }
 
 export interface ProjectServiceDependencies {
@@ -36,9 +38,18 @@ class ProjectServiceImpl implements ProjectService {
     return toPublicProject(created);
     }
 
-  async listProjects(ownerUserId: string): Promise<PublicProject[]> {
+  async listProjects(ownerUserId: number): Promise<PublicProject[]> {
     const projects = await this.deps.projects.listByOwner(ownerUserId);
     return projects.map(toPublicProject);
+  }
+
+  async updateProject(input: UpdateProjectInput): Promise<PublicProject | null> {
+    const updated = await this.deps.projects.update(input);
+    return updated ? toPublicProject(updated) : null;
+  }
+
+  async deleteProject(id: number): Promise<boolean> {
+    return await this.deps.projects.delete(id);
   }
 }
 

@@ -1,5 +1,5 @@
 export interface User {
-    id: string;
+    id: number;
     email: string;
     passwordHash: string;
     displayName: string;
@@ -12,14 +12,14 @@ export interface CreateUserInput {
     displayName: string;
 }
 export interface PublicUser {
-    id: string;
+    id: number;
     email: string;
     displayName: string;
     createdAt: Date;
     updatedAt: Date;
 }
 export interface AuthTokenPayload {
-    userId: string;
+    userId: number;
     email: string;
 }
 export interface AuthResult {

@@ -1,11 +1,12 @@
-import { TaskRepository } from './ports';
-import { CreateTaskInput, PublicTask, TaskStatus, UpdateTaskInput, Task } from './types';
+import { TaskRepository } from './ports.js';
+import { CreateTaskInput, PublicTask, TaskStatus, UpdateTaskInput, Task } from './types.js';
 
 export interface TaskService {
   createTask(input: CreateTaskInput): Promise<PublicTask>;
-  listTasks(epicId: string): Promise<PublicTask[]>;
+  listTasks(epicId: number): Promise<PublicTask[]>;
   updateTask(input: UpdateTaskInput): Promise<PublicTask | null>;
-  moveTask(id: string, status: TaskStatus, position?: number): Promise<PublicTask | null>;
+  moveTask(id: number, status: TaskStatus, position?: number): Promise<PublicTask | null>;
+  deleteTask(id: number): Promise<boolean>;
 }
 
 export interface TaskServiceDependencies {
@@ -16,12 +17,13 @@ function toPublicTask(task: Task): PublicTask {
   return {
     id: task.id,
     epicId: task.epicId,
-    title: task.title,
+    creatorUserId: task.creatorUserId,
     description: task.description,
     status: task.status,
     position: task.position,
     createdAt: task.createdAt,
-    updatedAt: task.updatedAt
+    updatedAt: task.updatedAt,
+    lastEditedByUserId: task.lastEditedByUserId
   };
 }
 
@@ -29,19 +31,22 @@ class TaskServiceImpl implements TaskService {
   constructor(private readonly deps: TaskServiceDependencies) {}
 
   async createTask(input: CreateTaskInput): Promise<PublicTask> {
-    const title = input.title.trim();
-    if (!title) {
-      throw new Error('Task title is required');
+    const description = input.description.trim();
+    if (!description) {
+      throw new Error('Task description is required');
+    }
+    if (description.length > 150) {
+      throw new Error('Task description must be 150 characters or less');
     }
     const maxPos = await this.deps.tasks.getMaxPosition(input.epicId, 'backlog');
     const created = await this.deps.tasks.create(
-      { epicId: input.epicId, title, description: input.description ?? null },
+      { epicId: input.epicId, creatorUserId: input.creatorUserId, description },
       maxPos + 1
     );
     return toPublicTask(created);
   }
 
-  async listTasks(epicId: string): Promise<PublicTask[]> {
+  async listTasks(epicId: number): Promise<PublicTask[]> {
     const tasks = await this.deps.tasks.listByEpic(epicId);
     return tasks.map(toPublicTask);
   }
@@ -51,7 +56,7 @@ class TaskServiceImpl implements TaskService {
     return updated ? toPublicTask(updated) : null;
   }
 
-  async moveTask(id: string, status: TaskStatus, position?: number): Promise<PublicTask | null> {
+  async moveTask(id: number, status: TaskStatus, position?: number): Promise<PublicTask | null> {
     // Fetch current tasks to compute target position if needed
     // For now, if position not provided, append to end of target column
     // We'll rely on repository update to set provided position as-is
@@ -64,6 +69,10 @@ class TaskServiceImpl implements TaskService {
     }
     const updated = await this.deps.tasks.update({ id, status, position: desiredPosition });
     return updated ? toPublicTask(updated) : null;
+  }
+
+  async deleteTask(id: number): Promise<boolean> {
+    return await this.deps.tasks.delete(id);
   }
 }
 

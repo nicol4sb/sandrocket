@@ -25,7 +25,7 @@ export declare const loginRequestSchema: z.ZodObject<{
 }>;
 export type LoginRequest = z.infer<typeof loginRequestSchema>;
 export interface UserResponse {
-    id: string;
+    id: number;
     email: string;
     displayName: string;
     createdAt: string;

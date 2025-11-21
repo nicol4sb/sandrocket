@@ -4,10 +4,14 @@ export const createEpicRequestSchema = z.object({
     description: z.string().max(1000).optional().nullable()
 });
 export const epicSchema = z.object({
-    id: z.string(),
-    projectId: z.string(),
+    id: z.number().int(),
+    projectId: z.number().int(),
     name: z.string(),
     description: z.string().nullable(),
     createdAt: z.string(),
     updatedAt: z.string()
+});
+export const updateEpicRequestSchema = z.object({
+    name: z.string().min(1).optional(),
+    description: z.string().max(1000).nullable().optional()
 });

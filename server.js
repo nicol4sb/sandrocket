@@ -16,7 +16,10 @@ try {
   // dotenv might not be installed in production, that's fine if not needed
 }
 
-const distEntry = path.resolve(__dirname, 'apps/api/dist/main.js');
+// Try the correct path first, then fallback to old path for compatibility
+const distEntry = fs.existsSync(path.resolve(__dirname, 'apps/api/dist/apps/api/src/main.js'))
+  ? path.resolve(__dirname, 'apps/api/dist/apps/api/src/main.js')
+  : path.resolve(__dirname, 'apps/api/dist/main.js');
 
 if (!fs.existsSync(distEntry)) {
   // Provide a helpful message if not built

@@ -1,6 +1,6 @@
-import { AuthError } from './errors';
-import { PasswordHasher, TokenService, UserRepository } from './ports';
-import { AuthResult, PublicUser, User } from './types';
+import { AuthError } from './errors.js';
+import { PasswordHasher, TokenService, UserRepository } from './ports.js';
+import { AuthResult, PublicUser, User } from './types.js';
 
 export interface RegisterInput {
   email: string;
@@ -17,7 +17,7 @@ export interface AuthService {
   register(input: RegisterInput): Promise<AuthResult>;
   login(input: LoginInput): Promise<AuthResult>;
   refreshToken(token: string): Promise<AuthResult>;
-  getUser(userId: string): Promise<PublicUser | null>;
+  getUser(userId: number): Promise<PublicUser | null>;
 }
 
 export interface AuthServiceDependencies {
@@ -125,7 +125,7 @@ class AuthServiceImpl implements AuthService {
     return { token: newToken, user: toPublicUser(user) };
   }
 
-  async getUser(userId: string): Promise<PublicUser | null> {
+  async getUser(userId: number): Promise<PublicUser | null> {
     const user = await this.deps.users.findById(userId);
     return user ? toPublicUser(user) : null;
   }

@@ -1,6 +1,6 @@
 export interface Project {
-  id: string;
-  ownerUserId: string;
+  id: number;
+  ownerUserId: number;
   name: string;
   description: string | null;
   createdAt: Date;
@@ -8,13 +8,19 @@ export interface Project {
 }
 
 export interface CreateProjectInput {
-  ownerUserId: string;
+  ownerUserId: number;
   name: string;
   description?: string | null;
 }
 
+export interface UpdateProjectInput {
+  id: number;
+  name?: string;
+  description?: string | null;
+}
+
 export interface PublicProject {
-  id: string;
+  id: number;
   name: string;
   description: string | null;
   createdAt: Date;

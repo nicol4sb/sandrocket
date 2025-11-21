@@ -19,9 +19,3 @@
 - Panels slide in from the right with 200ms ease; they auto-collapse on mobile once actions complete.
 - Notification badges show new events since last view; clicking the badge scrolls to the latest entry.
 - Real-time toasts surface actor context: a pill containing the collaborator's name initials and avatar color fades in for 3 seconds whenever they edit tasks, reorder items, or change project settings.
-
-## Accessibility
-
-- Keyboard drag mode activated via `Space`; arrows move the ghost placeholder, `Enter` drops the task.
-- Screen readers announce: "Moving task: Call runway vendor. Current position 2 of 5 in Epic Launch Prep."
-- Focus outlines use high-contrast 2px borders adhering to WCAG AA.

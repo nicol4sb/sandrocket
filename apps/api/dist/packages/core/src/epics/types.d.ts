@@ -1,21 +1,26 @@
 export interface Epic {
-    id: string;
-    projectId: string;
+    id: number;
+    projectId: number;
     name: string;
     description: string | null;
     createdAt: Date;
     updatedAt: Date;
 }
 export interface CreateEpicInput {
-    projectId: string;
+    projectId: number;
     name: string;
     description?: string | null;
 }
 export interface PublicEpic {
-    id: string;
-    projectId: string;
+    id: number;
+    projectId: number;
     name: string;
     description: string | null;
     createdAt: Date;
     updatedAt: Date;
+}
+export interface UpdateEpicInput {
+    id: number;
+    name?: string;
+    description?: string | null;
 }

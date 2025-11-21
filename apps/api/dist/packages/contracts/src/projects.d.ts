@@ -10,22 +10,33 @@ export declare const createProjectRequestSchema: z.ZodObject<{
     description?: string | null | undefined;
 }>;
 export type CreateProjectRequest = z.infer<typeof createProjectRequestSchema>;
+export declare const updateProjectRequestSchema: z.ZodObject<{
+    name: z.ZodOptional<z.ZodString>;
+    description: z.ZodNullable<z.ZodOptional<z.ZodString>>;
+}, "strip", z.ZodTypeAny, {
+    description?: string | null | undefined;
+    name?: string | undefined;
+}, {
+    description?: string | null | undefined;
+    name?: string | undefined;
+}>;
+export type UpdateProjectRequest = z.infer<typeof updateProjectRequestSchema>;
 export declare const projectSchema: z.ZodObject<{
-    id: z.ZodString;
+    id: z.ZodNumber;
     name: z.ZodString;
     description: z.ZodNullable<z.ZodString>;
     createdAt: z.ZodString;
     updatedAt: z.ZodString;
 }, "strip", z.ZodTypeAny, {
-    name: string;
+    id: number;
     description: string | null;
-    id: string;
+    name: string;
     createdAt: string;
     updatedAt: string;
 }, {
-    name: string;
+    id: number;
     description: string | null;
-    id: string;
+    name: string;
     createdAt: string;
     updatedAt: string;
 }>;

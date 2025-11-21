@@ -2,12 +2,13 @@ function toPublicTask(task) {
     return {
         id: task.id,
         epicId: task.epicId,
-        title: task.title,
+        creatorUserId: task.creatorUserId,
         description: task.description,
         status: task.status,
         position: task.position,
         createdAt: task.createdAt,
-        updatedAt: task.updatedAt
+        updatedAt: task.updatedAt,
+        lastEditedByUserId: task.lastEditedByUserId
     };
 }
 class TaskServiceImpl {
@@ -15,12 +16,15 @@ class TaskServiceImpl {
         this.deps = deps;
     }
     async createTask(input) {
-        const title = input.title.trim();
-        if (!title) {
-            throw new Error('Task title is required');
+        const description = input.description.trim();
+        if (!description) {
+            throw new Error('Task description is required');
+        }
+        if (description.length > 150) {
+            throw new Error('Task description must be 150 characters or less');
         }
         const maxPos = await this.deps.tasks.getMaxPosition(input.epicId, 'backlog');
-        const created = await this.deps.tasks.create({ epicId: input.epicId, title, description: input.description ?? null }, maxPos + 1);
+        const created = await this.deps.tasks.create({ epicId: input.epicId, creatorUserId: input.creatorUserId, description }, maxPos + 1);
         return toPublicTask(created);
     }
     async listTasks(epicId) {
@@ -44,6 +48,9 @@ class TaskServiceImpl {
         }
         const updated = await this.deps.tasks.update({ id, status, position: desiredPosition });
         return updated ? toPublicTask(updated) : null;
+    }
+    async deleteTask(id) {
+        return await this.deps.tasks.delete(id);
     }
 }
 export function createTaskService(deps) {

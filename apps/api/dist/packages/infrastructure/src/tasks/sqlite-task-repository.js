@@ -1,46 +1,49 @@
-import { randomUUID } from 'node:crypto';
 function mapRowToTask(row) {
     return {
         id: row.id,
         epicId: row.epic_id,
-        title: row.title,
+        creatorUserId: row.creator_user_id,
         description: row.description,
         status: row.status,
         position: row.position,
         createdAt: new Date(row.created_at),
-        updatedAt: new Date(row.updated_at)
+        updatedAt: new Date(row.updated_at),
+        lastEditedByUserId: row.last_edited_by_user_id
     };
 }
 export class SqliteTaskRepository {
     constructor(db) {
         this.db = db;
-        this.insertStmt = this.db.prepare(`INSERT INTO tasks (id, epic_id, title, description, status, position, created_at, updated_at)
-       VALUES (@id, @epic_id, @title, @description, @status, @position, @created_at, @updated_at)`);
+        this.insertStmt = this.db.prepare(`INSERT INTO tasks (epic_id, creator_user_id, description, status, position, created_at, updated_at)
+       VALUES (@epic_id, @creator_user_id, @description, @status, @position, @created_at, @updated_at)`);
         this.listByEpicStmt = this.db.prepare('SELECT * FROM tasks WHERE epic_id = ? ORDER BY status ASC, position ASC, created_at ASC');
         this.getMaxPosStmt = this.db.prepare('SELECT MAX(position) as maxPos FROM tasks WHERE epic_id = ? AND status = ?');
         this.getByIdStmt = this.db.prepare('SELECT * FROM tasks WHERE id = ?');
         this.updateStmt = this.db.prepare(`UPDATE tasks SET
-         title = COALESCE(@title, title),
          description = COALESCE(@description, description),
          status = COALESCE(@status, status),
          position = COALESCE(@position, position),
+         last_edited_by_user_id = COALESCE(@last_edited_by_user_id, last_edited_by_user_id),
          updated_at = @updated_at
        WHERE id = @id`);
+        this.deleteStmt = this.db.prepare('DELETE FROM tasks WHERE id = ?');
     }
     async create(input, initialPosition) {
         const now = new Date().toISOString();
-        const record = {
-            id: randomUUID(),
+        const params = {
             epic_id: input.epicId,
-            title: input.title,
-            description: input.description ?? null,
+            creator_user_id: input.creatorUserId,
+            description: input.description,
             status: 'backlog',
             position: initialPosition,
             created_at: now,
             updated_at: now
         };
-        this.insertStmt.run(record);
-        return mapRowToTask(record);
+        const info = this.insertStmt.run(params);
+        const row = this.getByIdStmt.get(info.lastInsertRowid);
+        if (!row)
+            throw new Error('Failed to fetch created task');
+        return mapRowToTask(row);
     }
     async listByEpic(epicId) {
         const rows = this.listByEpicStmt.all(epicId);
@@ -57,14 +60,18 @@ export class SqliteTaskRepository {
         const updatedAt = new Date().toISOString();
         const updateParams = {
             id: input.id,
-            title: input.title ?? null,
             description: input.description ?? null,
             status: input.status ?? null,
             position: input.position ?? null,
+            last_edited_by_user_id: input.lastEditedByUserId ?? null,
             updated_at: updatedAt
         };
         this.updateStmt.run(updateParams);
         const after = this.getByIdStmt.get(input.id);
         return after ? mapRowToTask(after) : null;
+    }
+    async delete(id) {
+        const result = this.deleteStmt.run(id);
+        return result.changes > 0;
     }
 }

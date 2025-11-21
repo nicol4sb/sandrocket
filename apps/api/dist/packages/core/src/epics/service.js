@@ -28,6 +28,13 @@ class EpicServiceImpl {
         const epics = await this.deps.epics.listByProject(projectId);
         return epics.map(toPublicEpic);
     }
+    async updateEpic(input) {
+        const updated = await this.deps.epics.update(input);
+        return updated ? toPublicEpic(updated) : null;
+    }
+    async deleteEpic(id) {
+        return await this.deps.epics.delete(id);
+    }
 }
 export function createEpicService(deps) {
     return new EpicServiceImpl(deps);

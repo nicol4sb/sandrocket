@@ -1,9 +1,11 @@
-import { EpicRepository } from './ports';
-import { CreateEpicInput, PublicEpic, Epic } from './types';
+import { EpicRepository } from './ports.js';
+import { CreateEpicInput, PublicEpic, Epic, UpdateEpicInput } from './types.js';
 
 export interface EpicService {
   createEpic(input: CreateEpicInput): Promise<PublicEpic>;
-  listEpics(projectId: string): Promise<PublicEpic[]>;
+  listEpics(projectId: number): Promise<PublicEpic[]>;
+  updateEpic(input: UpdateEpicInput): Promise<PublicEpic | null>;
+  deleteEpic(id: number): Promise<boolean>;
 }
 
 export interface EpicServiceDependencies {
@@ -37,9 +39,18 @@ class EpicServiceImpl implements EpicService {
     return toPublicEpic(created);
   }
 
-  async listEpics(projectId: string): Promise<PublicEpic[]> {
+  async listEpics(projectId: number): Promise<PublicEpic[]> {
     const epics = await this.deps.epics.listByProject(projectId);
     return epics.map(toPublicEpic);
+  }
+
+  async updateEpic(input: UpdateEpicInput): Promise<PublicEpic | null> {
+    const updated = await this.deps.epics.update(input);
+    return updated ? toPublicEpic(updated) : null;
+  }
+
+  async deleteEpic(id: number): Promise<boolean> {
+    return await this.deps.epics.delete(id);
   }
 }
 

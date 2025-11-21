@@ -1,5 +1,5 @@
 export interface User {
-  id: string;
+  id: number;
   email: string;
   passwordHash: string;
   displayName: string;
@@ -14,7 +14,7 @@ export interface CreateUserInput {
 }
 
 export interface PublicUser {
-  id: string;
+  id: number;
   email: string;
   displayName: string;
   createdAt: Date;
@@ -22,7 +22,7 @@ export interface PublicUser {
 }
 
 export interface AuthTokenPayload {
-  userId: string;
+  userId: number;
   email: string;
 }
 

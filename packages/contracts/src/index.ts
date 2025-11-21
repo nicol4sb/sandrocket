@@ -2,8 +2,8 @@ export interface HealthResponse {
   status: 'ok';
 }
 
-export * from './auth';
-export * from './projects';
-export * from './epics';
-export * from './tasks';
+export * from './auth.js';
+export * from './projects.js';
+export * from './epics.js';
+export * from './tasks.js';
 

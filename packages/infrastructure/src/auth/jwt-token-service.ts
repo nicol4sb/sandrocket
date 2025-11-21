@@ -22,7 +22,7 @@ export class JwtTokenService implements TokenService {
     const options: SignOptions = {
       expiresIn: this.expiresIn,
       issuer: this.issuer,
-      subject: payload.userId
+      subject: String(payload.userId)
     };
 
     return jwt.sign(payload, this.secret, options);
@@ -36,12 +36,12 @@ export class JwtTokenService implements TokenService {
     try {
       const decoded = jwt.verify(token, this.secret, options) as JwtPayload;
       
-      if (!decoded.userId || !decoded.email) {
+      if (decoded.userId === undefined || decoded.email === undefined) {
         throw new Error('Invalid token payload');
       }
 
       return {
-        userId: decoded.userId as string,
+        userId: Number(decoded.userId),
         email: decoded.email as string
       };
     } catch (error) {

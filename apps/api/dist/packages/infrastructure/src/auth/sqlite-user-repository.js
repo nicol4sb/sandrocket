@@ -1,4 +1,3 @@
-import { randomUUID } from 'node:crypto';
 function mapRowToUser(row) {
     return {
         id: row.id,
@@ -15,8 +14,8 @@ export class SqliteUserRepository {
         this.findByIdStmt = this.db.prepare('SELECT * FROM users WHERE id = ?');
         this.findByEmailStmt = this.db.prepare('SELECT * FROM users WHERE lower(email) = lower(?)');
         this.findByDisplayNameStmt = this.db.prepare('SELECT * FROM users WHERE display_name = ?');
-        this.insertStmt = this.db.prepare(`INSERT INTO users (id, email, password_hash, display_name, created_at, updated_at)
-       VALUES (@id, @email, @password_hash, @display_name, @created_at, @updated_at)`);
+        this.insertStmt = this.db.prepare(`INSERT INTO users (email, password_hash, display_name, created_at, updated_at)
+       VALUES (@email, @password_hash, @display_name, @created_at, @updated_at)`);
     }
     async findById(id) {
         const row = this.findByIdStmt.get(id);
@@ -32,8 +31,7 @@ export class SqliteUserRepository {
     }
     async create(input) {
         const now = new Date().toISOString();
-        const record = {
-            id: randomUUID(),
+        const insertParams = {
             email: input.email,
             password_hash: input.passwordHash,
             display_name: input.displayName,
@@ -41,7 +39,11 @@ export class SqliteUserRepository {
             updated_at: now
         };
         try {
-            this.insertStmt.run(record);
+            const info = this.insertStmt.run(insertParams);
+            const created = this.findByIdStmt.get(info.lastInsertRowid);
+            if (!created)
+                throw new Error('Failed to fetch created user');
+            return mapRowToUser(created);
         }
         catch (error) {
             // Check for unique constraint violation on display_name
@@ -56,6 +58,14 @@ export class SqliteUserRepository {
             }
             throw error;
         }
-        return mapRowToUser(record);
+        // Unreachable
+        return mapRowToUser({
+            id: -1,
+            email: '',
+            password_hash: '',
+            display_name: '',
+            created_at: now,
+            updated_at: now
+        });
     }
 }
