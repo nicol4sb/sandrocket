@@ -37,9 +37,10 @@ This project supports a simple, low-RAM friendly deployment using a single Node 
 
    - `npm run build:prod`
    - This produces:
-     - API build at `apps/api/dist/main.js`
+     - API build at `apps/api/dist/`
      - Frontend build at `apps/web/dist/`
-   - Note: These dist folders are committed to git (see .gitignore exceptions) so your server can `git pull` and run without compiling.
+     - Package builds at `packages/core/dist/`, `packages/infrastructure/dist/`, `packages/contracts/dist/`
+   - Note: All dist folders are committed to git (see .gitignore exceptions) so your server can `git pull` and run without compiling.
 
 2. Deploy the repo with artifacts to the server (rsync/zip/clone + pull):
 

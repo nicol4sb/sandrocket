@@ -10,10 +10,10 @@
   - Use PM2 or systemd to supervise the Node.js process.
   - Configure restarts on failure and enable log rotation.
 - **Deployment Steps** (when dist folders are committed to git)
-  1. Build locally: `npm run build:prod` (compiles TypeScript and builds frontend)
-  2. Commit and push: `git add . && git commit -m "..." && git push`
-  3. On server: `git pull` (gets source code + pre-built dist folders)
-  4. Install runtime dependencies: `npm install --production` (no dev dependencies needed since dist is pre-built)
+  1. Build locally: `npm run build:prod` (compiles TypeScript for all packages and apps, builds frontend)
+  2. Commit and push: `git add . && git commit -m "..." && git push` (includes all dist folders)
+  3. On server: `git pull` (gets source code + pre-built dist folders for apps and packages)
+  4. Install dependencies: `npm install` (needed to create workspace symlinks for `@sandrocket/*` packages)
   5. Ensure `.env` file exists at repo root with required variables
   6. Start the application: `node server.js`
   7. (Optional) Run smoke tests to validate deployment
