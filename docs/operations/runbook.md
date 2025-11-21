@@ -15,8 +15,9 @@
   3. On server: `git pull` (gets source code + pre-built dist folders for apps and packages)
   4. Install dependencies: `npm install` (needed to create workspace symlinks for `@sandrocket/*` packages)
   5. Ensure `.env` file exists at repo root with required variables
-  6. Start the application: `node server.js`
-  7. (Optional) Run smoke tests to validate deployment
+  6. **Node.js Version**: Ensure Node.js >= 18.20.0 (Node.js 18.19.1 has a known bug with workspace `exports` resolution). Consider upgrading to Node.js 20 LTS for better stability.
+  7. Start the application: `node server.js`
+  8. (Optional) Run smoke tests to validate deployment
 
 **Note**: The `apps/api/dist/`, `apps/web/dist/`, and all `packages/*/dist/` folders are committed to git (see `.gitignore` exceptions), so no compilation is needed on the server. If you prefer to build on the server instead, use `npm install` (with dev dependencies) and run `npm run build:prod` before starting.
 
