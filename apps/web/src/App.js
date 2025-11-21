@@ -18,11 +18,13 @@ export default function App() {
     const [auth, setAuth] = useState(null);
     const [projects, setProjects] = useState([]);
     const [selectedProjectId, setSelectedProjectId] = useState(null);
+    const [showProjectDropdown, setShowProjectDropdown] = useState(false);
     const [epicsByProject, setEpicsByProject] = useState({});
     const [tasksByEpic, setTasksByEpic] = useState({});
     const [error, setError] = useState(null);
     const [editingProjectId, setEditingProjectId] = useState(null);
     const [editingProjectName, setEditingProjectName] = useState('');
+    const [editingProjectNameDraft, setEditingProjectNameDraft] = useState('');
     // Project creation modal
     const [showProjectModal, setShowProjectModal] = useState(false);
     const [newProjectName, setNewProjectName] = useState('');
@@ -44,6 +46,18 @@ export default function App() {
         };
         hydrate();
     }, [baseUrl]);
+    useEffect(() => {
+        if (!showProjectDropdown)
+            return;
+        const handleClickOutside = (e) => {
+            const target = e.target;
+            if (!target.closest('.project-dropdown-container')) {
+                setShowProjectDropdown(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, [showProjectDropdown]);
     useEffect(() => {
         if (!auth)
             return;
@@ -338,48 +352,41 @@ export default function App() {
         return _jsx(Login, { baseUrl: baseUrl, onSuccess: setAuth });
     }
     const current = projects.find(p => p.id === selectedProjectId) ?? null;
-    return (_jsxs("main", { className: "dashboard", children: [_jsxs("div", { className: "tabs-header", children: [_jsxs("div", { className: "tabs", children: [projects.map(p => (editingProjectId === p.id ? (_jsx("input", { autoFocus: true, value: editingProjectName, onChange: (e) => setEditingProjectName(e.target.value), onKeyDown: (e) => {
-                                    if (e.key === 'Enter') {
-                                        e.preventDefault();
-                                        if (editingProjectName.trim()) {
-                                            void updateProject(p.id, editingProjectName.trim());
-                                        }
-                                        setEditingProjectId(null);
-                                        setEditingProjectName('');
-                                    }
-                                    else if (e.key === 'Escape') {
-                                        setEditingProjectId(null);
-                                        setEditingProjectName('');
-                                    }
-                                }, onBlur: () => {
-                                    if (editingProjectName.trim()) {
-                                        void updateProject(p.id, editingProjectName.trim());
-                                    }
-                                    setEditingProjectId(null);
-                                    setEditingProjectName('');
-                                }, className: `tab ${selectedProjectId === p.id ? 'active' : ''}`, style: { minWidth: '100px' }, onClick: (e) => e.stopPropagation() }, p.id)) : (_jsxs("button", { type: "button", className: `tab ${selectedProjectId === p.id ? 'active' : ''}`, onClick: (e) => {
-                                    e.stopPropagation();
-                                    setSelectedProjectId(p.id);
-                                }, onDoubleClick: (e) => {
-                                    e.stopPropagation();
-                                    setEditingProjectId(p.id);
-                                    setEditingProjectName(p.name);
-                                }, title: "Click to select, double-click to edit", onMouseEnter: (e) => {
-                                    const btn = e.currentTarget;
-                                    const cross = btn.querySelector('.tab-delete');
-                                    if (cross)
-                                        cross.style.opacity = '1';
-                                }, onMouseLeave: (e) => {
-                                    const btn = e.currentTarget;
-                                    const cross = btn.querySelector('.tab-delete');
-                                    if (cross)
-                                        cross.style.opacity = '0';
-                                }, children: [_jsx("span", { children: p.name }), _jsx("button", { className: "tab-delete", onClick: (e) => {
-                                            e.stopPropagation();
-                                            if (confirm(`Delete project "${p.name}"? This will delete all epics and tasks.`)) {
-                                                void deleteProject(p.id);
-                                            }
-                                        }, title: "Delete project", children: "\u00D7" })] }, p.id)))), _jsx("button", { type: "button", className: "tab tab-add", onClick: () => setShowProjectModal(true), title: "Create new project", children: "+" })] }), selectedProjectId && (_jsx("button", { type: "button", className: "btn-ghost", onClick: () => setShowEpicModal(true), children: "+ Epic" })), _jsxs("div", { className: "user-actions", children: [_jsx("span", { children: auth.user.displayName }), _jsx("button", { type: "button", onClick: handleLogout, className: "btn-ghost", children: "Logout" })] })] }), _jsx("section", { className: "board", children: !current ? (_jsx("div", { className: "card", children: "No project selected" })) : (_jsx("div", { className: "epic-columns", children: (epicsByProject[current.id] ?? []).map((e) => (_jsx(EpicLane, { epic: e, tasks: tasksByEpic[e.id] ?? [], baseUrl: baseUrl, onInlineUpdate: (id, fields) => updateTask(id, fields), onReorder: (taskId, position) => reorderTask(taskId, e.id, position), onDeleteTask: (id) => deleteTask(id), onCreateTask: (epicId, description) => createTask(epicId, description), onEpicUpdate: (id, fields) => updateEpic(id, fields), onDeleteEpic: (id) => deleteEpic(id), currentUserId: auth.user.id }, e.id))) })) }), error ? _jsx("p", { className: "error", children: error }) : null, _jsxs(Modal, { isOpen: showProjectModal, title: "Create project", onClose: () => { setShowProjectModal(false); setNewProjectName(''); setNewProjectDesc(''); }, footer: (_jsxs(_Fragment, { children: [_jsx("button", { className: "btn-ghost", type: "button", onClick: () => { setShowProjectModal(false); setNewProjectName(''); setNewProjectDesc(''); }, children: "Cancel" }), _jsx("button", { className: "btn-primary", type: "button", onClick: () => {
+    return (_jsxs("main", { className: "dashboard", children: [_jsxs("div", { className: "tabs-header", children: [_jsxs("div", { className: "project-dropdown-container", children: [_jsxs("button", { type: "button", className: "project-dropdown-toggle", onClick: () => setShowProjectDropdown(!showProjectDropdown), children: [_jsx("span", { children: current?.name ?? 'Select project' }), _jsx("span", { className: "dropdown-arrow", children: "\u25BC" })] }), showProjectDropdown && (_jsxs("div", { className: "project-dropdown-menu", children: [projects.map(p => (_jsx("div", { className: "project-dropdown-item-wrapper", children: editingProjectId === p.id ? (_jsx("input", { type: "text", className: "project-dropdown-edit-input", value: editingProjectNameDraft, onChange: (e) => setEditingProjectNameDraft(e.target.value), onKeyDown: (e) => {
+                                                if (e.key === 'Enter') {
+                                                    e.preventDefault();
+                                                    if (editingProjectNameDraft.trim()) {
+                                                        void updateProject(p.id, editingProjectNameDraft.trim());
+                                                    }
+                                                    setEditingProjectId(null);
+                                                    setEditingProjectNameDraft('');
+                                                }
+                                                else if (e.key === 'Escape') {
+                                                    setEditingProjectId(null);
+                                                    setEditingProjectNameDraft('');
+                                                }
+                                            }, onBlur: () => {
+                                                if (editingProjectNameDraft.trim()) {
+                                                    void updateProject(p.id, editingProjectNameDraft.trim());
+                                                }
+                                                setEditingProjectId(null);
+                                                setEditingProjectNameDraft('');
+                                            }, autoFocus: true, onClick: (e) => e.stopPropagation() })) : (_jsxs(_Fragment, { children: [_jsx("button", { type: "button", className: `project-dropdown-item ${selectedProjectId === p.id ? 'active' : ''}`, onClick: () => {
+                                                        setSelectedProjectId(p.id);
+                                                        setShowProjectDropdown(false);
+                                                    }, children: p.name }), _jsx("button", { className: "project-dropdown-edit", onClick: (e) => {
+                                                        e.stopPropagation();
+                                                        setEditingProjectId(p.id);
+                                                        setEditingProjectNameDraft(p.name);
+                                                    }, title: "Rename project", children: "\u270E" }), _jsx("button", { className: "project-dropdown-delete", onClick: (e) => {
+                                                        e.stopPropagation();
+                                                        if (confirm(`Delete project "${p.name}"? This will delete all epics and tasks.`)) {
+                                                            void deleteProject(p.id);
+                                                        }
+                                                    }, title: "Delete project", children: "\u00D7" })] })) }, p.id))), _jsx("button", { type: "button", className: "project-dropdown-item project-dropdown-add", onClick: () => {
+                                            setShowProjectModal(true);
+                                            setShowProjectDropdown(false);
+                                        }, children: "+ New Project" })] }))] }), selectedProjectId && (_jsx("button", { type: "button", className: "btn-ghost btn-epic", onClick: () => setShowEpicModal(true), children: "+ Epic" })), _jsxs("div", { className: "user-actions", children: [_jsx("span", { children: auth.user.displayName }), _jsx("button", { type: "button", onClick: handleLogout, className: "btn-ghost", children: "Logout" })] })] }), _jsx("section", { className: "board", children: !current ? (_jsx("div", { className: "card", children: "No project selected" })) : (_jsx("div", { className: "epic-columns", children: (epicsByProject[current.id] ?? []).map((e) => (_jsx(EpicLane, { epic: e, tasks: tasksByEpic[e.id] ?? [], baseUrl: baseUrl, onInlineUpdate: (id, fields) => updateTask(id, fields), onReorder: (taskId, position) => reorderTask(taskId, e.id, position), onDeleteTask: (id) => deleteTask(id), onCreateTask: (epicId, description) => createTask(epicId, description), onEpicUpdate: (id, fields) => updateEpic(id, fields), onDeleteEpic: (id) => deleteEpic(id), currentUserId: auth.user.id }, e.id))) })) }), error ? _jsx("p", { className: "error", children: error }) : null, _jsxs(Modal, { isOpen: showProjectModal, title: "Create project", onClose: () => { setShowProjectModal(false); setNewProjectName(''); setNewProjectDesc(''); }, footer: (_jsxs(_Fragment, { children: [_jsx("button", { className: "btn-ghost", type: "button", onClick: () => { setShowProjectModal(false); setNewProjectName(''); setNewProjectDesc(''); }, children: "Cancel" }), _jsx("button", { className: "btn-primary", type: "button", onClick: () => {
                                 if (!newProjectName.trim())
                                     return;
                                 void createProject(newProjectName.trim(), newProjectDesc.trim() || undefined);
@@ -393,7 +400,7 @@ export default function App() {
                                     setNewEpicName('');
                                     setNewEpicDesc('');
                                 })();
-                            }, children: "Create" })] })), children: [_jsxs("label", { children: [_jsx("span", { children: "Title" }), _jsx("input", { value: newEpicName, onChange: (e) => setNewEpicName(e.target.value) })] }), _jsxs("label", { children: [_jsx("span", { children: "Description (optional)" }), _jsx("input", { value: newEpicDesc, onChange: (e) => setNewEpicDesc(e.target.value) })] })] })] }));
+                            }, children: "Create" })] })), children: [_jsxs("label", { children: [_jsx("span", { children: "Title" }), _jsx("input", { value: newEpicName, onChange: (e) => setNewEpicName(e.target.value), placeholder: "Epic title" })] }), _jsxs("label", { children: [_jsx("span", { children: "Backlog (optional)" }), _jsx("textarea", { value: newEpicDesc, onChange: (e) => setNewEpicDesc(e.target.value), placeholder: "Add backlog notes, ideas, or context...", rows: 4 })] })] })] }));
 }
 // TaskGroup removed: unified flat list per epic
 export function InlineText(props) {

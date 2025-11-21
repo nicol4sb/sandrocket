@@ -42,11 +42,13 @@ export default function App() {
   const [auth, setAuth] = useState<AuthSuccessResponse | null>(null);
   const [projects, setProjects] = useState<ListProjectsResponse['projects']>([]);
   const [selectedProjectId, setSelectedProjectId] = useState<number | null>(null);
+  const [showProjectDropdown, setShowProjectDropdown] = useState(false);
   const [epicsByProject, setEpicsByProject] = useState<Record<number, { id: number; name: string; description: string | null }[]>>({});
   const [tasksByEpic, setTasksByEpic] = useState<Record<number, UiTask[]>>({});
   const [error, setError] = useState<string | null>(null);
   const [editingProjectId, setEditingProjectId] = useState<number | null>(null);
   const [editingProjectName, setEditingProjectName] = useState<string>('');
+  const [editingProjectNameDraft, setEditingProjectNameDraft] = useState<string>('');
   // Project creation modal
   const [showProjectModal, setShowProjectModal] = useState(false);
   const [newProjectName, setNewProjectName] = useState('');
@@ -68,6 +70,18 @@ export default function App() {
     };
     hydrate();
   }, [baseUrl]);
+
+  useEffect(() => {
+    if (!showProjectDropdown) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (!target.closest('.project-dropdown-container')) {
+        setShowProjectDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showProjectDropdown]);
 
   useEffect(() => {
     if (!auth) return;
@@ -364,92 +378,103 @@ export default function App() {
   return (
     <main className="dashboard">
       <div className="tabs-header">
-        <div className="tabs">
-          {projects.map(p => (
-              editingProjectId === p.id ? (
-                <input
-                  key={p.id}
-                  autoFocus
-                  value={editingProjectName}
-                  onChange={(e) => setEditingProjectName(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      e.preventDefault();
-                      if (editingProjectName.trim()) {
-                        void updateProject(p.id, editingProjectName.trim());
-                      }
-                      setEditingProjectId(null);
-                      setEditingProjectName('');
-                    } else if (e.key === 'Escape') {
-                      setEditingProjectId(null);
-                      setEditingProjectName('');
-                    }
-                  }}
-                  onBlur={() => {
-                    if (editingProjectName.trim()) {
-                      void updateProject(p.id, editingProjectName.trim());
-                    }
-                    setEditingProjectId(null);
-                    setEditingProjectName('');
-                  }}
-                  className={`tab ${selectedProjectId === p.id ? 'active' : ''}`}
-                  style={{ minWidth: '100px' }}
-                  onClick={(e) => e.stopPropagation()}
-                />
-              ) : (
-                <button
-                  key={p.id}
-                  type="button"
-                  className={`tab ${selectedProjectId === p.id ? 'active' : ''}`}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setSelectedProjectId(p.id);
-                  }}
-                  onDoubleClick={(e) => {
-                    e.stopPropagation();
-                    setEditingProjectId(p.id);
-                    setEditingProjectName(p.name);
-                  }}
-                  title="Click to select, double-click to edit"
-                  onMouseEnter={(e) => {
-                    const btn = e.currentTarget;
-                    const cross = btn.querySelector('.tab-delete') as HTMLElement;
-                    if (cross) cross.style.opacity = '1';
-                  }}
-                  onMouseLeave={(e) => {
-                    const btn = e.currentTarget;
-                    const cross = btn.querySelector('.tab-delete') as HTMLElement;
-                    if (cross) cross.style.opacity = '0';
-                  }}
-                >
-                  <span>{p.name}</span>
-                  <button
-                    className="tab-delete"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      if (confirm(`Delete project "${p.name}"? This will delete all epics and tasks.`)) {
-                        void deleteProject(p.id);
-                      }
-                    }}
-                    title="Delete project"
-                  >
-                    ×
-                  </button>
-                </button>
-              )
-            ))}
-            <button
-              type="button"
-              className="tab tab-add"
-              onClick={() => setShowProjectModal(true)}
-              title="Create new project"
-            >
-              +
-            </button>
-          </div>
-          {selectedProjectId && (
-            <button type="button" className="btn-ghost" onClick={() => setShowEpicModal(true)}>+ Epic</button>
+        <div className="project-dropdown-container">
+          <button
+            type="button"
+            className="project-dropdown-toggle"
+            onClick={() => setShowProjectDropdown(!showProjectDropdown)}
+          >
+            <span>{current?.name ?? 'Select project'}</span>
+            <span className="dropdown-arrow">▼</span>
+          </button>
+            {showProjectDropdown && (
+              <div className="project-dropdown-menu">
+                {projects.map(p => (
+                  <div key={p.id} className="project-dropdown-item-wrapper">
+                    {editingProjectId === p.id ? (
+                      <input
+                        type="text"
+                        className="project-dropdown-edit-input"
+                        value={editingProjectNameDraft}
+                        onChange={(e) => setEditingProjectNameDraft(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            if (editingProjectNameDraft.trim()) {
+                              void updateProject(p.id, editingProjectNameDraft.trim());
+                            }
+                            setEditingProjectId(null);
+                            setEditingProjectNameDraft('');
+                          } else if (e.key === 'Escape') {
+                            setEditingProjectId(null);
+                            setEditingProjectNameDraft('');
+                          }
+                        }}
+                        onBlur={() => {
+                          if (editingProjectNameDraft.trim()) {
+                            void updateProject(p.id, editingProjectNameDraft.trim());
+                          }
+                          setEditingProjectId(null);
+                          setEditingProjectNameDraft('');
+                        }}
+                        autoFocus
+                        onClick={(e) => e.stopPropagation()}
+                      />
+                    ) : (
+                      <>
+                        <button
+                          type="button"
+                          className={`project-dropdown-item ${selectedProjectId === p.id ? 'active' : ''}`}
+                          onClick={() => {
+                            setSelectedProjectId(p.id);
+                            setShowProjectDropdown(false);
+                          }}
+                        >
+                          {p.name}
+                        </button>
+                        <button
+                          className="project-dropdown-edit"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setEditingProjectId(p.id);
+                            setEditingProjectNameDraft(p.name);
+                          }}
+                          title="Rename project"
+                        >
+                          ✎
+                        </button>
+                        <button
+                          className="project-dropdown-delete"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (confirm(`Delete project "${p.name}"? This will delete all epics and tasks.`)) {
+                              void deleteProject(p.id);
+                            }
+                          }}
+                          title="Delete project"
+                        >
+                          ×
+                        </button>
+                      </>
+                    )}
+                  </div>
+                ))}
+              <button
+                type="button"
+                className="project-dropdown-item project-dropdown-add"
+                onClick={() => {
+                  setShowProjectModal(true);
+                  setShowProjectDropdown(false);
+                }}
+              >
+                + New Project
+              </button>
+            </div>
           )}
+        </div>
+        {selectedProjectId && (
+          <button type="button" className="btn-ghost btn-epic" onClick={() => setShowEpicModal(true)}>+ Epic</button>
+        )}
         <div className="user-actions">
           <span>{auth.user.displayName}</span>
           <button type="button" onClick={handleLogout} className="btn-ghost">Logout</button>
@@ -540,11 +565,16 @@ export default function App() {
       >
         <label>
           <span>Title</span>
-          <input value={newEpicName} onChange={(e: ChangeEvent<HTMLInputElement>) => setNewEpicName(e.target.value)} />
+          <input value={newEpicName} onChange={(e: ChangeEvent<HTMLInputElement>) => setNewEpicName(e.target.value)} placeholder="Epic title" />
         </label>
         <label>
-          <span>Description (optional)</span>
-          <input value={newEpicDesc} onChange={(e: ChangeEvent<HTMLInputElement>) => setNewEpicDesc(e.target.value)} />
+          <span>Backlog (optional)</span>
+          <textarea 
+            value={newEpicDesc} 
+            onChange={(e: ChangeEvent<HTMLTextAreaElement>) => setNewEpicDesc(e.target.value)} 
+            placeholder="Add backlog notes, ideas, or context..."
+            rows={4}
+          />
         </label>
       </Modal>
     </main>

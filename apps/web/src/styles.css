@@ -47,12 +47,15 @@ main.dashboard {
   gap: 1rem;
   margin: 0 auto;
   width: min(1200px, 96vw);
-  padding: 0.75rem 0;
+  padding: 0.75rem 1rem;
   background: rgba(255, 255, 255, 0.95);
   backdrop-filter: blur(10px);
   border-radius: 1rem;
-  padding: 0.75rem 1rem;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+  box-sizing: border-box;
 }
 
 .tabs { display: flex; gap: 0.5rem; flex-wrap: wrap; }
@@ -72,9 +75,226 @@ main.dashboard {
   margin-left: auto;
 }
 
-.board { flex: 1; overflow: auto; width: 100%; }
-.epic-columns { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1rem; width: min(1200px, 96vw); margin: 0 auto 1rem; padding: 0 1rem; }
-.epic-card { background: rgba(255, 255, 255, 0.98); border: 1px solid rgba(255, 255, 255, 0.3); border-radius: 1rem; padding: 0.75rem; box-shadow: 0 10px 28px rgba(0, 0, 0, 0.15); display: flex; flex-direction: column; gap: 0.5rem; backdrop-filter: blur(10px); }
+.btn-epic {
+  flex-shrink: 0;
+}
+
+.project-dropdown-container {
+  position: relative;
+  flex: 0 0 auto;
+  min-width: 0;
+}
+
+.project-dropdown-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.5rem 1rem;
+  background: rgba(255, 255, 255, 0.95);
+  border: 1px solid rgba(107, 70, 193, 0.2);
+  border-radius: 0.75rem;
+  color: #0d1224;
+  cursor: pointer;
+  font-size: 0.95rem;
+  font-weight: 600;
+  transition: all 150ms ease;
+  white-space: nowrap;
+  min-width: 180px;
+  max-width: 250px;
+}
+
+.project-dropdown-toggle:hover {
+  background: rgba(255, 255, 255, 1);
+  border-color: rgba(107, 70, 193, 0.4);
+  box-shadow: 0 2px 8px rgba(107, 70, 193, 0.15);
+}
+
+.project-dropdown-toggle span:first-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+  min-width: 0;
+}
+
+.dropdown-arrow {
+  font-size: 0.7rem;
+  transition: transform 200ms ease;
+  color: rgba(107, 70, 193, 0.7);
+  flex-shrink: 0;
+}
+
+.project-dropdown-container:has(.project-dropdown-menu) .dropdown-arrow {
+  transform: rotate(180deg);
+}
+
+.project-dropdown-menu {
+  position: absolute;
+  top: calc(100% + 0.5rem);
+  left: 0;
+  min-width: 220px;
+  max-width: 300px;
+  background: rgba(255, 255, 255, 0.98);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(107, 70, 193, 0.15);
+  border-radius: 0.875rem;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.12), 0 2px 8px rgba(107, 70, 193, 0.1);
+  z-index: 1000;
+  max-height: 60vh;
+  overflow-y: auto;
+  padding: 0.5rem;
+  animation: slideDown 200ms ease;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.project-dropdown-item-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  position: relative;
+  margin-bottom: 0.25rem;
+}
+
+.project-dropdown-item-wrapper:last-of-type {
+  margin-bottom: 0;
+}
+
+.project-dropdown-item {
+  flex: 1;
+  text-align: left;
+  padding: 0.625rem 0.875rem;
+  background: transparent;
+  border: none;
+  border-radius: 0.625rem;
+  color: #0d1224;
+  cursor: pointer;
+  font-size: 0.9rem;
+  transition: all 150ms ease;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.project-dropdown-item:hover {
+  background: rgba(107, 70, 193, 0.08);
+  color: #6b46c1;
+}
+
+.project-dropdown-item.active {
+  background: rgba(107, 70, 193, 0.15);
+  color: #6b46c1;
+  font-weight: 600;
+}
+
+.project-dropdown-edit,
+.project-dropdown-delete {
+  opacity: 0;
+  transition: all 160ms ease;
+  background: transparent;
+  border: none;
+  color: rgba(13, 18, 36, 0.4);
+  cursor: pointer;
+  font-size: 0.95rem;
+  line-height: 1;
+  padding: 0.25rem 0.4rem;
+  border-radius: 0.375rem;
+  flex-shrink: 0;
+}
+
+.project-dropdown-item-wrapper:hover .project-dropdown-edit,
+.project-dropdown-item-wrapper:hover .project-dropdown-delete {
+  opacity: 1;
+}
+
+.project-dropdown-edit:hover {
+  background: rgba(107, 70, 193, 0.15);
+  color: #6b46c1;
+  transform: scale(1.1);
+}
+
+.project-dropdown-delete:hover {
+  background: rgba(235, 87, 87, 0.15);
+  color: #eb5757;
+  transform: scale(1.1);
+}
+
+.project-dropdown-edit-input {
+  flex: 1;
+  padding: 0.625rem 0.875rem;
+  border: 2px solid rgba(107, 70, 193, 0.3);
+  border-radius: 0.625rem;
+  background: rgba(255, 255, 255, 1);
+  color: #0d1224;
+  font-size: 0.9rem;
+  font-weight: 600;
+  outline: none;
+  transition: border-color 150ms ease, box-shadow 150ms ease;
+}
+
+.project-dropdown-edit-input:focus {
+  border-color: rgba(107, 70, 193, 0.6);
+  box-shadow: 0 0 0 3px rgba(107, 70, 193, 0.1);
+}
+
+.project-dropdown-add {
+  border-top: 1px solid rgba(107, 70, 193, 0.15);
+  margin-top: 0.5rem;
+  padding-top: 0.75rem;
+  padding: 0.75rem 0.875rem;
+  font-weight: 600;
+  color: #6b46c1;
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: none;
+  border-radius: 0.625rem;
+  cursor: pointer;
+  font-size: 0.9rem;
+  transition: all 150ms ease;
+}
+
+.project-dropdown-add:hover {
+  background: rgba(107, 70, 193, 0.1);
+  color: #6b46c1;
+}
+
+.board { 
+  flex: 1; 
+  overflow: auto; 
+  width: 100%; 
+  padding: 0.5rem 0;
+}
+.epic-columns { 
+  display: grid; 
+  grid-template-columns: repeat(auto-fit, minmax(min(280px, 100%), 1fr)); 
+  gap: 1rem; 
+  width: min(1200px, 96vw); 
+  margin: 0 auto 1rem; 
+  padding: 0 1rem; 
+}
+.epic-card { 
+  background: rgba(255, 255, 255, 0.98); 
+  border: 1px solid rgba(255, 255, 255, 0.3); 
+  border-radius: 1.25rem; 
+  padding: 1rem; 
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.15); 
+  display: flex; 
+  flex-direction: column; 
+  gap: 0.75rem; 
+  backdrop-filter: blur(10px);
+  min-width: 0;
+  overflow: hidden;
+}
 .epic-title { font-weight: 700; font-size: 1.05rem; border: none; background: transparent; outline: none; }
 .columns { display: grid; grid-template-columns: 1fr; gap: 0.75rem; }
 .column { background: #f8f9fe; border: 1px dashed rgba(13, 18, 36, 0.12); padding: 0.75rem; border-radius: 0.75rem; min-height: 80px; }
@@ -136,10 +356,32 @@ header { display: flex; align-items: center; justify-content: space-between; }
 header h1 { margin: 0.25rem 0; font-size: 1.6rem; letter-spacing: -0.02em; }
 header p { margin: 0.25rem 0 0; color: rgba(13, 18, 36, 0.65); font-size: 0.95rem; }
 form { display: flex; flex-direction: column; gap: 1rem; }
-label { display: flex; flex-direction: column; gap: 0.5rem; text-align: left; }
-label span { font-weight: 600; font-size: 0.95rem; color: rgba(13, 18, 36, 0.75); }
-input { padding: 0.85rem 1rem; border: 1px solid rgba(13, 18, 36, 0.2); border-radius: 0.75rem; font-size: 1rem; transition: border-color 0.2s ease, box-shadow 0.2s ease; }
-input:focus { outline: none; border-color: #2250f4; box-shadow: 0 0 0 3px rgba(34, 80, 244, 0.2); }
+label { display: flex; flex-direction: column; gap: 0.625rem; text-align: left; }
+label span { font-weight: 600; font-size: 0.95rem; color: rgba(13, 18, 36, 0.85); letter-spacing: -0.01em; }
+input, textarea { 
+  padding: 0.875rem 1.125rem; 
+  border: 2px solid rgba(107, 70, 193, 0.15); 
+  border-radius: 0.875rem; 
+  font-size: 0.95rem; 
+  transition: all 0.2s ease;
+  background: rgba(255, 255, 255, 0.9);
+  color: #0d1224;
+  font-family: inherit;
+}
+input:focus, textarea:focus { 
+  outline: none; 
+  border-color: rgba(107, 70, 193, 0.4); 
+  box-shadow: 0 0 0 4px rgba(107, 70, 193, 0.1), 0 4px 12px rgba(107, 70, 193, 0.15);
+  background: rgba(255, 255, 255, 1);
+}
+input::placeholder, textarea::placeholder {
+  color: rgba(13, 18, 36, 0.4);
+}
+textarea {
+  resize: vertical;
+  min-height: 100px;
+  line-height: 1.5;
+}
 .link { background: transparent; color: #2250f4; padding: 0; box-shadow: none; border: none; cursor: pointer; }
 .link:hover { text-decoration: underline; }
 .error { margin: 0; padding: 0.75rem 1rem; border-radius: 0.75rem; background: rgba(235, 87, 87, 0.1); color: #c03535; font-weight: 600; text-align: center; }
@@ -396,8 +638,29 @@ footer {
   cursor: pointer;
 }
 .icon-btn:hover { background: #eaf0ff; }
-.btn-primary { background: linear-gradient(135deg, #2250f4, #6a4bff); color: #fff; }
-.btn-ghost { background: transparent; border: 1px solid rgba(13, 18, 36, 0.12); }
+.btn-primary { 
+  background: linear-gradient(135deg, #6b46c1, #8b5cf6); 
+  color: #fff; 
+  border: none;
+  font-weight: 600;
+  box-shadow: 0 4px 12px rgba(107, 70, 193, 0.3);
+  transition: all 0.2s ease;
+}
+.btn-primary:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(107, 70, 193, 0.4);
+}
+.btn-ghost { 
+  background: transparent; 
+  border: 1px solid rgba(107, 70, 193, 0.2); 
+  color: rgba(13, 18, 36, 0.7);
+  transition: all 0.2s ease;
+}
+.btn-ghost:hover {
+  background: rgba(107, 70, 193, 0.05);
+  border-color: rgba(107, 70, 193, 0.3);
+  color: #0d1224;
+}
 
 /* Floating + button */
 .fab {
@@ -548,22 +811,7 @@ footer {
   border-color: rgba(13, 18, 36, 0.12);
 }
 
-.epic-columns {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-  gap: 1rem;
-  width: 100%;
-  min-width: 0; /* Allow grid items to shrink below minmax */
-}
-
-.epic-card {
-  border: 1px solid rgba(13, 18, 36, 0.12);
-  border-radius: 0.75rem;
-  padding: 0.75rem;
-  background: #fff;
-  min-width: 0; /* Allow flex shrinking */
-  overflow: hidden; /* Prevent content from overflowing */
-}
+/* Epic columns and cards are defined above - this section removed to avoid duplication */
 
 .project-card {
   border: 1px solid rgba(13, 18, 36, 0.12);
@@ -837,4 +1085,345 @@ footer {
 
 .creator-badge {
   flex-shrink: 0;
+}
+
+/* Responsive Styles */
+@media (max-width: 768px) {
+  .tabs-header {
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    padding: 0.5rem;
+  }
+
+  .project-dropdown-container {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .project-dropdown-toggle {
+    font-size: 0.9rem;
+    padding: 0.4rem 0.75rem;
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .project-dropdown-menu {
+    min-width: calc(100vw - 2rem);
+    max-width: calc(100vw - 2rem);
+    left: 0;
+    right: 0;
+  }
+
+  .btn-epic {
+    width: 100%;
+    margin-top: 0.5rem;
+  }
+
+  .user-actions {
+    flex-direction: column;
+    gap: 0.25rem;
+    align-items: flex-end;
+    font-size: 0.85rem;
+  }
+
+  .user-actions button {
+    padding: 0.3rem 0.6rem;
+    font-size: 0.85rem;
+  }
+
+
+  .epic-columns {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+    padding: 0.5rem;
+    width: 100%;
+    margin: 0 auto;
+  }
+
+  .epic-card {
+    padding: 0.75rem;
+    border-radius: 1rem;
+  }
+
+  .task {
+    padding: 0.6rem 0.7rem;
+    font-size: 0.9rem;
+  }
+
+  .modal {
+    width: 95vw;
+    max-height: 85vh;
+    border-radius: 16px;
+  }
+
+  .modal-header {
+    padding: 1rem 1.25rem;
+  }
+
+  .modal-title {
+    font-size: 1.1rem;
+  }
+
+  .modal-body {
+    padding: 1.25rem;
+    gap: 1rem;
+  }
+
+  .modal-footer {
+    padding: 0.875rem 1.25rem;
+    gap: 0.625rem;
+  }
+
+  .dashboard {
+    padding: 0.5rem;
+  }
+
+  .board {
+    padding: 0;
+  }
+
+  .project-dropdown-edit-input {
+    font-size: 0.85rem;
+    padding: 0.5rem 0.75rem;
+  }
+
+  .project-dropdown-edit,
+  .project-dropdown-delete {
+    font-size: 0.9rem;
+    padding: 0.3rem 0.5rem;
+    opacity: 1; /* Always visible on mobile for better UX */
+  }
+
+  .project-dropdown-item-wrapper:hover .project-dropdown-edit,
+  .project-dropdown-item-wrapper:hover .project-dropdown-delete {
+    opacity: 1;
+  }
+
+  .epic-backlog textarea {
+    font-size: 0.85rem;
+    padding: 0.4rem 0.6rem;
+    min-height: 2rem;
+  }
+
+  .epic-title {
+    font-size: 0.95rem;
+  }
+
+  .epic-delete {
+    font-size: 1.1rem;
+    padding: 0.4rem 0.5rem;
+    opacity: 1; /* Always visible on mobile */
+  }
+
+  .task-delete {
+    opacity: 1; /* Always visible on mobile */
+  }
+
+  .task-meta {
+    font-size: 0.75rem;
+  }
+
+  .empty-task {
+    padding: 0.5rem 0.6rem;
+    font-size: 0.85rem;
+  }
+
+  .auth-card {
+    margin: 1rem auto;
+    padding: 1.5rem;
+    max-width: 90vw;
+  }
+
+  .auth-card header h1 {
+    font-size: 1.4rem;
+  }
+
+  .auth-card input {
+    font-size: 0.95rem;
+    padding: 0.75rem 0.9rem;
+  }
+
+  .btn-primary,
+  .btn-ghost {
+    padding: 0.5rem 0.75rem;
+    font-size: 0.9rem;
+  }
+
+  .modal-footer {
+    flex-direction: column-reverse;
+    gap: 0.5rem;
+  }
+
+  .modal-footer button {
+    width: 100%;
+  }
+}
+
+@media (max-width: 480px) {
+  .tabs-header {
+    padding: 0.4rem;
+    gap: 0.5rem;
+  }
+
+  .project-dropdown-toggle {
+    font-size: 0.85rem;
+    padding: 0.35rem 0.6rem;
+    min-width: 140px;
+  }
+
+  .project-dropdown-menu {
+    min-width: calc(100vw - 1rem);
+    max-width: calc(100vw - 1rem);
+    padding: 0.4rem;
+  }
+
+  .project-dropdown-item {
+    font-size: 0.85rem;
+    padding: 0.5rem 0.65rem;
+  }
+
+  .project-dropdown-edit-input {
+    font-size: 0.85rem;
+    padding: 0.5rem 0.65rem;
+  }
+
+  .project-dropdown-add {
+    font-size: 0.85rem;
+    padding: 0.6rem 0.65rem;
+  }
+
+  .epic-card {
+    padding: 0.6rem;
+    border-radius: 0.875rem;
+    gap: 0.6rem;
+  }
+
+  .epic-title {
+    font-size: 0.9rem;
+  }
+
+  .epic-backlog textarea {
+    font-size: 0.8rem;
+    padding: 0.35rem 0.5rem;
+  }
+
+  .task {
+    padding: 0.5rem 0.6rem;
+    font-size: 0.85rem;
+    margin: 0.4rem 0;
+  }
+
+  .task .content {
+    font-size: 0.8rem;
+  }
+
+  .empty-task {
+    padding: 0.4rem 0.5rem;
+    font-size: 0.8rem;
+  }
+
+  .user-actions {
+    font-size: 0.75rem;
+    gap: 0.2rem;
+  }
+
+  .user-actions button {
+    font-size: 0.75rem;
+    padding: 0.25rem 0.5rem;
+  }
+
+  .btn-epic {
+    font-size: 0.85rem;
+    padding: 0.4rem 0.6rem;
+  }
+
+  .dashboard {
+    padding: 0.25rem;
+    gap: 0.75rem;
+  }
+
+  .epic-columns {
+    gap: 0.75rem;
+    padding: 0.25rem;
+  }
+
+  .modal {
+    width: 98vw;
+    max-height: 90vh;
+    margin: 0.5rem auto;
+    border-radius: 14px;
+  }
+
+  .modal-header {
+    padding: 0.875rem 1rem;
+  }
+
+  .modal-title {
+    font-size: 1rem;
+  }
+
+  .modal-body {
+    padding: 1rem;
+    gap: 0.875rem;
+  }
+
+  label span {
+    font-size: 0.9rem;
+  }
+
+  input, textarea {
+    font-size: 0.9rem;
+    padding: 0.75rem 1rem;
+  }
+
+  textarea {
+    min-height: 80px;
+  }
+
+  .modal-footer {
+    padding: 0.75rem 1rem;
+    gap: 0.5rem;
+  }
+
+  .btn-primary,
+  .btn-ghost {
+    font-size: 0.875rem;
+    padding: 0.5rem 0.875rem;
+  }
+
+  .auth-card {
+    padding: 1.25rem;
+    margin: 0.5rem auto;
+  }
+
+  .auth-card header h1 {
+    font-size: 1.3rem;
+  }
+
+  .auth-card input {
+    font-size: 0.9rem;
+    padding: 0.7rem 0.8rem;
+  }
+}
+
+/* Touch-friendly targets for mobile */
+@media (hover: none) and (pointer: coarse) {
+  .project-dropdown-edit,
+  .project-dropdown-delete,
+  .epic-delete,
+  .task-delete {
+    opacity: 1;
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  .btn-ghost,
+  .btn-primary,
+  .btn-epic {
+    min-height: 44px;
+  }
+
+  .project-dropdown-item {
+    min-height: 44px;
+  }
 }
