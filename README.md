@@ -44,8 +44,9 @@ This project supports a simple, low-RAM friendly deployment using a single Node 
 
 2. Deploy the repo with artifacts to the server (rsync/zip/clone + pull):
 
-   - Ensure the built folders are present (`apps/api/dist`, `apps/web/dist`) and `server.js` at repo root
+   - Ensure the built folders are present (`apps/api/dist`, `apps/web/dist`, `packages/*/dist`) and `server.js` at repo root
    - Place `.env` at the repo root on the server
+   - **Important**: Run `npm install` on the server to install all dependencies (workspace dependencies like `bcryptjs` are hoisted to root `node_modules/`)
 
 3. Start the app on the server:
    - `node server.js`

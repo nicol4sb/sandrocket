@@ -13,11 +13,19 @@
   1. Build locally: `npm run build:prod` (compiles TypeScript for all packages and apps, builds frontend)
   2. Commit and push: `git add . && git commit -m "..." && git push` (includes all dist folders)
   3. On server: `git pull` (gets source code + pre-built dist folders for apps and packages)
-  4. Install dependencies: `npm install` (needed to create workspace symlinks for `@sandrocket/*` packages)
-  5. Ensure `.env` file exists at repo root with required variables
-  6. **Node.js Version**: Ensure Node.js >= 18.20.0 (Node.js 18.19.1 has a known bug with workspace `exports` resolution). Consider upgrading to Node.js 20 LTS for better stability.
-  7. Start the application: `node server.js`
-  8. (Optional) Run smoke tests to validate deployment
+  4. **Install dependencies**: `npm install` (MUST be run to install all workspace dependencies like `bcryptjs`, `better-sqlite3`, etc. Dependencies are hoisted to root `node_modules/`)
+     - **Troubleshooting**: If `node_modules/bcryptjs` is missing after `npm install`, see [Troubleshooting Guide](./troubleshooting.md#missing-dependencies-after-npm-install)
+     - Quick fix: `rm -rf node_modules package-lock.json && npm install`
+     - Verify: `npm ls bcryptjs` should show it under `@sandrocket/infrastructure`
+  5. **Verify installation**: 
+     - Check that `node_modules/bcryptjs` exists (the package is `bcryptjs`, not `bcrypt`)
+     - Check that `node_modules/better-sqlite3` exists
+     - Check that `node_modules/express` exists
+     - Run `npm ls bcryptjs` to verify it's installed and hoisted correctly
+  6. Ensure `.env` file exists at repo root with required variables
+  7. **Node.js Version**: Ensure Node.js >= 18.20.0 (Node.js 18.19.1 has a known bug with workspace `exports` resolution). Consider upgrading to Node.js 20 LTS for better stability.
+  8. Start the application: `node server.js`
+  9. (Optional) Run smoke tests to validate deployment
 
 **Note**: The `apps/api/dist/`, `apps/web/dist/`, and all `packages/*/dist/` folders are committed to git (see `.gitignore` exceptions), so no compilation is needed on the server. If you prefer to build on the server instead, use `npm install` (with dev dependencies) and run `npm run build:prod` before starting.
 

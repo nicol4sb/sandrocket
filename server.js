@@ -30,6 +30,11 @@ if (!fs.existsSync(distEntry)) {
   process.exit(1);
 }
 
+// Ensure we're running from the correct directory
+// This is critical when running via systemd which may not set the working directory
+const repoRoot = path.resolve(__dirname);
+process.chdir(repoRoot);
+
 // Dynamically import the ESM build from CommonJS
 import(pathToFileURL(distEntry).href).catch((err) => {
   console.error('[server] Failed to start API from dist:', err);
