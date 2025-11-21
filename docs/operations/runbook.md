@@ -18,7 +18,7 @@
   6. Start the application: `node server.js`
   7. (Optional) Run smoke tests to validate deployment
 
-**Note**: The `apps/api/dist/` and `apps/web/dist/` folders are committed to git (see `.gitignore` exceptions), so no compilation is needed on the server. If you prefer to build on the server instead, use `npm install` (with dev dependencies) and run `npm run build:prod` before starting.
+**Note**: The `apps/api/dist/`, `apps/web/dist/`, and all `packages/*/dist/` folders are committed to git (see `.gitignore` exceptions), so no compilation is needed on the server. If you prefer to build on the server instead, use `npm install` (with dev dependencies) and run `npm run build:prod` before starting.
 
 ## Environment Topology
 
