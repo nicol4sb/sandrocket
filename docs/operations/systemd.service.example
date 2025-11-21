@@ -9,6 +9,8 @@ WorkingDirectory=/home/sandrocket/sandrocket
 Environment=NODE_ENV=production
 EnvironmentFile=/home/sandrocket/sandrocket/.env
 ExecStart=/home/sandrocket/.nvm/versions/node/v20.11.1/bin/node /home/sandrocket/sandrocket/server.js
+# Note: server.js now uses tsx internally to run the TypeScript source,
+# which handles workspace module resolution correctly
 Restart=always
 RestartSec=10
 StandardOutput=journal

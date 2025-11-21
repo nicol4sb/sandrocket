@@ -1,5 +1,45 @@
 # Troubleshooting
 
+## Missing Workspace Packages
+
+### Symptom
+Error: `ENOENT: no such file or directory, open '/home/sandrocket/sandrocket/packages/infrastructure/package.json'`
+
+### Cause
+The workspace packages (`packages/core`, `packages/infrastructure`, `packages/contracts`) are missing from the server. This can happen if:
+- Git pull didn't include the packages directory
+- Packages directory was accidentally deleted
+- `.gitignore` is incorrectly excluding packages
+
+### Solution
+1. **Check if packages exist on server**:
+   ```bash
+   ls -la /home/sandrocket/sandrocket/packages/
+   ```
+
+2. **If missing, ensure they're in git and pull**:
+   ```bash
+   cd /home/sandrocket/sandrocket
+   git pull
+   # If still missing, check git status
+   git status
+   git ls-files packages/
+   ```
+
+3. **If packages are not tracked, add them locally and push**:
+   ```bash
+   # On your local machine
+   git add packages/
+   git commit -m "Ensure workspace packages are tracked"
+   git push
+   ```
+
+4. **Then on server, pull again**:
+   ```bash
+   git pull
+   npm install
+   ```
+
 ## Missing Dependencies After `npm install`
 
 ### Symptom
@@ -123,4 +163,12 @@ rm -rf packages/*/node_modules apps/*/node_modules
 #    c) The server.js now calls process.chdir() to ensure correct working directory
 #    d) Verify the service is running from the correct directory:
 #       Check systemd logs: journalctl -u sandrocket -n 50
+#    e) **CRITICAL**: Ensure there are NO `node_modules` directories in workspace packages:
+#       On server, run: find /home/sandrocket/sandrocket/packages -type d -name node_modules
+#       If any exist, remove them: rm -rf packages/*/node_modules apps/*/node_modules
+#    f) If still failing, this is a Node.js ESM workspace resolution bug. Workaround:
+#       Create empty node_modules in workspace packages to prevent Node.js from checking there:
+#       mkdir -p packages/infrastructure/node_modules
+#       touch packages/infrastructure/node_modules/.gitkeep
+#       (This prevents Node.js from trying to resolve from that location)
 ```

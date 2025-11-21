@@ -1,44 +1,69 @@
-// Simple production launcher: loads env and runs the compiled API.
+// Simple production launcher: runs the API using tsx (works better with workspace dependencies)
 // Requirements:
-// - Build locally first: `npm run build --workspaces --if-present` and `npm run build --workspace apps/web`
-// - Ensure `apps/api/dist/main.js` exists on the server
+// - Source files must be present (apps/api/src/main.ts)
+// - Frontend must be built: `npm run build --workspace apps/web`
 // - Place your .env next to this file (repo root)
+// - tsx must be installed (it's a devDependency, but needed for production)
 
-/* eslint-disable @typescript-eslint/no-var-requires */
-const fs = require('node:fs');
-const path = require('node:path');
-const { pathToFileURL } = require('node:url');
+import { spawn } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
+import { dirname, resolve } from 'node:path';
+import { existsSync } from 'node:fs';
 
 // Load environment variables
 try {
-  require('dotenv').config();
+  const dotenv = await import('dotenv');
+  dotenv.config();
 } catch {
   // dotenv might not be installed in production, that's fine if not needed
 }
 
-// Try the correct path first, then fallback to old path for compatibility
-const distEntry = fs.existsSync(path.resolve(__dirname, 'apps/api/dist/apps/api/src/main.js'))
-  ? path.resolve(__dirname, 'apps/api/dist/apps/api/src/main.js')
-  : path.resolve(__dirname, 'apps/api/dist/main.js');
+// Get __dirname equivalent in ESM
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
-if (!fs.existsSync(distEntry)) {
-  // Provide a helpful message if not built
-  console.error('[server] API build not found at apps/api/dist/main.js');
-  console.error(
-    '[server] Please build locally and deploy artifacts, e.g.: `npm run build --workspaces --if-present && npm run build --workspace apps/web`'
-  );
+// Ensure we're running from the correct directory
+const repoRoot = resolve(__dirname);
+process.chdir(repoRoot);
+
+// Check if source file exists
+const sourceEntry = resolve(repoRoot, 'apps/api/src/main.ts');
+if (!existsSync(sourceEntry)) {
+  console.error('[server] API source not found at apps/api/src/main.ts');
+  console.error('[server] Source files must be present on the server');
   process.exit(1);
 }
 
-// Ensure we're running from the correct directory
-// This is critical when running via systemd which may not set the working directory
-const repoRoot = path.resolve(__dirname);
-process.chdir(repoRoot);
-
-// Dynamically import the ESM build from CommonJS
-import(pathToFileURL(distEntry).href).catch((err) => {
-  console.error('[server] Failed to start API from dist:', err);
+// Check if tsx is available
+const tsxPath = resolve(repoRoot, 'node_modules/.bin/tsx');
+if (!existsSync(tsxPath)) {
+  console.error('[server] tsx not found. Run: npm install');
   process.exit(1);
+}
+
+// Spawn tsx to run the TypeScript source
+// tsx handles workspace module resolution correctly
+const tsx = spawn('node', [tsxPath, sourceEntry], {
+  stdio: 'inherit',
+  cwd: repoRoot,
+  env: process.env
+});
+
+tsx.on('error', (err) => {
+  console.error('[server] Failed to start API:', err);
+  process.exit(1);
+});
+
+tsx.on('exit', (code) => {
+  process.exit(code || 0);
+});
+
+// Handle process signals
+process.on('SIGTERM', () => {
+  tsx.kill('SIGTERM');
+});
+process.on('SIGINT', () => {
+  tsx.kill('SIGINT');
 });
 
 
