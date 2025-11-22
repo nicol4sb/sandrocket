@@ -60,10 +60,10 @@ function TaskInfo(props) {
                         }, title: `Last edited by ${getUserLabel(props.task.lastEditedByUserId)}`, children: isCurrentUserEditor ? 'Y' : String(props.task.lastEditedByUserId).slice(-1) })] })), _jsx("span", { style: { whiteSpace: 'nowrap' }, children: formatTime(props.task.updatedAt) })] }));
 }
 function SortableTask(props) {
-    const isEditing = props.editContentId === props.task.id;
+    const [isTaskEditing, setIsTaskEditing] = useState(false);
     const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
         id: props.task.id,
-        disabled: isEditing // Disable drag when editing
+        disabled: isTaskEditing // Disable drag when editing
     });
     const style = {
         transform: CSS.Transform.toString(transform),
@@ -71,54 +71,13 @@ function SortableTask(props) {
         opacity: isDragging ? 0.5 : 1
     };
     // Only apply drag listeners when not editing
-    const dragListeners = isEditing ? {} : listeners;
-    return (_jsx("li", { ref: setNodeRef, style: style, className: `task ${props.focusIds.includes(props.task.id) ? 'focus' : ''} ${isDragging ? 'dragging' : ''}`, ...attributes, ...dragListeners, onMouseEnter: (e) => {
-            const meta = e.currentTarget.querySelector('.task-meta');
-            if (meta)
-                meta.style.opacity = '1';
-        }, onMouseLeave: (e) => {
-            const meta = e.currentTarget.querySelector('.task-meta');
-            if (meta)
-                meta.style.opacity = '0';
-        }, children: _jsxs("div", { style: { display: 'flex', flexDirection: 'column', gap: '0.5rem', width: '100%' }, children: [_jsxs("div", { style: { display: 'flex', alignItems: 'center', gap: '0.5rem' }, children: [props.editContentId === props.task.id ? (_jsx("textarea", { autoFocus: true, maxLength: 150, value: props.editingContentDraft, onChange: (e) => {
-                                const val = e.target.value;
-                                if (val.length <= 150) {
-                                    props.onEditContent(props.task.id, val);
-                                    // Auto-resize
-                                    e.target.style.height = 'auto';
-                                    e.target.style.height = `${e.target.scrollHeight}px`;
-                                }
-                            }, onKeyDown: (e) => {
-                                e.stopPropagation(); // Prevent drag from starting
-                                if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
-                                    e.preventDefault();
-                                    props.onCommitContent(props.task.id, props.editingContentDraft);
-                                    props.onSetEditContent(null, '');
-                                }
-                            }, onBlur: () => {
-                                props.onCommitContent(props.task.id, props.editingContentDraft);
-                                props.onSetEditContent(null, '');
-                            }, onClick: (e) => e.stopPropagation(), style: {
-                                flex: 1,
-                                resize: 'none',
-                                overflow: 'hidden',
-                                minHeight: '1.5rem',
-                                height: 'auto',
-                                lineHeight: '1.5',
-                                padding: '0.25rem 0.5rem'
-                            }, ref: (el) => {
-                                if (el) {
-                                    // Set initial height based on content
-                                    el.style.height = 'auto';
-                                    el.style.height = `${el.scrollHeight}px`;
-                                }
-                            } })) : (_jsx("span", { className: "content", title: "Click to edit", onClick: (e) => {
-                                e.stopPropagation();
-                                props.onSetEditContent(props.task.id, props.task.description);
-                            }, style: { flex: 1 }, children: props.task.description })), _jsx("button", { className: "delete-btn", onClick: (e) => {
-                                e.stopPropagation();
-                                props.onDelete(props.task.id);
-                            }, title: "Delete task", children: "\u00D7" })] }), _jsx("div", { className: "task-meta", style: { display: 'flex', alignItems: 'center', gap: '0.5rem', opacity: 0, transition: 'opacity 160ms ease', fontSize: '0.7rem' }, children: _jsx(TaskInfo, { task: props.task, currentUserId: props.currentUserId }) })] }) }));
+    const dragListeners = isTaskEditing ? {} : listeners;
+    return (_jsxs("li", { ref: setNodeRef, style: style, className: `task ${props.focusIds.includes(props.task.id) ? 'focus' : ''} ${isDragging ? 'dragging' : ''}`, ...attributes, ...dragListeners, children: [_jsx(InlineText, { value: props.task.description, onChange: (v) => {
+                    props.onCommitContent(props.task.id, v);
+                }, editable: true, multiline: true, className: "content", onClick: (e) => e.stopPropagation(), onEditingChange: setIsTaskEditing, onSave: props.onSave }), !isTaskEditing && (_jsx("button", { className: "delete-btn", onClick: (e) => {
+                    e.stopPropagation();
+                    props.onDelete(props.task.id);
+                }, title: "Delete task", children: "\u00D7" }))] }));
 }
 function DroppableZone(props) {
     const { setNodeRef, isOver } = useDroppable({ id: props.id });
@@ -131,6 +90,7 @@ export function EpicLane(props) {
     const [activeId, setActiveId] = useState(null);
     const [showToast, setShowToast] = useState(false);
     const contentTimerRef = useRef(null);
+    const emptyTaskTextareaRef = useRef(null);
     const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }), useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }));
     const sortedTasks = [...props.tasks].sort((a, b) => a.position - b.position);
     const taskIds = sortedTasks.map(t => t.id);
@@ -180,37 +140,61 @@ export function EpicLane(props) {
     return (_jsxs(DndContext, { sensors: sensors, collisionDetection: closestCenter, onDragStart: handleDragStart, onDragEnd: handleDragEnd, children: [_jsxs("div", { className: "epic-card", children: [_jsxs("div", { className: "epic-header", style: { position: 'relative' }, children: [_jsx(InlineText, { value: props.epic.name, onChange: (v) => props.onEpicUpdate(props.epic.id, { name: v }), editable: true, className: "epic-title" }), _jsx("button", { className: "delete-btn epic-delete", onClick: (e) => {
                                     e.stopPropagation();
                                     props.onDeleteEpic?.(props.epic.id);
-                                }, title: "Delete epic", children: "\u00D7" })] }), _jsx(DroppableZone, { id: "drop-tasks", className: "task-drop-zone", children: _jsx(SortableContext, { items: taskIds, strategy: verticalListSortingStrategy, children: _jsxs("ul", { style: { listStyle: 'none', padding: 0, margin: 0, minHeight: '60px' }, children: [sortedTasks.map((t) => (_jsx(SortableTask, { task: t, focusIds: focusIds, editContentId: editContentId, editingContentDraft: editingContentDraft, onEditContent: handleEditContent, onCommitContent: handleCommitContent, onSetEditContent: (id, draft) => { setEditContentId(id); setEditingContentDraft(draft); }, onDelete: props.onDeleteTask, currentUserId: props.currentUserId }, t.id))), _jsx("li", { className: "task empty-task", children: _jsx("div", { style: { flex: 1, display: 'flex', alignItems: 'center', gap: '0.5rem' }, children: _jsx("textarea", { placeholder: "Add a note...", value: newTaskDraft, onChange: (e) => {
-                                                    const val = e.target.value;
-                                                    if (val.length <= 150) {
-                                                        setNewTaskDraft(val);
-                                                        // Auto-resize
-                                                        e.target.style.height = 'auto';
-                                                        e.target.style.height = `${e.target.scrollHeight}px`;
-                                                    }
-                                                }, onKeyDown: (e) => {
-                                                    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
-                                                        e.preventDefault();
+                                }, title: "Delete epic", children: "\u00D7" })] }), _jsx(DroppableZone, { id: "drop-tasks", className: "task-drop-zone", children: _jsx(SortableContext, { items: taskIds, strategy: verticalListSortingStrategy, children: _jsxs("ul", { style: { listStyle: 'none', padding: 0, margin: 0, minHeight: '60px' }, children: [sortedTasks.map((t) => (_jsx(SortableTask, { task: t, focusIds: focusIds, editContentId: editContentId, editingContentDraft: editingContentDraft, onEditContent: handleEditContent, onCommitContent: handleCommitContent, onSetEditContent: (id, draft) => { setEditContentId(id); setEditingContentDraft(draft); }, onDelete: props.onDeleteTask, currentUserId: props.currentUserId, onSave: () => {
+                                            // Focus the empty task textarea after saving
+                                            if (emptyTaskTextareaRef.current) {
+                                                requestAnimationFrame(() => {
+                                                    emptyTaskTextareaRef.current?.focus();
+                                                });
+                                            }
+                                        } }, t.id))), _jsx("li", { className: "task empty-task", children: _jsx("div", { style: { display: 'flex', flexDirection: 'column', gap: '0.5rem', width: '100%' }, children: _jsx("div", { style: { display: 'flex', alignItems: 'center', gap: '0.5rem' }, children: _jsx("textarea", { ref: (el) => {
+                                                        emptyTaskTextareaRef.current = el;
+                                                        if (el) {
+                                                            el.style.height = 'auto';
+                                                            el.style.height = `${el.scrollHeight}px`;
+                                                        }
+                                                    }, className: "content", placeholder: "Add a note...", value: newTaskDraft, onChange: (e) => {
+                                                        const val = e.target.value;
+                                                        if (val.length <= 150) {
+                                                            setNewTaskDraft(val);
+                                                            // Auto-resize
+                                                            e.target.style.height = 'auto';
+                                                            e.target.style.height = `${e.target.scrollHeight}px`;
+                                                        }
+                                                    }, onKeyDown: (e) => {
+                                                        if (e.key === 'Enter') {
+                                                            if (e.altKey) {
+                                                                // Alt+Enter: allow newline (default behavior)
+                                                                return;
+                                                            }
+                                                            else {
+                                                                // Enter: create task and clear
+                                                                e.preventDefault();
+                                                                if (newTaskDraft.trim()) {
+                                                                    props.onCreateTask(props.epic.id, newTaskDraft.trim());
+                                                                    setNewTaskDraft('');
+                                                                }
+                                                            }
+                                                        }
+                                                    }, onBlur: () => {
                                                         if (newTaskDraft.trim()) {
                                                             props.onCreateTask(props.epic.id, newTaskDraft.trim());
                                                             setNewTaskDraft('');
                                                         }
-                                                    }
-                                                }, onBlur: () => {
-                                                    if (newTaskDraft.trim()) {
-                                                        props.onCreateTask(props.epic.id, newTaskDraft.trim());
-                                                        setNewTaskDraft('');
-                                                    }
-                                                }, maxLength: 150, style: {
-                                                    flex: 1,
-                                                    resize: 'none',
-                                                    overflow: 'hidden',
-                                                    border: 'none',
-                                                    background: 'transparent',
-                                                    outline: 'none',
-                                                    minHeight: '1.5rem',
-                                                    height: 'auto',
-                                                    lineHeight: '1.5',
-                                                    padding: '0.25rem 0.5rem'
-                                                } }) }) })] }) }) }), _jsx("div", { className: "epic-backlog", children: _jsx(InlineText, { value: props.epic.description ?? '', placeholder: "Backlog notes\u2026", onChange: (v) => props.onEpicUpdate(props.epic.id, { description: v || null }), editable: true, multiline: true }) })] }), _jsx(DragOverlay, { children: activeTask ? (_jsx("div", { className: "task ghost-preview", style: { transform: 'rotate(2deg)', boxShadow: '0 20px 40px rgba(13, 18, 36, 0.25)' }, children: _jsx("div", { style: { flex: 1 }, children: _jsx("span", { className: "content", children: activeTask.description }) }) })) : null }), showToast && (_jsx("div", { className: "toast", style: { position: 'fixed', bottom: '2rem', right: '2rem', background: '#22a06b', color: 'white', padding: '0.75rem 1.5rem', borderRadius: '0.5rem', boxShadow: '0 8px 24px rgba(34, 160, 107, 0.3)', zIndex: 2000 }, children: "\u2713 Task moved" }))] }));
+                                                    }, onClick: (e) => e.stopPropagation(), maxLength: 150, style: {
+                                                        flex: 1,
+                                                        resize: 'none',
+                                                        overflow: 'hidden',
+                                                        border: 'none',
+                                                        background: 'transparent',
+                                                        outline: 'none',
+                                                        minHeight: '1.5rem',
+                                                        height: 'auto',
+                                                        lineHeight: '1.5',
+                                                        padding: 0,
+                                                        margin: 0,
+                                                        font: 'inherit',
+                                                        color: 'inherit',
+                                                        boxShadow: 'none'
+                                                    } }) }) }) })] }) }) }), _jsx("div", { className: "epic-backlog", children: _jsx(InlineText, { value: props.epic.description ?? '', placeholder: "Backlog notes\u2026", onChange: (v) => props.onEpicUpdate(props.epic.id, { description: v || null }), editable: true, multiline: true }) })] }), _jsx(DragOverlay, { children: activeTask ? (_jsx("div", { className: "task ghost-preview", style: { transform: 'rotate(2deg)', boxShadow: '0 20px 40px rgba(13, 18, 36, 0.25)' }, children: _jsx("div", { style: { flex: 1 }, children: _jsx("span", { className: "content", children: activeTask.description }) }) })) : null }), showToast && (_jsx("div", { className: "toast", style: { position: 'fixed', bottom: '2rem', right: '2rem', background: '#22a06b', color: 'white', padding: '0.75rem 1.5rem', borderRadius: '0.5rem', boxShadow: '0 8px 24px rgba(34, 160, 107, 0.3)', zIndex: 2000 }, children: "\u2713 Task moved" }))] }));
 }

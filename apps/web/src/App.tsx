@@ -377,108 +377,106 @@ export default function App() {
 
   return (
     <main className="dashboard">
-      <div className="tabs-header">
-        <div className="project-dropdown-container">
-          <button
-            type="button"
-            className="project-dropdown-toggle"
-            onClick={() => setShowProjectDropdown(!showProjectDropdown)}
-          >
-            <span>{current?.name ?? 'Select project'}</span>
-            <span className="dropdown-arrow">▼</span>
-          </button>
-            {showProjectDropdown && (
-              <div className="project-dropdown-menu">
-                {projects.map(p => (
-                  <div key={p.id} className="project-dropdown-item-wrapper">
-                    {editingProjectId === p.id ? (
-                      <input
-                        type="text"
-                        className="project-dropdown-edit-input"
-                        value={editingProjectNameDraft}
-                        onChange={(e) => setEditingProjectNameDraft(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') {
-                            e.preventDefault();
-                            if (editingProjectNameDraft.trim()) {
-                              void updateProject(p.id, editingProjectNameDraft.trim());
-                            }
-                            setEditingProjectId(null);
-                            setEditingProjectNameDraft('');
-                          } else if (e.key === 'Escape') {
-                            setEditingProjectId(null);
-                            setEditingProjectNameDraft('');
-                          }
-                        }}
-                        onBlur={() => {
+      <div className="project-dropdown-container floating-control">
+        <button
+          type="button"
+          className="project-dropdown-toggle"
+          onClick={() => setShowProjectDropdown(!showProjectDropdown)}
+        >
+          <span>{current?.name ?? 'Select project'}</span>
+          <span className="dropdown-arrow">▼</span>
+        </button>
+          {showProjectDropdown && (
+            <div className="project-dropdown-menu">
+              {projects.map(p => (
+                <div key={p.id} className="project-dropdown-item-wrapper">
+                  {editingProjectId === p.id ? (
+                    <input
+                      type="text"
+                      className="project-dropdown-edit-input"
+                      value={editingProjectNameDraft}
+                      onChange={(e) => setEditingProjectNameDraft(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
                           if (editingProjectNameDraft.trim()) {
                             void updateProject(p.id, editingProjectNameDraft.trim());
                           }
                           setEditingProjectId(null);
                           setEditingProjectNameDraft('');
+                        } else if (e.key === 'Escape') {
+                          setEditingProjectId(null);
+                          setEditingProjectNameDraft('');
+                        }
+                      }}
+                      onBlur={() => {
+                        if (editingProjectNameDraft.trim()) {
+                          void updateProject(p.id, editingProjectNameDraft.trim());
+                        }
+                        setEditingProjectId(null);
+                        setEditingProjectNameDraft('');
+                      }}
+                      autoFocus
+                      onClick={(e) => e.stopPropagation()}
+                    />
+                  ) : (
+                    <>
+                      <button
+                        type="button"
+                        className={`project-dropdown-item ${selectedProjectId === p.id ? 'active' : ''}`}
+                        onClick={() => {
+                          setSelectedProjectId(p.id);
+                          setShowProjectDropdown(false);
                         }}
-                        autoFocus
-                        onClick={(e) => e.stopPropagation()}
-                      />
-                    ) : (
-                      <>
-                        <button
-                          type="button"
-                          className={`project-dropdown-item ${selectedProjectId === p.id ? 'active' : ''}`}
-                          onClick={() => {
-                            setSelectedProjectId(p.id);
-                            setShowProjectDropdown(false);
-                          }}
-                        >
-                          {p.name}
-                        </button>
-                        <button
-                          className="project-dropdown-edit"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setEditingProjectId(p.id);
-                            setEditingProjectNameDraft(p.name);
-                          }}
-                          title="Rename project"
-                        >
-                          ✎
-                        </button>
-                        <button
-                          className="project-dropdown-delete"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            if (confirm(`Delete project "${p.name}"? This will delete all epics and tasks.`)) {
-                              void deleteProject(p.id);
-                            }
-                          }}
-                          title="Delete project"
-                        >
-                          ×
-                        </button>
-                      </>
-                    )}
-                  </div>
-                ))}
-              <button
-                type="button"
-                className="project-dropdown-item project-dropdown-add"
-                onClick={() => {
-                  setShowProjectModal(true);
-                  setShowProjectDropdown(false);
-                }}
-              >
-                + New Project
-              </button>
-            </div>
-          )}
-        </div>
-        {selectedProjectId && (
-          <button type="button" className="btn-ghost btn-epic" onClick={() => setShowEpicModal(true)}>+ Epic</button>
+                      >
+                        {p.name}
+                      </button>
+                      <button
+                        className="project-dropdown-edit"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setEditingProjectId(p.id);
+                          setEditingProjectNameDraft(p.name);
+                        }}
+                        title="Rename project"
+                      >
+                        ✎
+                      </button>
+                      <button
+                        className="project-dropdown-delete"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (confirm(`Delete project "${p.name}"? This will delete all epics and tasks.`)) {
+                            void deleteProject(p.id);
+                          }
+                        }}
+                        title="Delete project"
+                      >
+                        ×
+                      </button>
+                    </>
+                  )}
+                </div>
+              ))}
+            <button
+              type="button"
+              className="project-dropdown-item project-dropdown-add"
+              onClick={() => {
+                setShowProjectModal(true);
+                setShowProjectDropdown(false);
+              }}
+            >
+              + New Project
+            </button>
+          </div>
         )}
-        <div className="user-actions">
-          <span>{auth.user.displayName}</span>
-          <button type="button" onClick={handleLogout} className="btn-ghost">Logout</button>
-        </div>
+      </div>
+      {selectedProjectId && (
+        <button type="button" className="btn-ghost btn-epic floating-control" onClick={() => setShowEpicModal(true)}>+ Epic</button>
+      )}
+      <div className="user-actions floating-control">
+        <span>{auth.user.displayName}</span>
+        <button type="button" onClick={handleLogout} className="btn-ghost">Logout</button>
       </div>
 
       <section className="board">
@@ -584,21 +582,87 @@ export default function App() {
 
 // TaskGroup removed: unified flat list per epic
 
-export function InlineText(props: { value: string; placeholder?: string; onChange: (val: string) => void; editable?: boolean; className?: string; multiline?: boolean }) {
+export function InlineText(props: { value: string; placeholder?: string; onChange: (val: string) => void; editable?: boolean; className?: string; multiline?: boolean; onClick?: (e: React.MouseEvent) => void; onEditingChange?: (editing: boolean) => void; onSave?: () => void }) {
   const [val, setVal] = useState(props.value);
+  const [isEditing, setIsEditing] = useState(false);
   const debounceRef = useRef<number | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const inputRef = useRef<HTMLInputElement | null>(null);
+  const spanRef = useRef<HTMLSpanElement | null>(null);
+  const clickPositionRef = useRef<number | null>(null);
+  const initialHeightRef = useRef<number | null>(null);
+  const cursorPositionRef = useRef<number | null>(null);
   
   useEffect(() => { setVal(props.value); }, [props.value]);
   
   // Auto-resize textarea based on content
   useEffect(() => {
-    if (props.multiline && textareaRef.current) {
+    if (props.multiline && isEditing && textareaRef.current) {
       const textarea = textareaRef.current;
-      textarea.style.height = 'auto';
-      textarea.style.height = `${textarea.scrollHeight}px`;
+      // If we have an initial height from the span, use it to prevent jumping
+      if (initialHeightRef.current !== null) {
+        const savedHeight = initialHeightRef.current;
+        initialHeightRef.current = null; // Clear immediately
+        // Set initial height to match span immediately - don't let it shrink
+        textarea.style.height = `${savedHeight}px`;
+        textarea.style.minHeight = `${savedHeight}px`;
+        // After rendering, check if content needs more space
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            if (textareaRef.current) {
+              // Temporarily remove min-height to get accurate scrollHeight
+              const oldMinHeight = textareaRef.current.style.minHeight;
+              textareaRef.current.style.minHeight = '0';
+              textareaRef.current.style.height = 'auto';
+              const scrollHeight = textareaRef.current.scrollHeight;
+              // Use the larger value, but never shrink below original
+              const finalHeight = Math.max(savedHeight, scrollHeight);
+              textareaRef.current.style.height = `${finalHeight}px`;
+              textareaRef.current.style.minHeight = oldMinHeight;
+            }
+          });
+        });
+      } else {
+        // Normal auto-resize for subsequent changes
+        textarea.style.height = 'auto';
+        textarea.style.height = `${textarea.scrollHeight}px`;
+      }
     }
-  }, [val, props.multiline]);
+  }, [val, props.multiline, isEditing]);
+  
+  // Set cursor position for input after it's focused
+  useEffect(() => {
+    if (isEditing && inputRef.current && clickPositionRef.current !== null) {
+      const pos = clickPositionRef.current;
+      clickPositionRef.current = null;
+      requestAnimationFrame(() => {
+        if (inputRef.current) {
+          inputRef.current.setSelectionRange(pos, pos);
+        }
+      });
+    }
+  }, [isEditing]);
+  
+  // Set cursor position for textarea after it's rendered and height is set
+  useEffect(() => {
+    if (props.multiline && isEditing && textareaRef.current && cursorPositionRef.current !== null) {
+      const pos = cursorPositionRef.current;
+      cursorPositionRef.current = null; // Clear after use
+      // Use multiple requestAnimationFrame to ensure textarea is fully rendered and height is set
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            if (textareaRef.current) {
+              const maxPos = textareaRef.current.value.length;
+              const finalPos = Math.min(pos, maxPos);
+              textareaRef.current.setSelectionRange(finalPos, finalPos);
+              textareaRef.current.focus();
+            }
+          });
+        });
+      });
+    }
+  }, [isEditing, props.multiline]);
   
   const commit = (next: string) => { props.onChange(next); };
   const schedule = (next: string) => {
@@ -607,49 +671,343 @@ export function InlineText(props: { value: string; placeholder?: string; onChang
   };
   
   if (props.multiline) {
+    if (isEditing) {
+      return (
+        <textarea
+          ref={textareaRef}
+          className={props.className}
+          value={val}
+          placeholder={props.placeholder}
+          style={{
+            padding: 0,
+            margin: 0,
+            border: 'none',
+            borderWidth: 0,
+            borderStyle: 'none',
+            borderColor: 'transparent',
+            borderTop: 'none',
+            borderRight: 'none',
+            borderBottom: 'none',
+            borderLeft: 'none',
+            borderRadius: 0,
+            background: 'transparent',
+            outline: 'none',
+            outlineWidth: 0,
+            outlineStyle: 'none',
+            outlineColor: 'transparent',
+            outlineOffset: 0,
+            boxShadow: 'none',
+            WebkitAppearance: 'none',
+            MozAppearance: 'none',
+            appearance: 'none',
+            font: 'inherit',
+            color: 'inherit',
+            lineHeight: 'inherit',
+            resize: 'none',
+            overflow: 'hidden',
+            width: '100%',
+            boxSizing: 'border-box'
+          } as React.CSSProperties}
+          onChange={(e) => { 
+            const next = e.target.value; 
+            setVal(next); 
+            schedule(next);
+            // Auto-resize on change
+            e.target.style.height = 'auto';
+            e.target.style.height = `${e.target.scrollHeight}px`;
+          }}
+          onBlur={() => { 
+            if (debounceRef.current) { window.clearTimeout(debounceRef.current); debounceRef.current = null; } 
+            commit(val);
+            setIsEditing(false);
+            if (props.onEditingChange) props.onEditingChange(false);
+          }}
+          onKeyDown={(e) => {
+            e.stopPropagation(); // Prevent drag from starting
+            if (e.key === 'Enter') {
+              if (e.altKey) {
+                // Alt+Enter: allow newline (default behavior)
+                return;
+              } else {
+                // Enter: save and exit
+                e.preventDefault();
+                if (debounceRef.current) { window.clearTimeout(debounceRef.current); debounceRef.current = null; }
+                commit(val);
+                setIsEditing(false);
+                if (props.onEditingChange) props.onEditingChange(false);
+                (e.target as HTMLTextAreaElement).blur();
+                if (props.onSave) {
+                  // Call onSave after a brief delay to ensure blur completes
+                  setTimeout(() => {
+                    props.onSave!();
+                  }, 10);
+                }
+              }
+            }
+          }}
+          onClick={props.onClick}
+          autoFocus
+        />
+      );
+    }
     return (
-      <textarea
-        ref={textareaRef}
+      <span
+        ref={spanRef}
+        className={props.className}
+        onClick={(e) => {
+          if (!props.editable) return;
+          if (props.onClick) props.onClick(e);
+          e.stopPropagation();
+          const span = e.currentTarget;
+          
+          // Use browser's caret API for accurate multiline positioning
+          let charIndex = span.textContent?.length || 0;
+          
+          // Helper to calculate text offset by walking the DOM tree
+          const calculateTextOffset = (targetNode: Node, targetOffset: number): number => {
+            const walker = document.createTreeWalker(
+              span,
+              NodeFilter.SHOW_TEXT,
+              null
+            );
+            let count = 0;
+            let node: Node | null;
+            while (node = walker.nextNode()) {
+              if (node === targetNode && node.nodeType === Node.TEXT_NODE) {
+                return count + targetOffset;
+              }
+              count += node.textContent?.length || 0;
+            }
+            return count;
+          };
+          
+          if (document.caretRangeFromPoint) {
+            const range = document.caretRangeFromPoint(e.clientX, e.clientY);
+            if (range) {
+              if (range.startContainer.nodeType === Node.TEXT_NODE) {
+                charIndex = calculateTextOffset(range.startContainer, range.startOffset);
+              } else {
+                // If container is not a text node, try to find the text node
+                if (range.startContainer.childNodes.length > range.startOffset) {
+                  const childNode = range.startContainer.childNodes[range.startOffset];
+                  if (childNode && childNode.nodeType === Node.TEXT_NODE) {
+                    charIndex = calculateTextOffset(childNode, 0);
+                  } else {
+                    // Count all text before this position
+                    const rangeFromStart = document.createRange();
+                    rangeFromStart.setStart(span, 0);
+                    rangeFromStart.setEnd(range.startContainer, range.startOffset);
+                    charIndex = rangeFromStart.toString().length;
+                  }
+                } else {
+                  // Count all text before this container
+                  const rangeFromStart = document.createRange();
+                  rangeFromStart.setStart(span, 0);
+                  rangeFromStart.setEnd(range.startContainer, 0);
+                  charIndex = rangeFromStart.toString().length;
+                }
+              }
+            }
+          } else if (document.caretPositionFromPoint) {
+            const pos = document.caretPositionFromPoint(e.clientX, e.clientY);
+            if (pos && pos.offsetNode) {
+              if (pos.offsetNode.nodeType === Node.TEXT_NODE) {
+                charIndex = calculateTextOffset(pos.offsetNode, pos.offset);
+              } else {
+                // Try to create a range to calculate offset
+                try {
+                  const rangeFromStart = document.createRange();
+                  rangeFromStart.setStart(span, 0);
+                  if (pos.offsetNode.childNodes.length > pos.offset) {
+                    const childNode = pos.offsetNode.childNodes[pos.offset];
+                    if (childNode && childNode.nodeType === Node.TEXT_NODE) {
+                      rangeFromStart.setEnd(childNode, 0);
+                    } else {
+                      rangeFromStart.setEnd(pos.offsetNode, pos.offset);
+                    }
+                  } else {
+                    rangeFromStart.setEnd(pos.offsetNode, 0);
+                  }
+                  charIndex = rangeFromStart.toString().length;
+                } catch (err) {
+                  charIndex = calculateTextOffset(pos.offsetNode, 0);
+                }
+              }
+            }
+          } else {
+            // Fallback to canvas measurement for single-line (less accurate for multiline)
+            const text = span.textContent || '';
+            const rect = span.getBoundingClientRect();
+            const clickX = e.clientX - rect.left;
+            const clickY = e.clientY - rect.top;
+            const style = window.getComputedStyle(span);
+            const font = `${style.fontSize} ${style.fontFamily}`;
+            const lineHeight = parseFloat(style.lineHeight) || parseFloat(style.fontSize) * 1.2;
+            const canvas = document.createElement('canvas');
+            const context = canvas.getContext('2d');
+            if (context) {
+              context.font = font;
+              // For multiline, estimate which line and position
+              const lineNumber = Math.floor(clickY / lineHeight);
+              const lines = text.split('\n');
+              let charCount = 0;
+              for (let i = 0; i < lineNumber && i < lines.length; i++) {
+                charCount += lines[i].length + 1; // +1 for newline
+              }
+              if (lineNumber < lines.length) {
+                const lineText = lines[lineNumber];
+                for (let i = 0; i < lineText.length; i++) {
+                  const width = context.measureText(lineText.substring(0, i + 1)).width;
+                  if (width > clickX) {
+                    charIndex = charCount + i;
+                    break;
+                  }
+                }
+                if (charIndex === charCount) {
+                  charIndex = charCount + lineText.length;
+                }
+              } else {
+                charIndex = text.length;
+              }
+            }
+          }
+          
+          // Capture the span's height before switching to edit mode
+          const spanHeight = span.getBoundingClientRect().height;
+          initialHeightRef.current = spanHeight;
+          
+          // Store cursor position before switching to edit mode
+          // Ensure charIndex is valid (not NaN or negative)
+          if (isNaN(charIndex) || charIndex < 0) {
+            charIndex = 0;
+          }
+          cursorPositionRef.current = charIndex;
+          
+          setIsEditing(true);
+          if (props.onEditingChange) props.onEditingChange(true);
+        }}
+        style={{ 
+          cursor: props.editable ? 'text' : 'default', 
+          display: 'block', 
+          whiteSpace: 'pre-wrap',
+          padding: 0,
+          margin: 0,
+          lineHeight: 'inherit',
+          fontFamily: 'inherit',
+          fontSize: 'inherit',
+          border: 'none',
+          outline: 'none',
+          boxShadow: 'none',
+          background: 'transparent'
+        }}
+      >
+        {val ? val : <span style={{ opacity: 0.5 }}>{props.placeholder}</span>}
+      </span>
+    );
+  }
+  
+  // Single-line input (for epic titles)
+  if (isEditing) {
+    return (
+      <input
+        ref={inputRef}
         className={props.className}
         value={val}
         placeholder={props.placeholder}
-        rows={1}
-        onChange={(e) => { 
-          const next = e.target.value; 
-          setVal(next); 
-          schedule(next);
-          // Auto-resize on change
-          e.target.style.height = 'auto';
-          e.target.style.height = `${e.target.scrollHeight}px`;
+        style={{
+          padding: 0,
+          margin: 0,
+          border: 'none',
+          background: 'transparent',
+          outline: 'none',
+          boxShadow: 'none',
+          font: 'inherit',
+          color: 'inherit',
+          lineHeight: 'inherit',
+          width: '100%',
+          boxSizing: 'border-box'
         }}
-        onBlur={() => { if (debounceRef.current) { window.clearTimeout(debounceRef.current); debounceRef.current = null; } commit(val); }}
+        onChange={(e) => { const next = e.target.value; setVal(next); schedule(next); }}
+        onBlur={() => { 
+          if (debounceRef.current) { window.clearTimeout(debounceRef.current); debounceRef.current = null; } 
+          commit(val);
+          setIsEditing(false);
+          if (props.onEditingChange) props.onEditingChange(false);
+        }}
         onKeyDown={(e) => {
-          if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+          if (e.key === 'Enter') {
             e.preventDefault();
             if (debounceRef.current) { window.clearTimeout(debounceRef.current); debounceRef.current = null; }
             commit(val);
-            (e.target as HTMLTextAreaElement).blur();
+            setIsEditing(false);
+            if (props.onEditingChange) props.onEditingChange(false);
+            (e.target as HTMLInputElement).blur();
+            if (props.onSave) {
+              // Call onSave after a brief delay to ensure blur completes
+              setTimeout(() => props.onSave!(), 0);
+            }
+          } else if (e.key === 'Escape') {
+            setVal(props.value);
+            setIsEditing(false);
+            if (props.onEditingChange) props.onEditingChange(false);
+            (e.target as HTMLInputElement).blur();
           }
         }}
+        autoFocus
       />
     );
   }
+  
   return (
-    <input
+    <span
+      ref={spanRef}
       className={props.className}
-      value={val}
-      placeholder={props.placeholder}
-      onChange={(e) => { const next = e.target.value; setVal(next); schedule(next); }}
-      onBlur={() => { if (debounceRef.current) { window.clearTimeout(debounceRef.current); debounceRef.current = null; } commit(val); }}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter') {
-          e.preventDefault();
-          if (debounceRef.current) { window.clearTimeout(debounceRef.current); debounceRef.current = null; }
-          commit(val);
-          (e.target as HTMLInputElement).blur();
+      onClick={(e) => {
+        if (!props.editable) return;
+        e.stopPropagation();
+        const span = e.currentTarget;
+        const text = span.textContent || '';
+        
+        // Calculate character position based on click X coordinate
+        const rect = span.getBoundingClientRect();
+        const clickX = e.clientX - rect.left;
+        const style = window.getComputedStyle(span);
+        const font = `${style.fontSize} ${style.fontFamily}`;
+        const canvas = document.createElement('canvas');
+        const context = canvas.getContext('2d');
+        let charIndex = text.length;
+        if (context) {
+          context.font = font;
+          for (let i = 0; i < text.length; i++) {
+            const width = context.measureText(text.substring(0, i + 1)).width;
+            if (width > clickX) {
+              charIndex = i;
+              break;
+            }
+          }
         }
+        
+        clickPositionRef.current = charIndex;
+        setIsEditing(true);
+        if (props.onEditingChange) props.onEditingChange(true);
       }}
-    />
+      style={{ 
+        cursor: props.editable ? 'text' : 'default',
+        padding: 0,
+        margin: 0,
+        lineHeight: 'inherit',
+        fontFamily: 'inherit',
+        fontSize: 'inherit',
+        display: 'inline-block',
+        width: '100%',
+        border: 'none',
+        outline: 'none',
+        boxShadow: 'none',
+        background: 'transparent'
+      }}
+    >
+      {val ? val : <span style={{ opacity: 0.5 }}>{props.placeholder}</span>}
+    </span>
   );
 }
 

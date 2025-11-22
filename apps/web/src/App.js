@@ -352,41 +352,41 @@ export default function App() {
         return _jsx(Login, { baseUrl: baseUrl, onSuccess: setAuth });
     }
     const current = projects.find(p => p.id === selectedProjectId) ?? null;
-    return (_jsxs("main", { className: "dashboard", children: [_jsxs("div", { className: "tabs-header", children: [_jsxs("div", { className: "project-dropdown-container", children: [_jsxs("button", { type: "button", className: "project-dropdown-toggle", onClick: () => setShowProjectDropdown(!showProjectDropdown), children: [_jsx("span", { children: current?.name ?? 'Select project' }), _jsx("span", { className: "dropdown-arrow", children: "\u25BC" })] }), showProjectDropdown && (_jsxs("div", { className: "project-dropdown-menu", children: [projects.map(p => (_jsx("div", { className: "project-dropdown-item-wrapper", children: editingProjectId === p.id ? (_jsx("input", { type: "text", className: "project-dropdown-edit-input", value: editingProjectNameDraft, onChange: (e) => setEditingProjectNameDraft(e.target.value), onKeyDown: (e) => {
-                                                if (e.key === 'Enter') {
-                                                    e.preventDefault();
-                                                    if (editingProjectNameDraft.trim()) {
-                                                        void updateProject(p.id, editingProjectNameDraft.trim());
-                                                    }
-                                                    setEditingProjectId(null);
-                                                    setEditingProjectNameDraft('');
+    return (_jsxs("main", { className: "dashboard", children: [_jsxs("div", { className: "project-dropdown-container floating-control", children: [_jsxs("button", { type: "button", className: "project-dropdown-toggle", onClick: () => setShowProjectDropdown(!showProjectDropdown), children: [_jsx("span", { children: current?.name ?? 'Select project' }), _jsx("span", { className: "dropdown-arrow", children: "\u25BC" })] }), showProjectDropdown && (_jsxs("div", { className: "project-dropdown-menu", children: [projects.map(p => (_jsx("div", { className: "project-dropdown-item-wrapper", children: editingProjectId === p.id ? (_jsx("input", { type: "text", className: "project-dropdown-edit-input", value: editingProjectNameDraft, onChange: (e) => setEditingProjectNameDraft(e.target.value), onKeyDown: (e) => {
+                                        if (e.key === 'Enter') {
+                                            e.preventDefault();
+                                            if (editingProjectNameDraft.trim()) {
+                                                void updateProject(p.id, editingProjectNameDraft.trim());
+                                            }
+                                            setEditingProjectId(null);
+                                            setEditingProjectNameDraft('');
+                                        }
+                                        else if (e.key === 'Escape') {
+                                            setEditingProjectId(null);
+                                            setEditingProjectNameDraft('');
+                                        }
+                                    }, onBlur: () => {
+                                        if (editingProjectNameDraft.trim()) {
+                                            void updateProject(p.id, editingProjectNameDraft.trim());
+                                        }
+                                        setEditingProjectId(null);
+                                        setEditingProjectNameDraft('');
+                                    }, autoFocus: true, onClick: (e) => e.stopPropagation() })) : (_jsxs(_Fragment, { children: [_jsx("button", { type: "button", className: `project-dropdown-item ${selectedProjectId === p.id ? 'active' : ''}`, onClick: () => {
+                                                setSelectedProjectId(p.id);
+                                                setShowProjectDropdown(false);
+                                            }, children: p.name }), _jsx("button", { className: "project-dropdown-edit", onClick: (e) => {
+                                                e.stopPropagation();
+                                                setEditingProjectId(p.id);
+                                                setEditingProjectNameDraft(p.name);
+                                            }, title: "Rename project", children: "\u270E" }), _jsx("button", { className: "project-dropdown-delete", onClick: (e) => {
+                                                e.stopPropagation();
+                                                if (confirm(`Delete project "${p.name}"? This will delete all epics and tasks.`)) {
+                                                    void deleteProject(p.id);
                                                 }
-                                                else if (e.key === 'Escape') {
-                                                    setEditingProjectId(null);
-                                                    setEditingProjectNameDraft('');
-                                                }
-                                            }, onBlur: () => {
-                                                if (editingProjectNameDraft.trim()) {
-                                                    void updateProject(p.id, editingProjectNameDraft.trim());
-                                                }
-                                                setEditingProjectId(null);
-                                                setEditingProjectNameDraft('');
-                                            }, autoFocus: true, onClick: (e) => e.stopPropagation() })) : (_jsxs(_Fragment, { children: [_jsx("button", { type: "button", className: `project-dropdown-item ${selectedProjectId === p.id ? 'active' : ''}`, onClick: () => {
-                                                        setSelectedProjectId(p.id);
-                                                        setShowProjectDropdown(false);
-                                                    }, children: p.name }), _jsx("button", { className: "project-dropdown-edit", onClick: (e) => {
-                                                        e.stopPropagation();
-                                                        setEditingProjectId(p.id);
-                                                        setEditingProjectNameDraft(p.name);
-                                                    }, title: "Rename project", children: "\u270E" }), _jsx("button", { className: "project-dropdown-delete", onClick: (e) => {
-                                                        e.stopPropagation();
-                                                        if (confirm(`Delete project "${p.name}"? This will delete all epics and tasks.`)) {
-                                                            void deleteProject(p.id);
-                                                        }
-                                                    }, title: "Delete project", children: "\u00D7" })] })) }, p.id))), _jsx("button", { type: "button", className: "project-dropdown-item project-dropdown-add", onClick: () => {
-                                            setShowProjectModal(true);
-                                            setShowProjectDropdown(false);
-                                        }, children: "+ New Project" })] }))] }), selectedProjectId && (_jsx("button", { type: "button", className: "btn-ghost btn-epic", onClick: () => setShowEpicModal(true), children: "+ Epic" })), _jsxs("div", { className: "user-actions", children: [_jsx("span", { children: auth.user.displayName }), _jsx("button", { type: "button", onClick: handleLogout, className: "btn-ghost", children: "Logout" })] })] }), _jsx("section", { className: "board", children: !current ? (_jsx("div", { className: "card", children: "No project selected" })) : (_jsx("div", { className: "epic-columns", children: (epicsByProject[current.id] ?? []).map((e) => (_jsx(EpicLane, { epic: e, tasks: tasksByEpic[e.id] ?? [], baseUrl: baseUrl, onInlineUpdate: (id, fields) => updateTask(id, fields), onReorder: (taskId, position) => reorderTask(taskId, e.id, position), onDeleteTask: (id) => deleteTask(id), onCreateTask: (epicId, description) => createTask(epicId, description), onEpicUpdate: (id, fields) => updateEpic(id, fields), onDeleteEpic: (id) => deleteEpic(id), currentUserId: auth.user.id }, e.id))) })) }), error ? _jsx("p", { className: "error", children: error }) : null, _jsxs(Modal, { isOpen: showProjectModal, title: "Create project", onClose: () => { setShowProjectModal(false); setNewProjectName(''); setNewProjectDesc(''); }, footer: (_jsxs(_Fragment, { children: [_jsx("button", { className: "btn-ghost", type: "button", onClick: () => { setShowProjectModal(false); setNewProjectName(''); setNewProjectDesc(''); }, children: "Cancel" }), _jsx("button", { className: "btn-primary", type: "button", onClick: () => {
+                                            }, title: "Delete project", children: "\u00D7" })] })) }, p.id))), _jsx("button", { type: "button", className: "project-dropdown-item project-dropdown-add", onClick: () => {
+                                    setShowProjectModal(true);
+                                    setShowProjectDropdown(false);
+                                }, children: "+ New Project" })] }))] }), selectedProjectId && (_jsx("button", { type: "button", className: "btn-ghost btn-epic floating-control", onClick: () => setShowEpicModal(true), children: "+ Epic" })), _jsxs("div", { className: "user-actions floating-control", children: [_jsx("span", { children: auth.user.displayName }), _jsx("button", { type: "button", onClick: handleLogout, className: "btn-ghost", children: "Logout" })] }), _jsx("section", { className: "board", children: !current ? (_jsx("div", { className: "card", children: "No project selected" })) : (_jsx("div", { className: "epic-columns", children: (epicsByProject[current.id] ?? []).map((e) => (_jsx(EpicLane, { epic: e, tasks: tasksByEpic[e.id] ?? [], baseUrl: baseUrl, onInlineUpdate: (id, fields) => updateTask(id, fields), onReorder: (taskId, position) => reorderTask(taskId, e.id, position), onDeleteTask: (id) => deleteTask(id), onCreateTask: (epicId, description) => createTask(epicId, description), onEpicUpdate: (id, fields) => updateEpic(id, fields), onDeleteEpic: (id) => deleteEpic(id), currentUserId: auth.user.id }, e.id))) })) }), error ? _jsx("p", { className: "error", children: error }) : null, _jsxs(Modal, { isOpen: showProjectModal, title: "Create project", onClose: () => { setShowProjectModal(false); setNewProjectName(''); setNewProjectDesc(''); }, footer: (_jsxs(_Fragment, { children: [_jsx("button", { className: "btn-ghost", type: "button", onClick: () => { setShowProjectModal(false); setNewProjectName(''); setNewProjectDesc(''); }, children: "Cancel" }), _jsx("button", { className: "btn-primary", type: "button", onClick: () => {
                                 if (!newProjectName.trim())
                                     return;
                                 void createProject(newProjectName.trim(), newProjectDesc.trim() || undefined);
@@ -405,17 +405,74 @@ export default function App() {
 // TaskGroup removed: unified flat list per epic
 export function InlineText(props) {
     const [val, setVal] = useState(props.value);
+    const [isEditing, setIsEditing] = useState(false);
     const debounceRef = useRef(null);
     const textareaRef = useRef(null);
+    const inputRef = useRef(null);
+    const spanRef = useRef(null);
+    const clickPositionRef = useRef(null);
+    const initialHeightRef = useRef(null);
     useEffect(() => { setVal(props.value); }, [props.value]);
     // Auto-resize textarea based on content
     useEffect(() => {
-        if (props.multiline && textareaRef.current) {
+        if (props.multiline && isEditing && textareaRef.current) {
             const textarea = textareaRef.current;
-            textarea.style.height = 'auto';
-            textarea.style.height = `${textarea.scrollHeight}px`;
+            // If we have an initial height from the span, use it to prevent jumping
+            if (initialHeightRef.current !== null) {
+                const savedHeight = initialHeightRef.current;
+                initialHeightRef.current = null; // Clear immediately
+                // Set initial height to match span
+                textarea.style.height = `${savedHeight}px`;
+                // Then recalculate based on actual content to ensure accuracy
+                requestAnimationFrame(() => {
+                    requestAnimationFrame(() => {
+                        if (textareaRef.current) {
+                            textareaRef.current.style.height = 'auto';
+                            const scrollHeight = textareaRef.current.scrollHeight;
+                            // Use the larger of the two to prevent shrinking
+                            textareaRef.current.style.height = `${Math.max(savedHeight, scrollHeight)}px`;
+                        }
+                    });
+                });
+            }
+            else {
+                // Normal auto-resize for subsequent changes
+                textarea.style.height = 'auto';
+                textarea.style.height = `${textarea.scrollHeight}px`;
+            }
         }
-    }, [val, props.multiline]);
+    }, [val, props.multiline, isEditing]);
+    // Set cursor position for input after it's focused
+    useEffect(() => {
+        if (isEditing && inputRef.current && clickPositionRef.current !== null) {
+            const pos = clickPositionRef.current;
+            clickPositionRef.current = null;
+            requestAnimationFrame(() => {
+                if (inputRef.current) {
+                    inputRef.current.setSelectionRange(pos, pos);
+                }
+            });
+        }
+    }, [isEditing]);
+    // Set cursor position for textarea after it's rendered
+    useEffect(() => {
+        if (props.multiline && isEditing && textareaRef.current) {
+            const textarea = textareaRef.current;
+            const pos = textarea.__cursorPos;
+            if (typeof pos === 'number' && pos >= 0) {
+                delete textarea.__cursorPos;
+                // Use multiple requestAnimationFrame to ensure textarea is fully rendered
+                requestAnimationFrame(() => {
+                    requestAnimationFrame(() => {
+                        if (textareaRef.current && pos <= textareaRef.current.value.length) {
+                            textareaRef.current.setSelectionRange(pos, pos);
+                            textareaRef.current.focus();
+                        }
+                    });
+                });
+            }
+        }
+    }, [isEditing, props.multiline]);
     const commit = (next) => { props.onChange(next); };
     const schedule = (next) => {
         if (debounceRef.current)
@@ -423,40 +480,258 @@ export function InlineText(props) {
         debounceRef.current = window.setTimeout(() => { commit(next); }, 10000);
     };
     if (props.multiline) {
-        return (_jsx("textarea", { ref: textareaRef, className: props.className, value: val, placeholder: props.placeholder, rows: 1, onChange: (e) => {
-                const next = e.target.value;
-                setVal(next);
-                schedule(next);
-                // Auto-resize on change
-                e.target.style.height = 'auto';
-                e.target.style.height = `${e.target.scrollHeight}px`;
-            }, onBlur: () => { if (debounceRef.current) {
-                window.clearTimeout(debounceRef.current);
-                debounceRef.current = null;
-            } commit(val); }, onKeyDown: (e) => {
-                if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+        if (isEditing) {
+            return (_jsx("textarea", { ref: textareaRef, className: props.className, value: val, placeholder: props.placeholder, style: {
+                    padding: 0,
+                    margin: 0,
+                    border: 'none',
+                    borderWidth: 0,
+                    borderStyle: 'none',
+                    borderColor: 'transparent',
+                    borderTop: 'none',
+                    borderRight: 'none',
+                    borderBottom: 'none',
+                    borderLeft: 'none',
+                    borderRadius: 0,
+                    background: 'transparent',
+                    outline: 'none',
+                    outlineWidth: 0,
+                    outlineStyle: 'none',
+                    outlineColor: 'transparent',
+                    outlineOffset: 0,
+                    boxShadow: 'none',
+                    WebkitAppearance: 'none',
+                    MozAppearance: 'none',
+                    appearance: 'none',
+                    font: 'inherit',
+                    color: 'inherit',
+                    lineHeight: 'inherit',
+                    resize: 'none',
+                    overflow: 'hidden',
+                    width: '100%',
+                    boxSizing: 'border-box'
+                }, onChange: (e) => {
+                    const next = e.target.value;
+                    setVal(next);
+                    schedule(next);
+                    // Auto-resize on change
+                    e.target.style.height = 'auto';
+                    e.target.style.height = `${e.target.scrollHeight}px`;
+                }, onBlur: () => {
+                    if (debounceRef.current) {
+                        window.clearTimeout(debounceRef.current);
+                        debounceRef.current = null;
+                    }
+                    commit(val);
+                    setIsEditing(false);
+                    if (props.onEditingChange)
+                        props.onEditingChange(false);
+                }, onKeyDown: (e) => {
+                    e.stopPropagation(); // Prevent drag from starting
+                    if (e.key === 'Enter') {
+                        if (e.altKey) {
+                            // Alt+Enter: allow newline (default behavior)
+                            return;
+                        }
+                        else {
+                            // Enter: save and exit
+                            e.preventDefault();
+                            if (debounceRef.current) {
+                                window.clearTimeout(debounceRef.current);
+                                debounceRef.current = null;
+                            }
+                            commit(val);
+                            setIsEditing(false);
+                            if (props.onEditingChange)
+                                props.onEditingChange(false);
+                            e.target.blur();
+                            if (props.onSave) {
+                                // Call onSave after a brief delay to ensure blur completes
+                                setTimeout(() => {
+                                    props.onSave();
+                                }, 10);
+                            }
+                        }
+                    }
+                }, onClick: props.onClick, autoFocus: true }));
+        }
+        return (_jsx("span", { ref: spanRef, className: props.className, onClick: (e) => {
+                if (!props.editable)
+                    return;
+                if (props.onClick)
+                    props.onClick(e);
+                e.stopPropagation();
+                const span = e.currentTarget;
+                // Use browser's caret API for accurate multiline positioning
+                let charIndex = span.textContent?.length || 0;
+                if (document.caretRangeFromPoint) {
+                    const range = document.caretRangeFromPoint(e.clientX, e.clientY);
+                    if (range && range.startContainer.nodeType === Node.TEXT_NODE) {
+                        const textNode = range.startContainer;
+                        const textBefore = textNode.textContent?.substring(0, range.startOffset) || '';
+                        // Find the position in the span's text content
+                        const allText = span.textContent || '';
+                        const nodeText = textNode.textContent || '';
+                        const nodeIndex = allText.indexOf(nodeText);
+                        if (nodeIndex >= 0) {
+                            charIndex = nodeIndex + range.startOffset;
+                        }
+                        else {
+                            charIndex = range.startOffset;
+                        }
+                    }
+                }
+                else if (document.caretPositionFromPoint) {
+                    const pos = document.caretPositionFromPoint(e.clientX, e.clientY);
+                    if (pos && pos.offsetNode.nodeType === Node.TEXT_NODE) {
+                        const textNode = pos.offsetNode;
+                        const textBefore = textNode.textContent?.substring(0, pos.offset) || '';
+                        const allText = span.textContent || '';
+                        const nodeText = textNode.textContent || '';
+                        const nodeIndex = allText.indexOf(nodeText);
+                        if (nodeIndex >= 0) {
+                            charIndex = nodeIndex + pos.offset;
+                        }
+                        else {
+                            charIndex = pos.offset;
+                        }
+                    }
+                }
+                else {
+                    // Fallback to canvas measurement for single-line
+                    const text = span.textContent || '';
+                    const rect = span.getBoundingClientRect();
+                    const clickX = e.clientX - rect.left;
+                    const style = window.getComputedStyle(span);
+                    const font = `${style.fontSize} ${style.fontFamily}`;
+                    const canvas = document.createElement('canvas');
+                    const context = canvas.getContext('2d');
+                    if (context) {
+                        context.font = font;
+                        for (let i = 0; i < text.length; i++) {
+                            const width = context.measureText(text.substring(0, i + 1)).width;
+                            if (width > clickX) {
+                                charIndex = i;
+                                break;
+                            }
+                        }
+                    }
+                }
+                // Capture the span's height before switching to edit mode
+                const spanHeight = span.getBoundingClientRect().height;
+                initialHeightRef.current = spanHeight;
+                setIsEditing(true);
+                if (props.onEditingChange)
+                    props.onEditingChange(true);
+                requestAnimationFrame(() => {
+                    if (textareaRef.current) {
+                        textareaRef.current.__cursorPos = charIndex;
+                    }
+                });
+            }, style: {
+                cursor: props.editable ? 'text' : 'default',
+                display: 'block',
+                whiteSpace: 'pre-wrap',
+                padding: 0,
+                margin: 0,
+                lineHeight: 'inherit',
+                fontFamily: 'inherit',
+                fontSize: 'inherit',
+                border: 'none',
+                outline: 'none',
+                boxShadow: 'none',
+                background: 'transparent'
+            }, children: val ? val : _jsx("span", { style: { opacity: 0.5 }, children: props.placeholder }) }));
+    }
+    // Single-line input (for epic titles)
+    if (isEditing) {
+        return (_jsx("input", { ref: inputRef, className: props.className, value: val, placeholder: props.placeholder, style: {
+                padding: 0,
+                margin: 0,
+                border: 'none',
+                background: 'transparent',
+                outline: 'none',
+                boxShadow: 'none',
+                font: 'inherit',
+                color: 'inherit',
+                lineHeight: 'inherit',
+                width: '100%',
+                boxSizing: 'border-box'
+            }, onChange: (e) => { const next = e.target.value; setVal(next); schedule(next); }, onBlur: () => {
+                if (debounceRef.current) {
+                    window.clearTimeout(debounceRef.current);
+                    debounceRef.current = null;
+                }
+                commit(val);
+                setIsEditing(false);
+                if (props.onEditingChange)
+                    props.onEditingChange(false);
+            }, onKeyDown: (e) => {
+                if (e.key === 'Enter') {
                     e.preventDefault();
                     if (debounceRef.current) {
                         window.clearTimeout(debounceRef.current);
                         debounceRef.current = null;
                     }
                     commit(val);
+                    setIsEditing(false);
+                    if (props.onEditingChange)
+                        props.onEditingChange(false);
+                    e.target.blur();
+                    if (props.onSave) {
+                        // Call onSave after a brief delay to ensure blur completes
+                        setTimeout(() => props.onSave(), 0);
+                    }
+                }
+                else if (e.key === 'Escape') {
+                    setVal(props.value);
+                    setIsEditing(false);
+                    if (props.onEditingChange)
+                        props.onEditingChange(false);
                     e.target.blur();
                 }
-            } }));
+            }, autoFocus: true }));
     }
-    return (_jsx("input", { className: props.className, value: val, placeholder: props.placeholder, onChange: (e) => { const next = e.target.value; setVal(next); schedule(next); }, onBlur: () => { if (debounceRef.current) {
-            window.clearTimeout(debounceRef.current);
-            debounceRef.current = null;
-        } commit(val); }, onKeyDown: (e) => {
-            if (e.key === 'Enter') {
-                e.preventDefault();
-                if (debounceRef.current) {
-                    window.clearTimeout(debounceRef.current);
-                    debounceRef.current = null;
+    return (_jsx("span", { ref: spanRef, className: props.className, onClick: (e) => {
+            if (!props.editable)
+                return;
+            e.stopPropagation();
+            const span = e.currentTarget;
+            const text = span.textContent || '';
+            // Calculate character position based on click X coordinate
+            const rect = span.getBoundingClientRect();
+            const clickX = e.clientX - rect.left;
+            const style = window.getComputedStyle(span);
+            const font = `${style.fontSize} ${style.fontFamily}`;
+            const canvas = document.createElement('canvas');
+            const context = canvas.getContext('2d');
+            let charIndex = text.length;
+            if (context) {
+                context.font = font;
+                for (let i = 0; i < text.length; i++) {
+                    const width = context.measureText(text.substring(0, i + 1)).width;
+                    if (width > clickX) {
+                        charIndex = i;
+                        break;
+                    }
                 }
-                commit(val);
-                e.target.blur();
             }
-        } }));
+            clickPositionRef.current = charIndex;
+            setIsEditing(true);
+            if (props.onEditingChange)
+                props.onEditingChange(true);
+        }, style: {
+            cursor: props.editable ? 'text' : 'default',
+            padding: 0,
+            margin: 0,
+            lineHeight: 'inherit',
+            fontFamily: 'inherit',
+            fontSize: 'inherit',
+            display: 'inline-block',
+            width: '100%',
+            border: 'none',
+            outline: 'none',
+            boxShadow: 'none',
+            background: 'transparent'
+        }, children: val ? val : _jsx("span", { style: { opacity: 0.5 }, children: props.placeholder }) }));
 }

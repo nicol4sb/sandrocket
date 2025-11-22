@@ -91,6 +91,11 @@ const taskService = createTaskService({
 const app = express();
 
 app.use(helmet());
+// Block all crawlers and AI bots
+app.use((req, res, next) => {
+  res.setHeader('X-Robots-Tag', 'noindex, nofollow, noarchive, nosnippet, noimageindex');
+  next();
+});
 app.use(
   cors({
     origin:

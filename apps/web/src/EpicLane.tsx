@@ -115,8 +115,9 @@ function SortableTask(props: {
   onSetEditContent: (id: number | null, draft: string) => void;
   onDelete: (id: number) => void;
   currentUserId: number;
+  onSave?: () => void;
 }) {
-  const isEditing = props.editContentId === props.task.id;
+  const [isTaskEditing, setIsTaskEditing] = useState(false);
   const {
     attributes,
     listeners,
@@ -126,7 +127,7 @@ function SortableTask(props: {
     isDragging
   } = useSortable({ 
     id: props.task.id,
-    disabled: isEditing // Disable drag when editing
+    disabled: isTaskEditing // Disable drag when editing
   });
 
   const style = {
@@ -136,7 +137,7 @@ function SortableTask(props: {
   };
 
   // Only apply drag listeners when not editing
-  const dragListeners = isEditing ? {} : listeners;
+  const dragListeners = isTaskEditing ? {} : listeners;
 
   return (
     <li
@@ -145,89 +146,31 @@ function SortableTask(props: {
       className={`task ${props.focusIds.includes(props.task.id) ? 'focus' : ''} ${isDragging ? 'dragging' : ''}`}
       {...attributes}
       {...dragListeners}
-      onMouseEnter={(e) => {
-        const meta = e.currentTarget.querySelector('.task-meta') as HTMLElement;
-        if (meta) meta.style.opacity = '1';
-      }}
-      onMouseLeave={(e) => {
-        const meta = e.currentTarget.querySelector('.task-meta') as HTMLElement;
-        if (meta) meta.style.opacity = '0';
-      }}
     >
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', width: '100%' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          {props.editContentId === props.task.id ? (
-            <textarea
-              autoFocus
-              maxLength={150}
-              value={props.editingContentDraft}
-              onChange={(e) => {
-                const val = e.target.value;
-                if (val.length <= 150) {
-                  props.onEditContent(props.task.id, val);
-                  // Auto-resize
-                  e.target.style.height = 'auto';
-                  e.target.style.height = `${e.target.scrollHeight}px`;
-                }
-              }}
-              onKeyDown={(e) => {
-                e.stopPropagation(); // Prevent drag from starting
-                if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
-                  e.preventDefault();
-                  props.onCommitContent(props.task.id, props.editingContentDraft);
-                  props.onSetEditContent(null, '');
-                }
-              }}
-              onBlur={() => {
-                props.onCommitContent(props.task.id, props.editingContentDraft);
-                props.onSetEditContent(null, '');
-              }}
-              onClick={(e) => e.stopPropagation()}
-              style={{ 
-                flex: 1, 
-                resize: 'none', 
-                overflow: 'hidden',
-                minHeight: '1.5rem',
-                height: 'auto',
-                lineHeight: '1.5',
-                padding: '0.25rem 0.5rem'
-              }}
-              ref={(el) => {
-                if (el) {
-                  // Set initial height based on content
-                  el.style.height = 'auto';
-                  el.style.height = `${el.scrollHeight}px`;
-                }
-              }}
-            />
-          ) : (
-            <span
-              className="content"
-              title="Click to edit"
-              onClick={(e) => {
-                e.stopPropagation();
-                props.onSetEditContent(props.task.id, props.task.description);
-              }}
-              style={{ flex: 1 }}
-            >
-              {props.task.description}
-            </span>
-          )}
-          <button
-            className="delete-btn"
-            onClick={(e) => {
-              e.stopPropagation();
-              props.onDelete(props.task.id);
-            }}
-            title="Delete task"
-          >
-            ×
-          </button>
-        </div>
-        <div className="task-meta" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', opacity: 0, transition: 'opacity 160ms ease', fontSize: '0.7rem' }}>
-          <TaskInfo task={props.task} currentUserId={props.currentUserId} />
-        </div>
-      </div>
+      <InlineText
+        value={props.task.description}
+        onChange={(v) => {
+          props.onCommitContent(props.task.id, v);
+        }}
+        editable
+        multiline
+        className="content"
+        onClick={(e) => e.stopPropagation()}
+        onEditingChange={setIsTaskEditing}
+        onSave={props.onSave}
+      />
+      {!isTaskEditing && (
+        <button
+          className="delete-btn"
+          onClick={(e) => {
+            e.stopPropagation();
+            props.onDelete(props.task.id);
+          }}
+          title="Delete task"
+        >
+          ×
+        </button>
+      )}
     </li>
   );
 }
@@ -259,6 +202,7 @@ export function EpicLane(props: {
   const [activeId, setActiveId] = useState<number | null>(null);
   const [showToast, setShowToast] = useState(false);
   const contentTimerRef = useRef<number | null>(null);
+  const emptyTaskTextareaRef = useRef<HTMLTextAreaElement | null>(null);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
@@ -358,52 +302,81 @@ export function EpicLane(props: {
                   onSetEditContent={(id, draft) => { setEditContentId(id); setEditingContentDraft(draft); }}
                   onDelete={props.onDeleteTask}
                   currentUserId={props.currentUserId}
+                  onSave={() => {
+                    // Focus the empty task textarea after saving
+                    if (emptyTaskTextareaRef.current) {
+                      requestAnimationFrame(() => {
+                        emptyTaskTextareaRef.current?.focus();
+                      });
+                    }
+                  }}
                 />
               ))}
               {/* Empty task placeholder */}
               <li className="task empty-task">
-                <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <textarea
-                    placeholder="Add a note..."
-                    value={newTaskDraft}
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      if (val.length <= 150) {
-                        setNewTaskDraft(val);
-                        // Auto-resize
-                        e.target.style.height = 'auto';
-                        e.target.style.height = `${e.target.scrollHeight}px`;
-                      }
-                    }}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
-                        e.preventDefault();
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', width: '100%' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <textarea
+                      ref={(el) => {
+                        emptyTaskTextareaRef.current = el;
+                        if (el) {
+                          el.style.height = 'auto';
+                          el.style.height = `${el.scrollHeight}px`;
+                        }
+                      }}
+                      className="content"
+                      placeholder="Add a note..."
+                      value={newTaskDraft}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        if (val.length <= 150) {
+                          setNewTaskDraft(val);
+                          // Auto-resize
+                          e.target.style.height = 'auto';
+                          e.target.style.height = `${e.target.scrollHeight}px`;
+                        }
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          if (e.altKey) {
+                            // Alt+Enter: allow newline (default behavior)
+                            return;
+                          } else {
+                            // Enter: create task and clear
+                            e.preventDefault();
+                            if (newTaskDraft.trim()) {
+                              props.onCreateTask(props.epic.id, newTaskDraft.trim());
+                              setNewTaskDraft('');
+                            }
+                          }
+                        }
+                      }}
+                      onBlur={() => {
                         if (newTaskDraft.trim()) {
                           props.onCreateTask(props.epic.id, newTaskDraft.trim());
                           setNewTaskDraft('');
                         }
-                      }
-                    }}
-                    onBlur={() => {
-                      if (newTaskDraft.trim()) {
-                        props.onCreateTask(props.epic.id, newTaskDraft.trim());
-                        setNewTaskDraft('');
-                      }
-                    }}
-                    maxLength={150}
-                    style={{ 
-                      flex: 1, 
-                      resize: 'none', 
-                      overflow: 'hidden', 
-                      border: 'none', 
-                      background: 'transparent', 
-                      outline: 'none', 
-                      minHeight: '1.5rem', 
-                      height: 'auto',
-                      lineHeight: '1.5',
-                      padding: '0.25rem 0.5rem'
-                    }}
-                  />
+                      }}
+                      onClick={(e) => e.stopPropagation()}
+                      maxLength={150}
+                      style={{ 
+                        flex: 1, 
+                        resize: 'none', 
+                        overflow: 'hidden', 
+                        border: 'none', 
+                        background: 'transparent', 
+                        outline: 'none', 
+                        minHeight: '1.5rem', 
+                        height: 'auto',
+                        lineHeight: '1.5',
+                        padding: 0,
+                        margin: 0,
+                        font: 'inherit',
+                        color: 'inherit',
+                        boxShadow: 'none'
+                      }}
+                    />
+                  </div>
                 </div>
               </li>
             </ul>
