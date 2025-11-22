@@ -412,6 +412,7 @@ export function InlineText(props) {
     const spanRef = useRef(null);
     const clickPositionRef = useRef(null);
     const initialHeightRef = useRef(null);
+    const cursorPositionRef = useRef(null);
     useEffect(() => { setVal(props.value); }, [props.value]);
     // Auto-resize textarea based on content
     useEffect(() => {
@@ -421,16 +422,22 @@ export function InlineText(props) {
             if (initialHeightRef.current !== null) {
                 const savedHeight = initialHeightRef.current;
                 initialHeightRef.current = null; // Clear immediately
-                // Set initial height to match span
+                // Set initial height to match span immediately - don't let it shrink
                 textarea.style.height = `${savedHeight}px`;
-                // Then recalculate based on actual content to ensure accuracy
+                textarea.style.minHeight = `${savedHeight}px`;
+                // After rendering, check if content needs more space
                 requestAnimationFrame(() => {
                     requestAnimationFrame(() => {
                         if (textareaRef.current) {
+                            // Temporarily remove min-height to get accurate scrollHeight
+                            const oldMinHeight = textareaRef.current.style.minHeight;
+                            textareaRef.current.style.minHeight = '0';
                             textareaRef.current.style.height = 'auto';
                             const scrollHeight = textareaRef.current.scrollHeight;
-                            // Use the larger of the two to prevent shrinking
-                            textareaRef.current.style.height = `${Math.max(savedHeight, scrollHeight)}px`;
+                            // Use the larger value, but never shrink below original
+                            const finalHeight = Math.max(savedHeight, scrollHeight);
+                            textareaRef.current.style.height = `${finalHeight}px`;
+                            textareaRef.current.style.minHeight = oldMinHeight;
                         }
                     });
                 });
@@ -454,23 +461,24 @@ export function InlineText(props) {
             });
         }
     }, [isEditing]);
-    // Set cursor position for textarea after it's rendered
+    // Set cursor position for textarea after it's rendered and height is set
     useEffect(() => {
-        if (props.multiline && isEditing && textareaRef.current) {
-            const textarea = textareaRef.current;
-            const pos = textarea.__cursorPos;
-            if (typeof pos === 'number' && pos >= 0) {
-                delete textarea.__cursorPos;
-                // Use multiple requestAnimationFrame to ensure textarea is fully rendered
+        if (props.multiline && isEditing && textareaRef.current && cursorPositionRef.current !== null) {
+            const pos = cursorPositionRef.current;
+            cursorPositionRef.current = null; // Clear after use
+            // Use multiple requestAnimationFrame to ensure textarea is fully rendered and height is set
+            requestAnimationFrame(() => {
                 requestAnimationFrame(() => {
                     requestAnimationFrame(() => {
-                        if (textareaRef.current && pos <= textareaRef.current.value.length) {
-                            textareaRef.current.setSelectionRange(pos, pos);
+                        if (textareaRef.current) {
+                            const maxPos = textareaRef.current.value.length;
+                            const finalPos = Math.min(pos, maxPos);
+                            textareaRef.current.setSelectionRange(finalPos, finalPos);
                             textareaRef.current.focus();
                         }
                     });
                 });
-            }
+            });
         }
     }, [isEditing, props.multiline]);
     const commit = (next) => { props.onChange(next); };
@@ -564,70 +572,131 @@ export function InlineText(props) {
                 const span = e.currentTarget;
                 // Use browser's caret API for accurate multiline positioning
                 let charIndex = span.textContent?.length || 0;
+                // Helper to calculate text offset by walking the DOM tree
+                const calculateTextOffset = (targetNode, targetOffset) => {
+                    const walker = document.createTreeWalker(span, NodeFilter.SHOW_TEXT, null);
+                    let count = 0;
+                    let node;
+                    while (node = walker.nextNode()) {
+                        if (node === targetNode && node.nodeType === Node.TEXT_NODE) {
+                            return count + targetOffset;
+                        }
+                        count += node.textContent?.length || 0;
+                    }
+                    return count;
+                };
                 if (document.caretRangeFromPoint) {
                     const range = document.caretRangeFromPoint(e.clientX, e.clientY);
-                    if (range && range.startContainer.nodeType === Node.TEXT_NODE) {
-                        const textNode = range.startContainer;
-                        const textBefore = textNode.textContent?.substring(0, range.startOffset) || '';
-                        // Find the position in the span's text content
-                        const allText = span.textContent || '';
-                        const nodeText = textNode.textContent || '';
-                        const nodeIndex = allText.indexOf(nodeText);
-                        if (nodeIndex >= 0) {
-                            charIndex = nodeIndex + range.startOffset;
+                    if (range) {
+                        if (range.startContainer.nodeType === Node.TEXT_NODE) {
+                            charIndex = calculateTextOffset(range.startContainer, range.startOffset);
                         }
                         else {
-                            charIndex = range.startOffset;
+                            // If container is not a text node, try to find the text node
+                            if (range.startContainer.childNodes.length > range.startOffset) {
+                                const childNode = range.startContainer.childNodes[range.startOffset];
+                                if (childNode && childNode.nodeType === Node.TEXT_NODE) {
+                                    charIndex = calculateTextOffset(childNode, 0);
+                                }
+                                else {
+                                    // Count all text before this position
+                                    const rangeFromStart = document.createRange();
+                                    rangeFromStart.setStart(span, 0);
+                                    rangeFromStart.setEnd(range.startContainer, range.startOffset);
+                                    charIndex = rangeFromStart.toString().length;
+                                }
+                            }
+                            else {
+                                // Count all text before this container
+                                const rangeFromStart = document.createRange();
+                                rangeFromStart.setStart(span, 0);
+                                rangeFromStart.setEnd(range.startContainer, 0);
+                                charIndex = rangeFromStart.toString().length;
+                            }
                         }
                     }
                 }
                 else if (document.caretPositionFromPoint) {
                     const pos = document.caretPositionFromPoint(e.clientX, e.clientY);
-                    if (pos && pos.offsetNode.nodeType === Node.TEXT_NODE) {
-                        const textNode = pos.offsetNode;
-                        const textBefore = textNode.textContent?.substring(0, pos.offset) || '';
-                        const allText = span.textContent || '';
-                        const nodeText = textNode.textContent || '';
-                        const nodeIndex = allText.indexOf(nodeText);
-                        if (nodeIndex >= 0) {
-                            charIndex = nodeIndex + pos.offset;
+                    if (pos && pos.offsetNode) {
+                        if (pos.offsetNode.nodeType === Node.TEXT_NODE) {
+                            charIndex = calculateTextOffset(pos.offsetNode, pos.offset);
                         }
                         else {
-                            charIndex = pos.offset;
+                            // Try to create a range to calculate offset
+                            try {
+                                const rangeFromStart = document.createRange();
+                                rangeFromStart.setStart(span, 0);
+                                if (pos.offsetNode.childNodes.length > pos.offset) {
+                                    const childNode = pos.offsetNode.childNodes[pos.offset];
+                                    if (childNode && childNode.nodeType === Node.TEXT_NODE) {
+                                        rangeFromStart.setEnd(childNode, 0);
+                                    }
+                                    else {
+                                        rangeFromStart.setEnd(pos.offsetNode, pos.offset);
+                                    }
+                                }
+                                else {
+                                    rangeFromStart.setEnd(pos.offsetNode, 0);
+                                }
+                                charIndex = rangeFromStart.toString().length;
+                            }
+                            catch (err) {
+                                charIndex = calculateTextOffset(pos.offsetNode, 0);
+                            }
                         }
                     }
                 }
                 else {
-                    // Fallback to canvas measurement for single-line
+                    // Fallback to canvas measurement for single-line (less accurate for multiline)
                     const text = span.textContent || '';
                     const rect = span.getBoundingClientRect();
                     const clickX = e.clientX - rect.left;
+                    const clickY = e.clientY - rect.top;
                     const style = window.getComputedStyle(span);
                     const font = `${style.fontSize} ${style.fontFamily}`;
+                    const lineHeight = parseFloat(style.lineHeight) || parseFloat(style.fontSize) * 1.2;
                     const canvas = document.createElement('canvas');
                     const context = canvas.getContext('2d');
                     if (context) {
                         context.font = font;
-                        for (let i = 0; i < text.length; i++) {
-                            const width = context.measureText(text.substring(0, i + 1)).width;
-                            if (width > clickX) {
-                                charIndex = i;
-                                break;
+                        // For multiline, estimate which line and position
+                        const lineNumber = Math.floor(clickY / lineHeight);
+                        const lines = text.split('\n');
+                        let charCount = 0;
+                        for (let i = 0; i < lineNumber && i < lines.length; i++) {
+                            charCount += lines[i].length + 1; // +1 for newline
+                        }
+                        if (lineNumber < lines.length) {
+                            const lineText = lines[lineNumber];
+                            for (let i = 0; i < lineText.length; i++) {
+                                const width = context.measureText(lineText.substring(0, i + 1)).width;
+                                if (width > clickX) {
+                                    charIndex = charCount + i;
+                                    break;
+                                }
                             }
+                            if (charIndex === charCount) {
+                                charIndex = charCount + lineText.length;
+                            }
+                        }
+                        else {
+                            charIndex = text.length;
                         }
                     }
                 }
                 // Capture the span's height before switching to edit mode
                 const spanHeight = span.getBoundingClientRect().height;
                 initialHeightRef.current = spanHeight;
+                // Store cursor position before switching to edit mode
+                // Ensure charIndex is valid (not NaN or negative)
+                if (isNaN(charIndex) || charIndex < 0) {
+                    charIndex = 0;
+                }
+                cursorPositionRef.current = charIndex;
                 setIsEditing(true);
                 if (props.onEditingChange)
                     props.onEditingChange(true);
-                requestAnimationFrame(() => {
-                    if (textareaRef.current) {
-                        textareaRef.current.__cursorPos = charIndex;
-                    }
-                });
             }, style: {
                 cursor: props.editable ? 'text' : 'default',
                 display: 'block',
