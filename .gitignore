@@ -20,6 +20,10 @@ coverage
 rocket.db
 tmp
 *.tsbuildinfo
+# Compiled JS files in src (should use .tsx source)
+apps/web/src/**/*.js
+apps/web/src/*.js
+!apps/web/src/main.js
 # Dependencies
 node_modules/
 npm-debug.log*

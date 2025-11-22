@@ -377,15 +377,16 @@ export default function App() {
 
   return (
     <main className="dashboard">
-      <div className="project-dropdown-container floating-control">
-        <button
-          type="button"
-          className="project-dropdown-toggle"
-          onClick={() => setShowProjectDropdown(!showProjectDropdown)}
-        >
-          <span>{current?.name ?? 'Select project'}</span>
-          <span className="dropdown-arrow">▼</span>
-        </button>
+      <header className="app-header">
+        <div className="project-dropdown-container">
+          <button
+            type="button"
+            className="project-dropdown-toggle"
+            onClick={() => setShowProjectDropdown(!showProjectDropdown)}
+          >
+            <span>{current?.name ?? 'Select project'}</span>
+            <span className="dropdown-arrow">▼</span>
+          </button>
           {showProjectDropdown && (
             <div className="project-dropdown-menu">
               {projects.map(p => (
@@ -458,26 +459,27 @@ export default function App() {
                   )}
                 </div>
               ))}
-            <button
-              type="button"
-              className="project-dropdown-item project-dropdown-add"
-              onClick={() => {
-                setShowProjectModal(true);
-                setShowProjectDropdown(false);
-              }}
-            >
-              + New Project
-            </button>
-          </div>
+              <button
+                type="button"
+                className="project-dropdown-item project-dropdown-add"
+                onClick={() => {
+                  setShowProjectModal(true);
+                  setShowProjectDropdown(false);
+                }}
+              >
+                + New Project
+              </button>
+            </div>
+          )}
+        </div>
+        {selectedProjectId && (
+          <button type="button" className="btn-ghost btn-epic" onClick={() => setShowEpicModal(true)}>+ Epic</button>
         )}
-      </div>
-      {selectedProjectId && (
-        <button type="button" className="btn-ghost btn-epic floating-control" onClick={() => setShowEpicModal(true)}>+ Epic</button>
-      )}
-      <div className="user-actions floating-control">
-        <span>{auth.user.displayName}</span>
-        <button type="button" onClick={handleLogout} className="btn-ghost">Logout</button>
-      </div>
+        <div className="user-actions">
+          <span>{auth.user.displayName}</span>
+          <button type="button" onClick={handleLogout} className="btn-ghost">Logout</button>
+        </div>
+      </header>
 
       <section className="board">
         {!current ? (

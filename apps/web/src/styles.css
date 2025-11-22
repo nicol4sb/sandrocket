@@ -21,24 +21,47 @@ main.dashboard {
   padding: 1rem;
   box-sizing: border-box;
 }
-.app-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
-  background: #252526;
-  border: 1px solid #3e3e42;
-  border-radius: 1.25rem;
-  padding: 0.875rem 1.25rem;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
-  margin: 0.75rem auto 0;
-  width: min(1200px, 96vw);
-  backdrop-filter: blur(20px);
-  transition: all 0.3s ease;
+main.dashboard > .app-header {
+  display: flex !important;
+  flex-direction: row !important;
+  flex-wrap: nowrap !important;
 }
-.app-header:hover {
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
-  border-color: #464647;
+.app-header {
+  display: flex !important;
+  align-items: center !important;
+  flex-wrap: nowrap !important;
+  flex-direction: row !important;
+  width: 100%;
+  gap: 0.75rem;
+  margin-bottom: 0.5rem;
+  background: transparent;
+  border: none;
+  padding: 0;
+  box-shadow: none;
+}
+.app-header > * {
+  flex-shrink: 0 !important;
+  display: inline-flex !important;
+  width: auto !important;
+  flex: 0 0 auto !important;
+  max-width: none !important;
+  min-width: 0 !important;
+}
+.app-header > .user-actions {
+  margin-left: auto !important;
+  display: flex !important;
+  flex: 0 0 auto !important;
+  width: auto !important;
+}
+.app-header > .project-dropdown-container {
+  display: inline-block !important;
+  flex: 0 0 auto !important;
+  width: auto !important;
+}
+.app-header > .btn-epic {
+  display: inline-flex !important;
+  flex: 0 0 auto !important;
+  width: auto !important;
 }
 .app-header .brand { display: flex; align-items: center; gap: 0.6rem; font-weight: 700; color: #cccccc; }
 .app-header .brand .dot { 
@@ -127,24 +150,47 @@ main.dashboard {
 .user-actions {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: 0.75rem;
   color: #cccccc;
   font-size: 0.95rem;
-  margin-left: auto;
   font-weight: 500;
+  flex: 0 0 auto;
+  width: auto;
+  max-width: none;
+  white-space: nowrap;
 }
 .user-actions span {
   color: #cccccc;
 }
+.user-actions button {
+  width: auto !important;
+  flex: 0 0 auto !important;
+  max-width: none !important;
+  color: #cccccc !important;
+}
 
 .btn-epic {
-  flex-shrink: 0;
+  flex-shrink: 0 !important;
+  font-size: 0.95rem;
+  font-weight: 500;
+  padding: 0.625rem 1rem;
+  white-space: nowrap;
+  width: auto !important;
+  flex: 0 0 auto !important;
+  max-width: none !important;
+  min-width: auto !important;
+  color: #cccccc !important;
+  display: inline-flex !important;
+  box-sizing: border-box;
 }
 
 .project-dropdown-container {
   position: relative;
-  flex: 0 0 auto;
+  flex: 0 0 auto !important;
   min-width: 0;
+  width: auto !important;
+  max-width: none !important;
+  display: inline-block !important;
 }
 
 .project-dropdown-toggle {
@@ -1032,9 +1078,13 @@ footer {
 .btn-ghost { 
   background: #2d2d30; 
   border: 1px solid #3e3e42; 
-  color: #cccccc;
+  color: #cccccc !important;
   transition: all 0.2s ease;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  width: auto !important;
+  flex: 0 0 auto !important;
+  display: inline-flex !important;
+  max-width: none !important;
 }
 .btn-ghost:hover {
   background: #37373d;
@@ -1161,17 +1211,6 @@ footer {
   color: #2d3748;
 }
 
-.app-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
-  background: #fff;
-  border: 1px solid rgba(13, 18, 36, 0.12);
-  border-radius: 1rem;
-  padding: 0.75rem 1rem;
-  box-shadow: 0 10px 28px rgba(13, 18, 36, 0.08);
-}
 .app-header .brand {
   display: flex;
   align-items: center;
@@ -1447,8 +1486,19 @@ footer {
   }
 
   .project-dropdown-container {
-    flex: 1;
+    flex: 0 0 auto;
     min-width: 0;
+  }
+  
+  .app-header {
+    flex-wrap: nowrap !important;
+    flex-direction: row !important;
+    overflow-x: auto;
+  }
+  
+  .app-header > * {
+    flex-shrink: 0 !important;
+    width: auto !important;
   }
 
   .project-dropdown-toggle {
@@ -1466,8 +1516,10 @@ footer {
   }
 
   .btn-epic {
-    width: 100%;
-    margin-top: 0.5rem;
+    width: auto !important;
+    margin-top: 0;
+    flex: 0 0 auto !important;
+    max-width: none !important;
   }
 
   .user-actions {
@@ -1480,6 +1532,9 @@ footer {
   .user-actions button {
     padding: 0.3rem 0.6rem;
     font-size: 0.85rem;
+    width: auto !important;
+    flex: 0 0 auto !important;
+    color: #cccccc !important;
   }
 
 
@@ -1693,6 +1748,9 @@ footer {
   .user-actions button {
     font-size: 0.75rem;
     padding: 0.25rem 0.5rem;
+    width: auto !important;
+    flex: 0 0 auto !important;
+    color: #cccccc !important;
   }
 
   .btn-epic {

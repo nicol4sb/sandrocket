@@ -11,7 +11,9 @@ export default defineConfig({
         __dirname,
         '../../packages/contracts/src'
       )
-    }
+    },
+    // Prioritize .tsx and .ts files over .js files
+    extensions: ['.tsx', '.ts', '.jsx', '.js', '.json']
   },
   server: {
     port: 3000,
@@ -21,7 +23,16 @@ export default defineConfig({
         changeOrigin: true,
         secure: false
       }
+    },
+    // Force HMR to reload on file changes
+    watch: {
+      usePolling: false,
+      interval: 100
     }
+  },
+  // Ensure we don't use stale compiled files
+  optimizeDeps: {
+    force: true
   }
 });
 
