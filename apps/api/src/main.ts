@@ -22,18 +22,26 @@ import {
   loadConfig
 } from '@sandrocket/infrastructure';
 import {
-  createProjectService
+  createProjectService,
+  createInvitationService
 } from '@sandrocket/core';
 import {
   SqliteProjectRepository,
+  SqliteProjectMemberRepository,
+  SqliteProjectInvitationRepository,
   SqliteEpicRepository
 } from '@sandrocket/infrastructure';
 import {
   CreateProjectRequest,
   ListProjectsResponse,
   UpdateProjectRequest,
+  CreateInvitationRequest,
+  AcceptInvitationRequest,
+  InvitationResponse,
   createProjectRequestSchema,
-  updateProjectRequestSchema
+  updateProjectRequestSchema,
+  createInvitationRequestSchema,
+  acceptInvitationRequestSchema
 } from '@sandrocket/contracts';
 import { createEpicService } from '@sandrocket/core';
 import { CreateEpicRequest, ListEpicsResponse, UpdateEpicRequest, createEpicRequestSchema, updateEpicRequestSchema } from '@sandrocket/contracts';
@@ -78,7 +86,15 @@ const authService = createAuthService({
   passwordHasher: new BcryptPasswordHasher(),
   tokenService
 });
+const projectMemberRepository = new SqliteProjectMemberRepository(database);
+const projectInvitationRepository = new SqliteProjectInvitationRepository(database);
 const projectService = createProjectService({
+  projects: new SqliteProjectRepository(database),
+  members: projectMemberRepository
+});
+const invitationService = createInvitationService({
+  invitations: projectInvitationRepository,
+  members: projectMemberRepository,
   projects: new SqliteProjectRepository(database)
 });
 const epicService = createEpicService({
@@ -453,7 +469,8 @@ app.get(
         name: p.name,
         description: p.description,
         createdAt: p.createdAt.toISOString(),
-        updatedAt: p.updatedAt.toISOString()
+        updatedAt: p.updatedAt.toISOString(),
+        role: p.role
       }))
     };
     res.json(body);
@@ -484,7 +501,8 @@ app.post(
         name: created.name,
         description: created.description,
         createdAt: created.createdAt.toISOString(),
-        updatedAt: created.updatedAt.toISOString()
+        updatedAt: created.updatedAt.toISOString(),
+        role: created.role
       });
     } catch (err) {
       // eslint-disable-next-line no-console
@@ -520,12 +538,15 @@ app.patch(
       res.status(404).json({ error: 'not-found', message: 'Project not found' });
       return;
     }
+    // Get user's role for this project
+    const role = await projectService.getUserRole(projectIdNum, payload.userId);
     res.json({
       id: updated.id,
       name: updated.name,
       description: updated.description,
       createdAt: updated.createdAt.toISOString(),
-      updatedAt: updated.updatedAt.toISOString()
+      updatedAt: updated.updatedAt.toISOString(),
+      role: role ?? undefined
     });
   })
 );
@@ -541,12 +562,117 @@ app.delete(
     const payload = await tokenService.verifyToken(token);
     const { projectId } = req.params as { projectId: string };
     const projectIdNum = Number(projectId);
-    const deleted = await projectService.deleteProject(projectIdNum);
-    if (!deleted) {
-      res.status(404).json({ error: 'not-found', message: 'Project not found' });
+    try {
+      const deleted = await projectService.deleteProject(projectIdNum, payload.userId);
+      if (!deleted) {
+        res.status(404).json({ error: 'not-found', message: 'Project not found' });
+        return;
+      }
+      res.status(204).send();
+    } catch (error) {
+      if (error instanceof Error && error.message.includes('Only project owners')) {
+        res.status(403).json({ error: 'forbidden', message: error.message });
+        return;
+      }
+      throw error;
+    }
+  })
+);
+
+// Invitation endpoints
+app.post(
+  '/api/projects/:projectId/invitations',
+  asyncHandler(async (req, res) => {
+    const token = req.cookies[config.security.sessionCookieName];
+    if (!token) {
+      res.status(401).json({ error: 'auth/no-token', message: 'No token' });
       return;
     }
-    res.status(204).send();
+    const payload = await tokenService.verifyToken(token);
+    const { projectId } = req.params as { projectId: string };
+    const projectIdNum = Number(projectId);
+    try {
+      // Set expiration to 5 days from now
+      const expiresAt = new Date();
+      expiresAt.setDate(expiresAt.getDate() + 5);
+      
+      const invitation = await invitationService.createInvitation({
+        projectId: projectIdNum,
+        createdByUserId: payload.userId,
+        expiresAt
+      });
+      const response: InvitationResponse = {
+        id: invitation.id,
+        projectId: invitation.projectId,
+        token: invitation.token,
+        createdAt: invitation.createdAt.toISOString(),
+        expiresAt: invitation.expiresAt ? invitation.expiresAt.toISOString() : null
+      };
+      res.status(201).json(response);
+    } catch (error) {
+      if (error instanceof Error) {
+        if (error.message.includes('Only project owners')) {
+          res.status(403).json({ error: 'forbidden', message: error.message });
+          return;
+        }
+        if (error.message.includes('not found')) {
+          res.status(404).json({ error: 'not-found', message: error.message });
+          return;
+        }
+      }
+      throw error;
+    }
+  })
+);
+
+app.post(
+  '/api/invitations/accept',
+  asyncHandler(async (req, res) => {
+    const token = req.cookies[config.security.sessionCookieName];
+    if (!token) {
+      res.status(401).json({ error: 'auth/no-token', message: 'No token' });
+      return;
+    }
+    const payload = await tokenService.verifyToken(token);
+    const body = parseBody<AcceptInvitationRequest>(acceptInvitationRequestSchema, req, res);
+    if (!body) {
+      return;
+    }
+    try {
+      await invitationService.acceptInvitation({
+        token: body.token,
+        userId: payload.userId
+      });
+      res.status(200).json({ message: 'Invitation accepted' });
+    } catch (error) {
+      if (error instanceof Error) {
+        if (error.message.includes('Invalid or expired')) {
+          res.status(400).json({ error: 'invalid-invitation', message: error.message });
+          return;
+        }
+      }
+      throw error;
+    }
+  })
+);
+
+app.get(
+  '/api/invitations/:token',
+  asyncHandler(async (req, res) => {
+    const { token } = req.params as { token: string };
+    const invitation = await invitationService.getInvitationByToken(token);
+    if (!invitation) {
+      res.status(404).json({ error: 'not-found', message: 'Invitation not found or expired' });
+      return;
+    }
+    const response: InvitationResponse = {
+      id: invitation.id,
+      projectId: invitation.projectId,
+      token: invitation.token,
+      createdAt: invitation.createdAt.toISOString(),
+      expiresAt: invitation.expiresAt ? invitation.expiresAt.toISOString() : null
+    };
+    res.json(response);
   })
 );
 

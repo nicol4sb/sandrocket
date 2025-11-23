@@ -110,6 +110,32 @@ export function initializeSqliteDatabase(options: SqliteOptions): Database {
       FOREIGN KEY (last_edited_by_user_id) REFERENCES users(id) ON DELETE SET NULL
     );
     CREATE INDEX IF NOT EXISTS idx_tasks_epic_status_pos ON tasks(epic_id, status, position);
+    CREATE TABLE IF NOT EXISTS project_members (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      project_id INTEGER NOT NULL,
+      user_id INTEGER NOT NULL,
+      role TEXT NOT NULL, -- 'owner' | 'contributor'
+      created_at TEXT NOT NULL,
+      FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+      UNIQUE(project_id, user_id)
+    );
+    CREATE TABLE IF NOT EXISTS project_invitations (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      project_id INTEGER NOT NULL,
+      token TEXT NOT NULL UNIQUE,
+      created_by_user_id INTEGER NOT NULL,
+      used_by_user_id INTEGER,
+      used_at TEXT,
+      created_at TEXT NOT NULL,
+      expires_at TEXT,
+      FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+      FOREIGN KEY (created_by_user_id) REFERENCES users(id) ON DELETE CASCADE,
+      FOREIGN KEY (used_by_user_id) REFERENCES users(id) ON DELETE SET NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_project_members_user_id ON project_members(user_id);
+    CREATE INDEX IF NOT EXISTS idx_project_members_project_id ON project_members(project_id);
+    CREATE INDEX IF NOT EXISTS idx_project_invitations_token ON project_invitations(token);
   `);
 
   // Migration: Add creator_user_id column and/or remove title column if needed
@@ -117,10 +143,9 @@ export function initializeSqliteDatabase(options: SqliteOptions): Database {
     const taskInfo = db.prepare(`PRAGMA table_info('tasks')`).all() as Array<{ name: string; type: string }>;
     if (taskInfo.length === 0) {
       // Table doesn't exist yet, will be created by CREATE TABLE IF NOT EXISTS above
-      return db;
-    }
-    
-    const hasTitleColumn = taskInfo.some((col) => col.name === 'title');
+      // Continue to project_members migration
+    } else {
+      const hasTitleColumn = taskInfo.some((col) => col.name === 'title');
     const hasCreatorColumn = taskInfo.some((col) => col.name === 'creator_user_id');
     const hasLastEditedColumn = taskInfo.some((col) => col.name === 'last_edited_by_user_id');
     
@@ -189,14 +214,33 @@ export function initializeSqliteDatabase(options: SqliteOptions): Database {
         CREATE INDEX IF NOT EXISTS idx_tasks_epic_status_pos ON tasks(epic_id, status, position);
         PRAGMA foreign_keys = ON;
       `);
+      }
     }
   } catch (err) {
     // If migration fails, log but continue - table will be created correctly on next run
     // eslint-disable-next-line no-console
     console.error('[db] Migration error:', err);
   }
-  
-  return db;
+
+  // Migration: Add project members for existing projects (set owner as member)
+  try {
+    const memberInfo = db.prepare(`PRAGMA table_info('project_members')`).all() as Array<{ name: string }>;
+    if (memberInfo.length > 0) {
+      // Table exists, check if we need to migrate existing owners
+      const existingMembers = db.prepare('SELECT COUNT(*) as count FROM project_members').get() as { count: number } | undefined;
+      if (existingMembers && existingMembers.count === 0) {
+        // No members yet, add owners as members
+        db.exec(`
+          INSERT INTO project_members (project_id, user_id, role, created_at)
+          SELECT id, owner_user_id, 'owner', created_at
+          FROM projects
+        `);
+      }
+    }
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.error('[db] Migration error for project_members:', err);
+  }
 
   // Emit a single startup log with DB path to help diagnose multiple-process setups
   try {

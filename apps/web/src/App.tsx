@@ -60,6 +60,21 @@ export default function App() {
   const [showEpicModal, setShowEpicModal] = useState(false);
   const [newEpicName, setNewEpicName] = useState('');
   const [newEpicDesc, setNewEpicDesc] = useState('');
+  const [invitationToken, setInvitationToken] = useState<string | null>(null);
+  const [showInviteModal, setShowInviteModal] = useState(false);
+  const [inviteLink, setInviteLink] = useState<string>('');
+
+  // Check for invitation token in URL
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const token = params.get('invite');
+    if (token) {
+      setInvitationToken(token);
+      // Remove token from URL
+      const newUrl = window.location.pathname;
+      window.history.replaceState({}, '', newUrl);
+    }
+  }, []);
 
   useEffect(() => {
     const hydrate = async () => {
@@ -68,10 +83,28 @@ export default function App() {
         if (!response.ok) return;
         const data = (await response.json()) as AuthSuccessResponse;
         setAuth(data);
+        // If we have an invitation token and user is now authenticated, accept it
+        if (invitationToken) {
+          try {
+            await fetch(`${baseUrl}/invitations/accept`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              credentials: 'include',
+              body: JSON.stringify({ token: invitationToken })
+            });
+            setInvitationToken(null);
+            // Reload projects
+            const res = await fetch(`${baseUrl}/projects`, { credentials: 'include' });
+            if (res.ok) {
+              const data = (await res.json()) as ListProjectsResponse;
+              setProjects(data.projects);
+            }
+          } catch {}
+        }
       } catch {}
     };
     hydrate();
-  }, [baseUrl]);
+  }, [baseUrl, invitationToken]);
 
   useEffect(() => {
     if (!showProjectDropdown) return;
@@ -312,7 +345,7 @@ export default function App() {
       setError(errorData.message || 'Failed to create project');
       return;
     }
-    const created = (await res.json()) as { id: number; name: string; description: string | null; createdAt: string; updatedAt: string };
+    const created = (await res.json()) as { id: number; name: string; description: string | null; createdAt: string; updatedAt: string; role?: 'owner' | 'contributor' };
     setProjects(prev => [...prev, created]);
     setSelectedProjectId(created.id);
     setShowProjectModal(false);
@@ -408,7 +441,7 @@ export default function App() {
   };
 
   if (!auth) {
-    return <Login baseUrl={baseUrl} onSuccess={setAuth} />;
+    return <Login baseUrl={baseUrl} onSuccess={setAuth} invitationToken={invitationToken} />;
   }
 
   const current = projects.find(p => p.id === selectedProjectId) ?? null;
@@ -483,22 +516,47 @@ export default function App() {
                         >
                           ✎
                         </button>
-                        <button
-                          className="project-dropdown-delete"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            if (confirm(`Delete project "${p.name}"? This will delete all epics and tasks.`)) {
-                              void deleteProject(p.id);
-                            }
-                          }}
-                          title="Delete project"
-                        >
-                          ×
-                        </button>
+                        {p.role === 'owner' && (
+                          <button
+                            className="project-dropdown-delete"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (confirm(`Delete project "${p.name}"? This will delete all epics and tasks.`)) {
+                                void deleteProject(p.id);
+                              }
+                            }}
+                            title="Delete project"
+                          >
+                            ×
+                          </button>
+                        )}
                       </>
                     )}
                   </div>
                 ))}
+                {selectedProjectId && current?.role === 'owner' && (
+                  <button
+                    type="button"
+                    className="project-dropdown-item"
+                    onClick={async () => {
+                      try {
+                        const res = await fetch(`${baseUrl}/projects/${selectedProjectId}/invitations`, {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          credentials: 'include'
+                        });
+                        if (!res.ok) return;
+                        const data = (await res.json()) as { token: string };
+                        const link = `${window.location.origin}${window.location.pathname}?invite=${data.token}`;
+                        setInviteLink(link);
+                        setShowInviteModal(true);
+                        setShowProjectDropdown(false);
+                      } catch {}
+                    }}
+                  >
+                    🔗 Invite to Project
+                  </button>
+                )}
                 <button
                   type="button"
                   className="project-dropdown-item project-dropdown-add"
@@ -616,20 +674,22 @@ export default function App() {
                           >
                             ✎
                           </button>
-                          <button
-                            type="button"
-                            className="mobile-menu-delete"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              if (confirm(`Delete project "${current.name}"? This will delete all epics and tasks.`)) {
-                                void deleteProject(current.id);
-                                setShowMobileMenu(false);
-                              }
-                            }}
-                            title="Delete project"
-                          >
-                            ×
-                          </button>
+                          {current.role === 'owner' && (
+                            <button
+                              type="button"
+                              className="mobile-menu-delete"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (confirm(`Delete project "${current.name}"? This will delete all epics and tasks.`)) {
+                                  void deleteProject(current.id);
+                                  setShowMobileMenu(false);
+                                }
+                              }}
+                              title="Delete project"
+                            >
+                              ×
+                            </button>
+                          )}
                         </div>
                       )}
                     </div>
@@ -693,24 +753,53 @@ export default function App() {
                               >
                                 ✎
                               </button>
-                              <button
-                                type="button"
-                                className="mobile-menu-delete"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  if (confirm(`Delete project "${p.name}"? This will delete all epics and tasks.`)) {
-                                    void deleteProject(p.id);
-                                    setShowMobileMenu(false);
-                                  }
-                                }}
-                                title="Delete project"
-                              >
-                                ×
-                              </button>
+                              {p.role === 'owner' && (
+                                <button
+                                  type="button"
+                                  className="mobile-menu-delete"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    if (confirm(`Delete project "${p.name}"? This will delete all epics and tasks.`)) {
+                                      void deleteProject(p.id);
+                                      setShowMobileMenu(false);
+                                    }
+                                  }}
+                                  title="Delete project"
+                                >
+                                  ×
+                                </button>
+                              )}
                             </>
                           )}
                         </div>
                       ))}
+                    </div>
+                  )}
+                  
+                  {/* Invite button for owners */}
+                  {current && current.role === 'owner' && (
+                    <div className="mobile-menu-section">
+                      <button
+                        type="button"
+                        className="mobile-menu-item"
+                        onClick={async () => {
+                          try {
+                            const res = await fetch(`${baseUrl}/projects/${current.id}/invitations`, {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              credentials: 'include'
+                            });
+                            if (!res.ok) return;
+                            const data = (await res.json()) as { token: string };
+                            const link = `${window.location.origin}${window.location.pathname}?invite=${data.token}`;
+                            setInviteLink(link);
+                            setShowInviteModal(true);
+                            setShowMobileMenu(false);
+                          } catch {}
+                        }}
+                      >
+                        🔗 Invite to Project
+                      </button>
                     </div>
                   )}
                   
@@ -850,6 +939,38 @@ export default function App() {
             rows={4}
           />
         </label>
+      </Modal>
+      {/* Invitation modal */}
+      <Modal
+        isOpen={showInviteModal}
+        title="Invite to Project"
+        onClose={() => { setShowInviteModal(false); setInviteLink(''); }}
+        footer={(
+          <button className="btn-primary" type="button" onClick={() => { setShowInviteModal(false); setInviteLink(''); }}>Done</button>
+        )}
+      >
+        <p>Share this link to invite someone to the project:</p>
+        <div style={{ display: 'flex', gap: '8px', marginTop: '12px' }}>
+          <input
+            type="text"
+            readOnly
+            value={inviteLink}
+            style={{ flex: 1, padding: '8px', border: '1px solid #ccc', borderRadius: '4px' }}
+            onClick={(e) => (e.target as HTMLInputElement).select()}
+          />
+          <button
+            type="button"
+            className="btn-ghost"
+            onClick={() => {
+              navigator.clipboard.writeText(inviteLink);
+            }}
+          >
+            Copy
+          </button>
+        </div>
+        <p style={{ fontSize: '0.9em', color: '#666', marginTop: '12px' }}>
+          This link can only be used once. If the person doesn't have an account, they'll be prompted to create one.
+        </p>
       </Modal>
     </main>
   );

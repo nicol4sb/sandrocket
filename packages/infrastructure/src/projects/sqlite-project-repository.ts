@@ -26,6 +26,7 @@ export class SqliteProjectRepository implements ProjectRepository {
   private readonly insertStmt: Statement;
   private readonly findByIdStmt: Statement;
   private readonly listByOwnerStmt: Statement;
+  private readonly listByUserStmt: Statement;
   private readonly updateStmt: Statement;
   private readonly deleteStmt: Statement;
 
@@ -38,6 +39,12 @@ export class SqliteProjectRepository implements ProjectRepository {
     this.findByIdStmt = this.db.prepare('SELECT * FROM projects WHERE id = ?');
     this.listByOwnerStmt = this.db.prepare(
       'SELECT * FROM projects WHERE owner_user_id = ? ORDER BY created_at ASC'
+    );
+    this.listByUserStmt = this.db.prepare(
+      `SELECT DISTINCT p.* FROM projects p
+       INNER JOIN project_members pm ON p.id = pm.project_id
+       WHERE pm.user_id = ?
+       ORDER BY p.created_at ASC`
     );
     this.updateStmt = this.db.prepare(
       `UPDATE projects SET
@@ -73,6 +80,11 @@ export class SqliteProjectRepository implements ProjectRepository {
 
   async listByOwner(userId: number): Promise<Project[]> {
     const rows = this.listByOwnerStmt.all(userId) as ProjectRow[];
+    return rows.map(mapRowToProject);
+  }
+
+  async listByUser(userId: number): Promise<Project[]> {
+    const rows = this.listByUserStmt.all(userId) as ProjectRow[];
     return rows.map(mapRowToProject);
   }
 

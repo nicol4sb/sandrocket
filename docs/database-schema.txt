@@ -1,0 +1,114 @@
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         Sand Rocket Database Schema                         │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────┐
+│            users                     │
+├─────────────────────────────────────┤
+│ PK  id                    INTEGER   │
+│     email                 TEXT (UNIQUE)
+│     password_hash         TEXT       │
+│     display_name          TEXT (UNIQUE)
+│     created_at            TEXT       │
+│     updated_at            TEXT       │
+└─────────────────────────────────────┘
+         │
+         │ 1:N (owner_user_id)
+         │
+         ▼
+┌─────────────────────────────────────┐
+│          projects                   │
+├─────────────────────────────────────┤
+│ PK  id                    INTEGER   │
+│ FK  owner_user_id         INTEGER ───┘
+│     name                  TEXT       │
+│     description           TEXT       │
+│     created_at            TEXT       │
+│     updated_at            TEXT       │
+└─────────────────────────────────────┘
+         │
+         │ 1:N (project_id)
+         │
+         ├─────────────────────────────────────┐
+         │                                     │
+         ▼                                     ▼
+┌─────────────────────────────────────┐  ┌─────────────────────────────────────┐
+│          epics                      │  │      project_members                │
+├─────────────────────────────────────┤  ├─────────────────────────────────────┤
+│ PK  id                    INTEGER   │  │ PK  id                    INTEGER   │
+│ FK  project_id            INTEGER ──┘  │ FK  project_id            INTEGER ──┘
+│     name                  TEXT       │  │ FK  user_id               INTEGER ───┐
+│     description           TEXT       │  │     role                  TEXT       │  │
+│     created_at            TEXT       │  │     created_at            TEXT       │  │
+│     updated_at            TEXT       │  │     UNIQUE(project_id, user_id)      │  │
+└─────────────────────────────────────┘  └─────────────────────────────────────┘  │
+         │                                                                        │
+         │ 1:N (epic_id)                                                         │
+         │                                                                        │
+         ▼                                                                        │
+┌─────────────────────────────────────┐                                          │
+│            tasks                     │                                          │
+├─────────────────────────────────────┤                                          │
+│ PK  id                    INTEGER   │                                          │
+│ FK  epic_id               INTEGER ──┘                                          │
+│ FK  creator_user_id       INTEGER ────────────────────────────────────────────┘
+│ FK  last_edited_by_user_id INTEGER ───┐
+│     description           TEXT       │
+│     status                TEXT       │  ('backlog' | 'in_progress' | 'done')
+│     position              INTEGER     │
+│     created_at            TEXT       │
+│     updated_at            TEXT       │
+│                                                                                │
+│ INDEX: idx_tasks_epic_status_pos                                              │
+│   ON (epic_id, status, position)                                               │
+└─────────────────────────────────────┘                                          │
+                                                                                 │
+                                                                                 │
+┌─────────────────────────────────────┐                                          │
+│      project_invitations            │                                          │
+├─────────────────────────────────────┤                                          │
+│ PK  id                    INTEGER   │                                          │
+│ FK  project_id            INTEGER ──┐                                          │
+│     token                 TEXT (UNIQUE)                                       │
+│ FK  created_by_user_id    INTEGER ──┼────────────────────────────────────────┘
+│ FK  used_by_user_id        INTEGER ──┼────────────────────────────────────────┐
+│     used_at                TEXT       │                                        │
+│     created_at             TEXT       │                                        │
+│     expires_at             TEXT       │                                        │
+│                                                                                │
+│ INDEX: idx_project_invitations_token                                          │
+│   ON (token)                                                                   │
+└─────────────────────────────────────┘                                          │
+                                                                                 │
+                                                                                 │
+INDEXES:
+  • idx_tasks_epic_status_pos ON tasks(epic_id, status, position)
+  • idx_project_members_user_id ON project_members(user_id)
+  • idx_project_members_project_id ON project_members(project_id)
+  • idx_project_invitations_token ON project_invitations(token)
+
+RELATIONSHIPS:
+  • users (1) ──< projects (N) [owner_user_id]
+  • users (1) ──< project_members (N) [user_id]
+  • users (1) ──< tasks (N) [creator_user_id]
+  • users (1) ──< tasks (N) [last_edited_by_user_id] (nullable)
+  • users (1) ──< project_invitations (N) [created_by_user_id]
+  • users (1) ──< project_invitations (N) [used_by_user_id] (nullable)
+  • projects (1) ──< epics (N) [project_id]
+  • projects (1) ──< project_members (N) [project_id]
+  • projects (1) ──< project_invitations (N) [project_id]
+  • epics (1) ──< tasks (N) [epic_id]
+
+CONSTRAINTS:
+  • project_members: UNIQUE(project_id, user_id) - ensures one role per user per project
+  • project_invitations.token: UNIQUE - ensures unique invitation tokens
+  • users.email: UNIQUE
+  • users.display_name: UNIQUE
+
+CASCADE BEHAVIOR:
+  • Deleting a user → deletes their projects, project_members, tasks, invitations
+  • Deleting a project → deletes epics, project_members, invitations
+  • Deleting an epic → deletes tasks
+  • last_edited_by_user_id: SET NULL on user delete (preserves task history)
+
+

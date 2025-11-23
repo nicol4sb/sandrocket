@@ -1,24 +1,27 @@
-import { ProjectRepository } from './ports.js';
+import { ProjectRepository, ProjectMemberRepository } from './ports.js';
 import { CreateProjectInput, PublicProject, Project, UpdateProjectInput } from './types.js';
 
 export interface ProjectService {
   createProject(input: CreateProjectInput): Promise<PublicProject>;
-  listProjects(ownerUserId: number): Promise<PublicProject[]>;
+  listProjects(userId: number): Promise<PublicProject[]>;
   updateProject(input: UpdateProjectInput): Promise<PublicProject | null>;
-  deleteProject(id: number): Promise<boolean>;
+  deleteProject(id: number, userId: number): Promise<boolean>;
+  getUserRole(projectId: number, userId: number): Promise<'owner' | 'contributor' | null>;
 }
 
 export interface ProjectServiceDependencies {
   projects: ProjectRepository;
+  members: ProjectMemberRepository;
 }
 
-function toPublicProject(project: Project): PublicProject {
+function toPublicProject(project: Project, role?: 'owner' | 'contributor'): PublicProject {
   return {
     id: project.id,
     name: project.name,
     description: project.description,
     createdAt: project.createdAt,
-    updatedAt: project.updatedAt
+    updatedAt: project.updatedAt,
+    role
   };
 }
 
@@ -35,12 +38,21 @@ class ProjectServiceImpl implements ProjectService {
       name,
       description: input.description ?? null
     });
-    return toPublicProject(created);
-    }
+    // Add owner as project member
+    await this.deps.members.create(created.id, input.ownerUserId, 'owner');
+    return toPublicProject(created, 'owner');
+  }
 
-  async listProjects(ownerUserId: number): Promise<PublicProject[]> {
-    const projects = await this.deps.projects.listByOwner(ownerUserId);
-    return projects.map(toPublicProject);
+  async listProjects(userId: number): Promise<PublicProject[]> {
+    const projects = await this.deps.projects.listByUser(userId);
+    // Get roles for each project
+    const projectsWithRoles = await Promise.all(
+      projects.map(async (project) => {
+        const member = await this.deps.members.findByProjectAndUser(project.id, userId);
+        return toPublicProject(project, member?.role ?? null);
+      })
+    );
+    return projectsWithRoles;
   }
 
   async updateProject(input: UpdateProjectInput): Promise<PublicProject | null> {
@@ -48,8 +60,18 @@ class ProjectServiceImpl implements ProjectService {
     return updated ? toPublicProject(updated) : null;
   }
 
-  async deleteProject(id: number): Promise<boolean> {
+  async deleteProject(id: number, userId: number): Promise<boolean> {
+    // Check if user is owner
+    const member = await this.deps.members.findByProjectAndUser(id, userId);
+    if (!member || member.role !== 'owner') {
+      throw new Error('Only project owners can delete projects');
+    }
     return await this.deps.projects.delete(id);
+  }
+
+  async getUserRole(projectId: number, userId: number): Promise<'owner' | 'contributor' | null> {
+    const member = await this.deps.members.findByProjectAndUser(projectId, userId);
+    return member?.role ?? null;
   }
 }
 

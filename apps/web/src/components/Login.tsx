@@ -3,7 +3,7 @@ import { AuthSuccessResponse, ErrorResponse, LoginRequest, RegisterRequest } fro
 
 type Mode = 'login' | 'register';
 
-export function Login(props: { baseUrl: string; onSuccess: (res: AuthSuccessResponse) => void }) {
+export function Login(props: { baseUrl: string; onSuccess: (res: AuthSuccessResponse) => void; invitationToken?: string | null }) {
   const [mode, setMode] = useState<Mode>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -44,7 +44,22 @@ export function Login(props: { baseUrl: string; onSuccess: (res: AuthSuccessResp
         setError(errorData?.message ?? `Request failed with status ${response.status}`);
         return;
       }
-      props.onSuccess(data as AuthSuccessResponse);
+      const authData = data as AuthSuccessResponse;
+      props.onSuccess(authData);
+      
+      // If we have an invitation token, accept it after successful auth
+      if (props.invitationToken) {
+        try {
+          await fetch(`${props.baseUrl}/invitations/accept`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({ token: props.invitationToken })
+          });
+        } catch {
+          // Ignore errors - user is already authenticated
+        }
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unexpected error occurred.');
     } finally {

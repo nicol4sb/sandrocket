@@ -25,6 +25,7 @@ export interface PublicProject {
   description: string | null;
   createdAt: Date;
   updatedAt: Date;
+  role?: 'owner' | 'contributor'; // User's role in this project
 }
 
 
