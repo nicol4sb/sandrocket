@@ -39,6 +39,275 @@ main.dashboard > .app-header {
   padding: 0;
   box-shadow: none;
 }
+
+.app-header > .desktop-header {
+  display: flex !important;
+  flex: 1 1 auto !important;
+  width: 100% !important;
+  min-width: 0 !important;
+}
+
+.app-header > .mobile-header {
+  display: none !important;
+  visibility: hidden !important;
+}
+
+.desktop-header {
+  display: flex !important;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100% !important;
+  justify-content: space-between !important;
+  position: relative;
+}
+
+.desktop-header > .project-dropdown-container,
+.desktop-header > .btn-epic {
+  flex: 0 0 auto;
+}
+
+.desktop-header > .user-actions {
+  flex: 0 0 auto !important;
+  margin-left: auto !important;
+  margin-right: 0 !important;
+}
+
+.desktop-header > .btn-epic {
+  margin-left: 0;
+}
+
+.mobile-header {
+  display: none !important;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+  justify-content: space-between;
+}
+
+.mobile-menu-btn,
+.mobile-add-epic-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  padding: 0;
+  background: #2d2d30;
+  border: 1px solid #3e3e42;
+  border-radius: 0.875rem;
+  color: #cccccc;
+  cursor: pointer;
+  font-size: 1.5rem;
+  font-weight: 600;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  flex-shrink: 0;
+}
+
+.mobile-menu-btn:hover,
+.mobile-add-epic-btn:hover {
+  background: #37373d;
+  border-color: #464647;
+  color: #ffffff;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  transform: translateY(-1px);
+}
+
+.mobile-menu-btn svg {
+  width: 20px;
+  height: 20px;
+}
+
+.mobile-menu-container {
+  position: relative;
+  z-index: 10001;
+}
+
+.mobile-menu-dropdown {
+  position: fixed;
+  top: 1rem;
+  right: 1rem;
+  min-width: 280px;
+  max-width: calc(100vw - 2rem);
+  background: #252526;
+  backdrop-filter: blur(20px);
+  border: 1px solid #3e3e42;
+  border-radius: 0.875rem;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.6), 0 2px 8px rgba(0, 0, 0, 0.4);
+  z-index: 10000;
+  max-height: calc(100vh - 4rem);
+  overflow-y: auto;
+  animation: slideDown 200ms ease;
+}
+
+.mobile-menu-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(2px);
+  z-index: 9999;
+  animation: fadeIn 200ms ease;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.mobile-menu-content {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  padding: 0.5rem;
+}
+
+.mobile-menu-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.mobile-menu-project-current-wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.875rem 1rem;
+  border-bottom: 1px solid #3e3e42;
+  margin-bottom: 0.5rem;
+}
+
+.mobile-menu-project-current {
+  flex: 1;
+  font-size: 1rem;
+  color: #4ec9b0;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.mobile-menu-project-wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.mobile-menu-project-name {
+  flex: 1;
+  text-align: left;
+}
+
+.mobile-menu-edit,
+.mobile-menu-delete {
+  flex-shrink: 0;
+  width: 1.5rem;
+  height: 1.5rem;
+  padding: 0;
+  background: transparent;
+  border: none;
+  border-radius: 0.375rem;
+  cursor: pointer;
+  font-size: 1rem;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 150ms ease;
+  opacity: 0.7;
+}
+
+.mobile-menu-edit {
+  color: #858585;
+}
+
+.mobile-menu-delete {
+  color: #f48771;
+}
+
+.mobile-menu-edit:hover {
+  background: #37373d;
+  color: #4ec9b0;
+  opacity: 1;
+  transform: scale(1.1);
+}
+
+.mobile-menu-delete:hover {
+  background: #37373d;
+  color: #f48771;
+  opacity: 1;
+  transform: scale(1.1);
+}
+
+.mobile-menu-edit-input {
+  width: 100%;
+  padding: 0.875rem 1rem;
+  border: 1px solid #3e3e42;
+  border-radius: 0.625rem;
+  background: #1e1e1e;
+  color: #cccccc;
+  font-size: 1rem;
+  font-weight: 700;
+  outline: none;
+}
+
+.mobile-menu-edit-input:focus {
+  border-color: #4ec9b0;
+  box-shadow: 0 0 0 2px rgba(78, 201, 176, 0.2);
+  background: #252526;
+}
+
+.mobile-menu-item {
+  width: 100%;
+  text-align: left;
+  padding: 0.875rem 1rem;
+  background: transparent;
+  border: none;
+  border-radius: 0.625rem;
+  color: #cccccc;
+  cursor: pointer;
+  font-size: 0.95rem;
+  transition: all 150ms ease;
+  font-weight: 500;
+}
+
+.mobile-menu-item:hover {
+  background: #37373d;
+  color: #ffffff;
+}
+
+.mobile-menu-add {
+  color: #4ec9b0;
+  font-weight: 600;
+}
+
+.mobile-menu-separator {
+  height: 1px;
+  background: #3e3e42;
+  margin: 0.75rem 0;
+}
+
+.mobile-menu-user {
+  padding: 0.875rem 1rem;
+  font-size: 0.95rem;
+  color: #cccccc;
+  font-weight: 500;
+}
+
+.mobile-menu-logout {
+  color: #f48771;
+}
+
+.mobile-menu-logout:hover {
+  background: #37373d;
+  color: #f48771;
+}
 .app-header > * {
   flex-shrink: 0 !important;
   display: inline-flex !important;
@@ -154,13 +423,108 @@ main.dashboard > .app-header {
   color: #cccccc;
   font-size: 0.95rem;
   font-weight: 500;
-  flex: 0 0 auto;
-  width: auto;
-  max-width: none;
+  flex: 0 0 auto !important;
+  width: auto !important;
+  max-width: none !important;
   white-space: nowrap;
+  margin-left: auto !important;
 }
 .user-actions span {
   color: #cccccc;
+}
+
+/* User dropdown - similar to project dropdown */
+.user-dropdown-container {
+  position: relative;
+  flex: 0 0 auto !important;
+  min-width: 0;
+  width: auto !important;
+  max-width: none !important;
+  display: inline-block !important;
+  z-index: 1001;
+  margin-left: 0 !important;
+}
+
+.user-dropdown-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.625rem 1.125rem;
+  background: #2d2d30;
+  border: 1px solid #3e3e42;
+  border-radius: 0.875rem;
+  color: #cccccc;
+  cursor: pointer;
+  font-size: 0.95rem;
+  font-weight: 500;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  white-space: nowrap;
+  min-width: auto;
+}
+
+.user-dropdown-toggle:hover {
+  background: #37373d;
+  border-color: #464647;
+  color: #ffffff;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  transform: translateY(-1px);
+}
+
+
+.user-dropdown-menu {
+  position: absolute;
+  top: calc(100% + 0.5rem);
+  right: 0;
+  min-width: 200px;
+  max-width: 300px;
+  background: #252526;
+  backdrop-filter: blur(20px);
+  border: 1px solid #3e3e42;
+  border-radius: 0.875rem;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.6), 0 2px 8px rgba(0, 0, 0, 0.4);
+  z-index: 10000;
+  max-height: 60vh;
+  overflow-y: auto;
+  padding: 0.5rem;
+  animation: slideDown 200ms ease;
+}
+
+.user-dropdown-item-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  position: relative;
+  margin-bottom: 0.5rem;
+}
+
+.user-name-display {
+  padding: 0.625rem 0.875rem;
+  color: #cccccc;
+  font-weight: 600;
+  font-size: 0.9rem;
+  border-bottom: 1px solid #3e3e42;
+  margin-bottom: 0.5rem;
+  padding-bottom: 0.75rem;
+}
+
+.user-dropdown-logout {
+  width: 100%;
+  text-align: left;
+  padding: 0.625rem 0.875rem;
+  background: transparent;
+  border: none;
+  border-radius: 0.625rem;
+  color: #f48771;
+  cursor: pointer;
+  font-size: 0.9rem;
+  transition: all 150ms ease;
+  font-weight: 500;
+}
+
+.user-dropdown-logout:hover {
+  background: #37373d;
+  color: #f48771;
 }
 .user-actions button {
   width: auto !important;
@@ -191,6 +555,7 @@ main.dashboard > .app-header {
   width: auto !important;
   max-width: none !important;
   display: inline-block !important;
+  z-index: 1001;
 }
 
 .project-dropdown-toggle {
@@ -251,7 +616,7 @@ main.dashboard > .app-header {
   border: 1px solid #3e3e42;
   border-radius: 0.875rem;
   box-shadow: 0 12px 32px rgba(0, 0, 0, 0.6), 0 2px 8px rgba(0, 0, 0, 0.4);
-  z-index: 1000;
+  z-index: 10000;
   max-height: 60vh;
   overflow-y: auto;
   padding: 0.5rem;
@@ -389,9 +754,10 @@ main.dashboard > .app-header {
 }
 .epic-columns { 
   display: grid; 
-  grid-template-columns: repeat(auto-fit, minmax(min(280px, 100%), 1fr)); 
-  gap: 1rem; 
-  width: min(1200px, 96vw); 
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); 
+  gap: 0.75rem; 
+  width: 100%; 
+  max-width: 1400px;
   margin: 0 auto 1rem; 
   padding: 0 1rem; 
   align-items: start; /* Allow cards to have different heights */
@@ -410,10 +776,10 @@ main.dashboard > .app-header {
   overflow: visible; /* Changed from hidden to allow content to show */
   transition: all 0.3s ease;
   height: auto; /* Explicitly set to auto for dynamic height */
+  position: relative;
 }
 .epic-card:hover {
   box-shadow: 0 16px 48px rgba(0, 0, 0, 0.6), 0 6px 20px rgba(0, 0, 0, 0.5);
-  transform: translateY(-2px);
   border-color: #464647;
 }
 .epic-title { 
@@ -463,6 +829,7 @@ main.dashboard > .app-header {
   background: #2d2d30; 
   border-radius: 0.75rem; 
   padding: 0.75rem 1rem; 
+  padding-right: 2.25rem; 
   margin: 0.5rem 0; 
   display: flex; 
   flex-direction: column;
@@ -472,6 +839,9 @@ main.dashboard > .app-header {
   border: 1px solid #7dd3fc; 
   transition: all 0.2s ease;
   cursor: grab;
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
 }
 .task:active {
   cursor: grabbing;
@@ -521,11 +891,16 @@ main.dashboard > .app-header {
 }
 .task .title, .task .content { 
   cursor: text; 
+}
+
+.task .content {
   pointer-events: auto;
 }
+
 .task .content span,
 .task .content textarea {
   cursor: text;
+  pointer-events: auto;
 }
 .task .content textarea,
 .task textarea.content,
@@ -1405,6 +1780,8 @@ footer {
 
 .epic-header {
   position: relative;
+  padding-right: 2rem;
+  min-height: 1.5rem;
 }
 /* Duplicate icon-chip definition removed - using the pastel-styled version above */
 
@@ -1496,24 +1873,22 @@ footer {
 
 
 
-.task .delete-btn,
-.epic-delete {
+.task .delete-btn {
   position: absolute;
-  right: -0.5rem;
-  top: -0.5rem;
+  right: 0.5rem;
+  top: 0.5rem;
   z-index: 10;
-  width: 1.5rem;
-  height: 1.5rem;
-  min-width: 1.5rem;
-  min-height: 1.5rem;
+  width: 1.125rem;
+  height: 1.125rem;
+  min-width: 1.125rem;
+  min-height: 1.125rem;
   padding: 0;
   margin: 0;
-  border-radius: 50%;
-  background: #2d2d30;
-  border: 1px solid #3e3e42;
+  border: none;
+  background: transparent;
   color: #858585;
   cursor: pointer;
-  font-size: 0.875rem;
+  font-size: 1.25rem;
   line-height: 1;
   display: flex;
   align-items: center;
@@ -1521,22 +1896,45 @@ footer {
   opacity: 0;
   transition: all 160ms ease;
   pointer-events: none;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  font-weight: 300;
+}
+
+.epic-delete {
+  position: absolute;
+  right: 1.25rem;
+  top: 1.25rem;
+  z-index: 10;
+  width: 1.125rem;
+  height: 1.125rem;
+  min-width: 1.125rem;
+  min-height: 1.125rem;
+  padding: 0;
+  margin: 0;
+  border: none;
+  background: transparent;
+  color: #858585;
+  cursor: pointer;
+  font-size: 1.25rem;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: all 160ms ease;
+  pointer-events: none;
+  font-weight: 300;
 }
 
 .task:hover .delete-btn,
-.epic-header:hover .epic-delete {
+.epic-card:hover .epic-delete {
   opacity: 1;
   pointer-events: auto;
 }
 
 .task .delete-btn:hover,
 .epic-delete:hover {
-  background: #37373d;
-  border-color: #464647;
-  color: #cccccc;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
-  transform: scale(1.1);
+  color: #f48771;
+  transform: scale(1.15);
 }
 
 .tab {
@@ -1567,6 +1965,30 @@ footer {
 }
 
 /* Responsive Styles */
+@media (max-width: 1200px) {
+  .epic-columns {
+    gap: 0.625rem;
+    padding: 0 0.75rem;
+  }
+  
+  .epic-card {
+    padding: 1rem;
+  }
+}
+
+@media (max-width: 1024px) {
+  .epic-columns {
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 0.5rem;
+    padding: 0 0.5rem;
+  }
+  
+  .epic-card {
+    padding: 0.875rem;
+    border-radius: 1.25rem;
+  }
+}
+
 @media (max-width: 768px) {
   .tabs-header {
     flex-wrap: wrap;
@@ -1574,15 +1996,56 @@ footer {
     padding: 0.5rem;
   }
 
-  .project-dropdown-container {
-    flex: 0 0 auto;
-    min-width: 0;
+  .desktop-header {
+    display: none !important;
+    visibility: hidden !important;
+    height: 0 !important;
+    overflow: hidden !important;
+  }
+  
+  .app-header > .mobile-header {
+    display: flex !important;
+    visibility: visible !important;
+    height: auto !important;
+    overflow: visible !important;
+  }
+  
+  .mobile-header {
+    display: flex !important;
+    visibility: visible !important;
+    align-items: center;
+    gap: 0.75rem;
+    justify-content: space-between;
+    width: 100% !important;
+    min-height: 3rem !important;
+  }
+  
+  .mobile-menu-container {
+    display: flex !important;
+    visibility: visible !important;
+  }
+  
+  .mobile-menu-btn,
+  .mobile-add-epic-btn {
+    display: flex !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+  }
+  
+  .app-header > .desktop-header {
+    display: none !important;
+    visibility: hidden !important;
+  }
+  
+  .mobile-menu-container {
+    display: flex;
+    align-items: center;
   }
   
   .app-header {
     flex-wrap: nowrap !important;
     flex-direction: row !important;
-    overflow-x: auto;
+    overflow-x: visible;
   }
   
   .app-header > * {
@@ -1598,10 +2061,30 @@ footer {
   }
 
   .project-dropdown-menu {
+    position: absolute;
     min-width: calc(100vw - 2rem);
     max-width: calc(100vw - 2rem);
-    left: 0;
-    right: 0;
+    left: 0 !important;
+    right: auto !important;
+    z-index: 99999 !important;
+    max-height: 70vh;
+  }
+  
+  .project-dropdown-container {
+    z-index: 10001;
+    position: relative;
+  }
+  
+  /* Ensure dropdown isn't clipped by parent containers on mobile */
+  main.dashboard,
+  .app-header,
+  .project-dropdown-container {
+    overflow: visible !important;
+  }
+  
+  /* Prevent body scroll when dropdown is open on mobile */
+  body:has(.project-dropdown-menu) {
+    overflow: hidden;
   }
 
   .btn-epic {
@@ -1705,20 +2188,22 @@ footer {
   }
 
   .epic-delete {
-    width: 1.75rem;
-    height: 1.75rem;
-    min-width: 1.75rem;
-    min-height: 1.75rem;
-    font-size: 1rem;
+    width: 1.125rem;
+    height: 1.125rem;
+    min-width: 1.125rem;
+    min-height: 1.125rem;
+    font-size: 1.25rem;
     opacity: 1; /* Always visible on mobile */
+    right: 0.75rem !important;
+    top: 0.75rem !important;
   }
   
   .task .delete-btn {
-    width: 1.75rem;
-    height: 1.75rem;
-    min-width: 1.75rem;
-    min-height: 1.75rem;
-    font-size: 1rem;
+    width: 1.125rem;
+    height: 1.125rem;
+    min-width: 1.125rem;
+    min-height: 1.125rem;
+    font-size: 1.25rem;
     opacity: 1; /* Always visible on mobile */
   }
 
@@ -1803,6 +2288,11 @@ footer {
     padding: 0.6rem;
     border-radius: 0.875rem;
     gap: 0.6rem;
+  }
+
+  .epic-delete {
+    right: 0.6rem !important;
+    top: 0.6rem !important;
   }
 
   .epic-title {

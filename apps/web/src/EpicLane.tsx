@@ -116,6 +116,8 @@ function SortableTask(props: {
   onDelete: (id: number) => void;
   currentUserId: number;
   onSave?: () => void;
+  onTab?: (shift: boolean) => void;
+  textareaRef?: React.RefObject<HTMLTextAreaElement>;
 }) {
   const [isTaskEditing, setIsTaskEditing] = useState(false);
   const {
@@ -155,10 +157,16 @@ function SortableTask(props: {
         editable
         multiline
         className="content"
-        onClick={(e) => e.stopPropagation()}
+        onClick={(e) => {
+          // Don't stop propagation - allow drag to work
+          // The InlineText component will handle edit mode internally
+        }}
         onEditingChange={setIsTaskEditing}
         onSave={props.onSave}
+        onTab={props.onTab}
+        enterBehavior="newline"
         maxLength={150}
+        textareaRef={props.textareaRef}
       />
       {!isTaskEditing && (
         <button
@@ -206,7 +214,13 @@ export function EpicLane(props: {
   const emptyTaskTextareaRef = useRef<HTMLTextAreaElement | null>(null);
 
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(PointerSensor, { 
+      activationConstraint: { 
+        distance: 8,
+        // Better mobile support: allow touch activation
+        tolerance: 5
+      } 
+    }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   );
 
@@ -214,6 +228,14 @@ export function EpicLane(props: {
   const taskIds = sortedTasks.map(t => t.id);
   const focusIds = sortedTasks.slice(0, 3).map(t => t.id);
   const activeTask = activeId ? props.tasks.find(t => t.id === activeId) : null;
+  const taskTextareaRefs = useRef<Map<number, React.RefObject<HTMLTextAreaElement>>>(new Map());
+  
+  // Initialize refs for all tasks
+  sortedTasks.forEach(t => {
+    if (!taskTextareaRefs.current.has(t.id)) {
+      taskTextareaRefs.current.set(t.id, React.createRef<HTMLTextAreaElement>());
+    }
+  });
 
   const handleDragStart = (event: DragStartEvent) => {
     setActiveId(event.active.id as number);
@@ -270,28 +292,28 @@ export function EpicLane(props: {
       onDragEnd={handleDragEnd}
     >
       <div className="epic-card">
-        <div className="epic-header" style={{ position: 'relative' }}>
+        <button
+          className="delete-btn epic-delete"
+          onClick={(e) => {
+            e.stopPropagation();
+            props.onDeleteEpic?.(props.epic.id);
+          }}
+          title="Delete epic"
+        >
+          ×
+        </button>
+        <div className="epic-header">
           <InlineText
             value={props.epic.name}
             onChange={(v) => props.onEpicUpdate(props.epic.id, { name: v })}
             editable
             className="epic-title"
           />
-          <button
-            className="delete-btn epic-delete"
-            onClick={(e) => {
-              e.stopPropagation();
-              props.onDeleteEpic?.(props.epic.id);
-            }}
-            title="Delete epic"
-          >
-            ×
-          </button>
         </div>
         <DroppableZone id="drop-tasks" className="task-drop-zone">
           <SortableContext items={taskIds} strategy={verticalListSortingStrategy}>
             <ul style={{ listStyle: 'none', padding: 0, margin: 0, minHeight: '60px' }}>
-              {sortedTasks.map((t) => (
+              {sortedTasks.map((t, index) => (
                 <SortableTask
                   key={t.id}
                   task={t}
@@ -311,6 +333,45 @@ export function EpicLane(props: {
                       });
                     }
                   }}
+                  onTab={(shift) => {
+                    if (shift) {
+                      // Shift+Tab: go to previous task
+                      if (index > 0) {
+                        const prevTask = sortedTasks[index - 1];
+                        const prevRef = taskTextareaRefs.current.get(prevTask.id);
+                        if (prevRef?.current) {
+                          requestAnimationFrame(() => {
+                            prevRef.current?.focus();
+                            if (prevRef.current) {
+                              const len = prevRef.current.value.length;
+                              prevRef.current.setSelectionRange(len, len);
+                            }
+                          });
+                        }
+                      }
+                    } else {
+                      // Tab: go to next task or empty task
+                      if (index < sortedTasks.length - 1) {
+                        const nextTask = sortedTasks[index + 1];
+                        const nextRef = taskTextareaRefs.current.get(nextTask.id);
+                        if (nextRef?.current) {
+                          requestAnimationFrame(() => {
+                            nextRef.current?.focus();
+                            nextRef.current?.setSelectionRange(0, 0);
+                          });
+                        }
+                      } else {
+                        // Focus empty task
+                        if (emptyTaskTextareaRef.current) {
+                          requestAnimationFrame(() => {
+                            emptyTaskTextareaRef.current?.focus();
+                            emptyTaskTextareaRef.current?.setSelectionRange(0, 0);
+                          });
+                        }
+                      }
+                    }
+                  }}
+                  textareaRef={taskTextareaRefs.current.get(t.id)}
                 />
               ))}
               {/* Empty task placeholder */}
@@ -395,9 +456,11 @@ export function EpicLane(props: {
                         <div className="tooltip-text">
                           <strong>Keyboard shortcuts:</strong>
                           <br />
-                          <kbd>Enter</kbd> to save
+                          <kbd>Enter</kbd> for new line
                           <br />
-                          <kbd>Shift</kbd> + <kbd>Enter</kbd> for new line
+                          <kbd>Tab</kbd> to new note
+                          <br />
+                          <kbd>Shift</kbd> + <kbd>Tab</kbd> to previous note
                         </div>
                       </div>
                     </div>

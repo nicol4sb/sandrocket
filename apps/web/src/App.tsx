@@ -43,6 +43,8 @@ export default function App() {
   const [projects, setProjects] = useState<ListProjectsResponse['projects']>([]);
   const [selectedProjectId, setSelectedProjectId] = useState<number | null>(null);
   const [showProjectDropdown, setShowProjectDropdown] = useState(false);
+  const [showUserDropdown, setShowUserDropdown] = useState(false);
+  const [showMobileMenu, setShowMobileMenu] = useState(false);
   const [epicsByProject, setEpicsByProject] = useState<Record<number, { id: number; name: string; description: string | null }[]>>({});
   const [tasksByEpic, setTasksByEpic] = useState<Record<number, UiTask[]>>({});
   const [error, setError] = useState<string | null>(null);
@@ -82,6 +84,42 @@ export default function App() {
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [showProjectDropdown]);
+
+  useEffect(() => {
+    if (!showUserDropdown) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (!target.closest('.user-dropdown-container')) {
+        setShowUserDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showUserDropdown]);
+
+  useEffect(() => {
+    if (!showMobileMenu) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (!target.closest('.mobile-menu-container') && !target.closest('.mobile-menu-dropdown')) {
+        setShowMobileMenu(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showMobileMenu]);
+
+  useEffect(() => {
+    if (!showMobileMenu) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (!target.closest('.mobile-menu-container')) {
+        setShowMobileMenu(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showMobileMenu]);
 
   useEffect(() => {
     if (!auth) return;
@@ -378,106 +416,342 @@ export default function App() {
   return (
     <main className="dashboard">
       <header className="app-header">
-        <div className="project-dropdown-container">
-          <button
-            type="button"
-            className="project-dropdown-toggle"
-            onClick={() => setShowProjectDropdown(!showProjectDropdown)}
-          >
-            <span>{current?.name ?? 'Select project'}</span>
-            <span className="dropdown-arrow">▼</span>
-          </button>
-          {showProjectDropdown && (
-            <div className="project-dropdown-menu">
-              {projects.map(p => (
-                <div key={p.id} className="project-dropdown-item-wrapper">
-                  {editingProjectId === p.id ? (
-                    <input
-                      type="text"
-                      className="project-dropdown-edit-input"
-                      value={editingProjectNameDraft}
-                      onChange={(e) => setEditingProjectNameDraft(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                          e.preventDefault();
+        {/* Desktop header */}
+        <div className="desktop-header">
+          <div className="project-dropdown-container">
+            <button
+              type="button"
+              className="project-dropdown-toggle"
+              onClick={() => setShowProjectDropdown(!showProjectDropdown)}
+            >
+              <span>{current?.name ?? 'Select project'}</span>
+              <span className="dropdown-arrow">▼</span>
+            </button>
+            {showProjectDropdown && (
+              <div className="project-dropdown-menu">
+                {projects.map(p => (
+                  <div key={p.id} className="project-dropdown-item-wrapper">
+                    {editingProjectId === p.id ? (
+                      <input
+                        type="text"
+                        className="project-dropdown-edit-input"
+                        value={editingProjectNameDraft}
+                        onChange={(e) => setEditingProjectNameDraft(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            if (editingProjectNameDraft.trim()) {
+                              void updateProject(p.id, editingProjectNameDraft.trim());
+                            }
+                            setEditingProjectId(null);
+                            setEditingProjectNameDraft('');
+                          } else if (e.key === 'Escape') {
+                            setEditingProjectId(null);
+                            setEditingProjectNameDraft('');
+                          }
+                        }}
+                        onBlur={() => {
                           if (editingProjectNameDraft.trim()) {
                             void updateProject(p.id, editingProjectNameDraft.trim());
                           }
                           setEditingProjectId(null);
                           setEditingProjectNameDraft('');
-                        } else if (e.key === 'Escape') {
-                          setEditingProjectId(null);
-                          setEditingProjectNameDraft('');
-                        }
-                      }}
-                      onBlur={() => {
-                        if (editingProjectNameDraft.trim()) {
-                          void updateProject(p.id, editingProjectNameDraft.trim());
-                        }
-                        setEditingProjectId(null);
-                        setEditingProjectNameDraft('');
-                      }}
-                      autoFocus
-                      onClick={(e) => e.stopPropagation()}
-                    />
-                  ) : (
-                    <>
-                      <button
-                        type="button"
-                        className={`project-dropdown-item ${selectedProjectId === p.id ? 'active' : ''}`}
-                        onClick={() => {
-                          setSelectedProjectId(p.id);
-                          setShowProjectDropdown(false);
                         }}
-                      >
-                        {p.name}
-                      </button>
-                      <button
-                        className="project-dropdown-edit"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setEditingProjectId(p.id);
-                          setEditingProjectNameDraft(p.name);
-                        }}
-                        title="Rename project"
-                      >
-                        ✎
-                      </button>
-                      <button
-                        className="project-dropdown-delete"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          if (confirm(`Delete project "${p.name}"? This will delete all epics and tasks.`)) {
-                            void deleteProject(p.id);
-                          }
-                        }}
-                        title="Delete project"
-                      >
-                        ×
-                      </button>
-                    </>
-                  )}
-                </div>
-              ))}
+                        autoFocus
+                        onClick={(e) => e.stopPropagation()}
+                      />
+                    ) : (
+                      <>
+                        <button
+                          type="button"
+                          className={`project-dropdown-item ${selectedProjectId === p.id ? 'active' : ''}`}
+                          onClick={() => {
+                            setSelectedProjectId(p.id);
+                            setShowProjectDropdown(false);
+                          }}
+                        >
+                          {p.name}
+                        </button>
+                        <button
+                          className="project-dropdown-edit"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setEditingProjectId(p.id);
+                            setEditingProjectNameDraft(p.name);
+                          }}
+                          title="Rename project"
+                        >
+                          ✎
+                        </button>
+                        <button
+                          className="project-dropdown-delete"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (confirm(`Delete project "${p.name}"? This will delete all epics and tasks.`)) {
+                              void deleteProject(p.id);
+                            }
+                          }}
+                          title="Delete project"
+                        >
+                          ×
+                        </button>
+                      </>
+                    )}
+                  </div>
+                ))}
+                <button
+                  type="button"
+                  className="project-dropdown-item project-dropdown-add"
+                  onClick={() => {
+                    setShowProjectModal(true);
+                    setShowProjectDropdown(false);
+                  }}
+                >
+                  + New Project
+                </button>
+              </div>
+            )}
+          </div>
+          {selectedProjectId && (
+            <button type="button" className="btn-ghost btn-epic" onClick={() => setShowEpicModal(true)}>+ Epic</button>
+          )}
+          <div className="user-actions">
+            <div className="user-dropdown-container">
               <button
                 type="button"
-                className="project-dropdown-item project-dropdown-add"
-                onClick={() => {
-                  setShowProjectModal(true);
-                  setShowProjectDropdown(false);
-                }}
+                className="user-dropdown-toggle"
+                onClick={() => setShowUserDropdown(!showUserDropdown)}
               >
-                + New Project
+                {auth.user.displayName}
               </button>
+              {showUserDropdown && (
+                <div className="user-dropdown-menu">
+                  <div className="user-dropdown-item-wrapper">
+                    <div className="user-dropdown-item user-name-display">
+                      {auth.user.displayName}
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    className="user-dropdown-item user-dropdown-logout"
+                    onClick={() => {
+                      setShowUserDropdown(false);
+                      void handleLogout();
+                    }}
+                  >
+                    Logout
+                  </button>
+                </div>
+              )}
             </div>
-          )}
+          </div>
         </div>
-        {selectedProjectId && (
-          <button type="button" className="btn-ghost btn-epic" onClick={() => setShowEpicModal(true)}>+ Epic</button>
-        )}
-        <div className="user-actions">
-          <span>{auth.user.displayName}</span>
-          <button type="button" onClick={handleLogout} className="btn-ghost">Logout</button>
+        
+        {/* Mobile header */}
+        <div className="mobile-header">
+          <div className="mobile-menu-container">
+            <button
+              type="button"
+              className="mobile-menu-btn"
+              onClick={() => setShowMobileMenu(!showMobileMenu)}
+              aria-label="Toggle menu"
+            >
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <line x1="3" y1="6" x2="21" y2="6"/>
+                <line x1="3" y1="12" x2="21" y2="12"/>
+                <line x1="3" y1="18" x2="21" y2="18"/>
+              </svg>
+            </button>
+            {showMobileMenu && (
+              <>
+                <div className="mobile-menu-overlay" onClick={() => setShowMobileMenu(false)}></div>
+                <div className="mobile-menu-dropdown">
+                <div className="mobile-menu-content">
+                  {/* Current project */}
+                  {current && (
+                    <div className="mobile-menu-section">
+                      {editingProjectId === current.id ? (
+                        <input
+                          type="text"
+                          className="mobile-menu-edit-input"
+                          value={editingProjectNameDraft}
+                          onChange={(e) => setEditingProjectNameDraft(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault();
+                              if (editingProjectNameDraft.trim()) {
+                                void updateProject(current.id, editingProjectNameDraft.trim());
+                              }
+                              setEditingProjectId(null);
+                              setEditingProjectNameDraft('');
+                            } else if (e.key === 'Escape') {
+                              setEditingProjectId(null);
+                              setEditingProjectNameDraft('');
+                            }
+                          }}
+                          onBlur={() => {
+                            if (editingProjectNameDraft.trim()) {
+                              void updateProject(current.id, editingProjectNameDraft.trim());
+                            }
+                            setEditingProjectId(null);
+                            setEditingProjectNameDraft('');
+                          }}
+                          autoFocus
+                          onClick={(e) => e.stopPropagation()}
+                        />
+                      ) : (
+                        <div className="mobile-menu-project-current-wrapper">
+                          <div className="mobile-menu-project-current">
+                            <strong>{current.name}</strong>
+                          </div>
+                          <button
+                            type="button"
+                            className="mobile-menu-edit"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setEditingProjectId(current.id);
+                              setEditingProjectNameDraft(current.name);
+                            }}
+                            title="Rename project"
+                          >
+                            ✎
+                          </button>
+                          <button
+                            type="button"
+                            className="mobile-menu-delete"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (confirm(`Delete project "${current.name}"? This will delete all epics and tasks.`)) {
+                                void deleteProject(current.id);
+                                setShowMobileMenu(false);
+                              }
+                            }}
+                            title="Delete project"
+                          >
+                            ×
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  
+                  {/* Other projects */}
+                  {projects.filter(p => p.id !== selectedProjectId).length > 0 && (
+                    <div className="mobile-menu-section">
+                      {projects.filter(p => p.id !== selectedProjectId).map(p => (
+                        <div key={p.id} className="mobile-menu-project-wrapper">
+                          {editingProjectId === p.id ? (
+                            <input
+                              type="text"
+                              className="mobile-menu-edit-input"
+                              value={editingProjectNameDraft}
+                              onChange={(e) => setEditingProjectNameDraft(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                  e.preventDefault();
+                                  if (editingProjectNameDraft.trim()) {
+                                    void updateProject(p.id, editingProjectNameDraft.trim());
+                                  }
+                                  setEditingProjectId(null);
+                                  setEditingProjectNameDraft('');
+                                } else if (e.key === 'Escape') {
+                                  setEditingProjectId(null);
+                                  setEditingProjectNameDraft('');
+                                }
+                              }}
+                              onBlur={() => {
+                                if (editingProjectNameDraft.trim()) {
+                                  void updateProject(p.id, editingProjectNameDraft.trim());
+                                }
+                                setEditingProjectId(null);
+                                setEditingProjectNameDraft('');
+                              }}
+                              autoFocus
+                              onClick={(e) => e.stopPropagation()}
+                            />
+                          ) : (
+                            <>
+                              <button
+                                type="button"
+                                className="mobile-menu-item mobile-menu-project-name"
+                                onClick={() => {
+                                  setSelectedProjectId(p.id);
+                                  setShowMobileMenu(false);
+                                }}
+                              >
+                                {p.name}
+                              </button>
+                              <button
+                                type="button"
+                                className="mobile-menu-edit"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setEditingProjectId(p.id);
+                                  setEditingProjectNameDraft(p.name);
+                                }}
+                                title="Rename project"
+                              >
+                                ✎
+                              </button>
+                              <button
+                                type="button"
+                                className="mobile-menu-delete"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  if (confirm(`Delete project "${p.name}"? This will delete all epics and tasks.`)) {
+                                    void deleteProject(p.id);
+                                    setShowMobileMenu(false);
+                                  }
+                                }}
+                                title="Delete project"
+                              >
+                                ×
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  
+                  {/* Separator */}
+                  <div className="mobile-menu-separator"></div>
+                  
+                  {/* User name */}
+                  <div className="mobile-menu-section">
+                    <div className="mobile-menu-user">
+                      {auth.user.displayName}
+                    </div>
+                  </div>
+                  
+                  {/* Logout */}
+                  <div className="mobile-menu-section">
+                    <button
+                      type="button"
+                      className="mobile-menu-item mobile-menu-logout"
+                      onClick={() => {
+                        setShowMobileMenu(false);
+                        void handleLogout();
+                      }}
+                    >
+                      Logout
+                    </button>
+                  </div>
+                </div>
+              </div>
+              </>
+            )}
+          </div>
+          {selectedProjectId && (
+            <button 
+              type="button" 
+              className="mobile-add-epic-btn" 
+              onClick={() => setShowEpicModal(true)}
+              aria-label="Add epic"
+            >
+              +
+            </button>
+          )}
         </div>
       </header>
 
@@ -584,7 +858,7 @@ export default function App() {
 
 // TaskGroup removed: unified flat list per epic
 
-export function InlineText(props: { value: string; placeholder?: string; onChange: (val: string) => void; editable?: boolean; className?: string; multiline?: boolean; onClick?: (e: React.MouseEvent) => void; onEditingChange?: (editing: boolean) => void; onSave?: () => void; maxLength?: number }) {
+export function InlineText(props: { value: string; placeholder?: string; onChange: (val: string) => void; editable?: boolean; className?: string; multiline?: boolean; onClick?: (e: React.MouseEvent) => void; onEditingChange?: (editing: boolean) => void; onSave?: () => void; maxLength?: number; onTab?: (shift: boolean) => void; enterBehavior?: 'save' | 'newline'; textareaRef?: React.RefObject<HTMLTextAreaElement> }) {
   const [val, setVal] = useState(props.value);
   const [isEditing, setIsEditing] = useState(false);
   const debounceRef = useRef<number | null>(null);
@@ -681,6 +955,9 @@ export function InlineText(props: { value: string; placeholder?: string; onChang
         <textarea
           ref={(el) => {
             textareaRef.current = el;
+            if (props.textareaRef) {
+              (props.textareaRef as React.MutableRefObject<HTMLTextAreaElement | null>).current = el;
+            }
             // Set height immediately when textarea is mounted if we have saved height
             if (el && initialHeightRef.current !== null) {
               const savedHeight = initialHeightRef.current;
@@ -745,24 +1022,44 @@ export function InlineText(props: { value: string; placeholder?: string; onChang
           }}
           onKeyDown={(e) => {
             e.stopPropagation(); // Prevent drag from starting
+            if (e.key === 'Tab') {
+              // Tab: save and move to next/previous note
+              e.preventDefault();
+              if (debounceRef.current) { window.clearTimeout(debounceRef.current); debounceRef.current = null; }
+              commit(val);
+              setIsEditing(false);
+              if (props.onEditingChange) props.onEditingChange(false);
+              (e.target as HTMLTextAreaElement).blur();
+              if (props.onTab) {
+                props.onTab(e.shiftKey);
+              }
+              return;
+            }
             if (e.key === 'Enter') {
-              if (e.shiftKey) {
-                // Shift+Enter: insert newline at cursor position (allow default behavior)
+              const enterBehavior = props.enterBehavior || 'save';
+              if (enterBehavior === 'newline') {
+                // Enter: insert newline (for tasks)
                 const textarea = e.target as HTMLTextAreaElement;
                 const start = textarea.selectionStart;
                 const end = textarea.selectionEnd;
                 const currentValue = textarea.value;
                 const newValue = currentValue.slice(0, start) + '\n' + currentValue.slice(end);
-                // Check maxLength before allowing the newline
-                if (props.maxLength !== undefined && newValue.length > props.maxLength) {
-                  e.preventDefault();
-                  return;
+                // Check maxLength
+                if (props.maxLength === undefined || newValue.length <= props.maxLength) {
+                  setVal(newValue);
+                  schedule(newValue);
+                  // Set cursor position after the newline
+                  requestAnimationFrame(() => {
+                    textarea.setSelectionRange(start + 1, start + 1);
+                    // Auto-resize
+                    textarea.style.height = 'auto';
+                    textarea.style.height = `${textarea.scrollHeight}px`;
+                  });
                 }
-                // Let the browser handle the newline insertion naturally
-                // We'll update our state in onChange
+                e.preventDefault();
                 return;
               } else {
-                // Enter: save and exit
+                // Enter: save and exit (default behavior for other inputs)
                 e.preventDefault();
                 if (debounceRef.current) { window.clearTimeout(debounceRef.current); debounceRef.current = null; }
                 commit(val);
@@ -790,7 +1087,8 @@ export function InlineText(props: { value: string; placeholder?: string; onChang
         onClick={(e) => {
           if (!props.editable) return;
           if (props.onClick) props.onClick(e);
-          e.stopPropagation();
+          // Don't stop propagation - allow drag to work
+          // Only stop if we're actually entering edit mode (handled by mousedown)
           const span = e.currentTarget;
           
           // Use browser's caret API for accurate multiline positioning
