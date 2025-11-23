@@ -9,9 +9,9 @@ import helmet from 'helmet';
 import morgan from 'morgan';
 import { AuthError, createAuthService } from '@sandrocket/core';
 import { BcryptPasswordHasher, JwtTokenService, SqliteUserRepository, initializeSqliteDatabase, loadConfig } from '@sandrocket/infrastructure';
-import { createProjectService } from '@sandrocket/core';
-import { SqliteProjectRepository, SqliteEpicRepository } from '@sandrocket/infrastructure';
-import { createProjectRequestSchema, updateProjectRequestSchema } from '@sandrocket/contracts';
+import { createProjectService, createInvitationService } from '@sandrocket/core';
+import { SqliteProjectRepository, SqliteProjectMemberRepository, SqliteProjectInvitationRepository, SqliteEpicRepository } from '@sandrocket/infrastructure';
+import { createProjectRequestSchema, updateProjectRequestSchema, acceptInvitationRequestSchema } from '@sandrocket/contracts';
 import { createEpicService } from '@sandrocket/core';
 import { createEpicRequestSchema, updateEpicRequestSchema } from '@sandrocket/contracts';
 import { createTaskService } from '@sandrocket/core';
@@ -32,7 +32,15 @@ const authService = createAuthService({
     passwordHasher: new BcryptPasswordHasher(),
     tokenService
 });
+const projectMemberRepository = new SqliteProjectMemberRepository(database);
+const projectInvitationRepository = new SqliteProjectInvitationRepository(database);
 const projectService = createProjectService({
+    projects: new SqliteProjectRepository(database),
+    members: projectMemberRepository
+});
+const invitationService = createInvitationService({
+    invitations: projectInvitationRepository,
+    members: projectMemberRepository,
     projects: new SqliteProjectRepository(database)
 });
 const epicService = createEpicService({
@@ -351,7 +359,8 @@ app.get('/api/projects', asyncHandler(async (req, res) => {
             name: p.name,
             description: p.description,
             createdAt: p.createdAt.toISOString(),
-            updatedAt: p.updatedAt.toISOString()
+            updatedAt: p.updatedAt.toISOString(),
+            role: p.role
         }))
     };
     res.json(body);
@@ -378,7 +387,8 @@ app.post('/api/projects', asyncHandler(async (req, res) => {
             name: created.name,
             description: created.description,
             createdAt: created.createdAt.toISOString(),
-            updatedAt: created.updatedAt.toISOString()
+            updatedAt: created.updatedAt.toISOString(),
+            role: created.role
         });
     }
     catch (err) {
@@ -406,7 +416,7 @@ app.patch('/api/projects/:projectId', asyncHandler(async (req, res) => {
     const updated = await projectService.updateProject({
         id: projectIdNum,
         ...body
-    });
+    }, payload.userId);
     if (!updated) {
         res.status(404).json({ error: 'not-found', message: 'Project not found' });
         return;
@@ -416,7 +426,8 @@ app.patch('/api/projects/:projectId', asyncHandler(async (req, res) => {
         name: updated.name,
         description: updated.description,
         createdAt: updated.createdAt.toISOString(),
-        updatedAt: updated.updatedAt.toISOString()
+        updatedAt: updated.updatedAt.toISOString(),
+        role: updated.role
     });
 }));
 app.delete('/api/projects/:projectId', asyncHandler(async (req, res) => {
@@ -428,12 +439,107 @@ app.delete('/api/projects/:projectId', asyncHandler(async (req, res) => {
     const payload = await tokenService.verifyToken(token);
     const { projectId } = req.params;
     const projectIdNum = Number(projectId);
-    const deleted = await projectService.deleteProject(projectIdNum);
-    if (!deleted) {
-        res.status(404).json({ error: 'not-found', message: 'Project not found' });
+    try {
+        const deleted = await projectService.deleteProject(projectIdNum, payload.userId);
+        if (!deleted) {
+            res.status(404).json({ error: 'not-found', message: 'Project not found' });
+            return;
+        }
+        res.status(204).send();
+    }
+    catch (error) {
+        if (error instanceof Error && error.message.includes('Only project owners')) {
+            res.status(403).json({ error: 'forbidden', message: error.message });
+            return;
+        }
+        throw error;
+    }
+}));
+// Invitation endpoints
+app.post('/api/projects/:projectId/invitations', asyncHandler(async (req, res) => {
+    const token = req.cookies[config.security.sessionCookieName];
+    if (!token) {
+        res.status(401).json({ error: 'auth/no-token', message: 'No token' });
         return;
     }
-    res.status(204).send();
+    const payload = await tokenService.verifyToken(token);
+    const { projectId } = req.params;
+    const projectIdNum = Number(projectId);
+    try {
+        // Set expiration to 5 days from now
+        const expiresAt = new Date();
+        expiresAt.setDate(expiresAt.getDate() + 5);
+        const invitation = await invitationService.createInvitation({
+            projectId: projectIdNum,
+            createdByUserId: payload.userId,
+            expiresAt
+        });
+        const response = {
+            id: invitation.id,
+            projectId: invitation.projectId,
+            token: invitation.token,
+            createdAt: invitation.createdAt.toISOString(),
+            expiresAt: invitation.expiresAt ? invitation.expiresAt.toISOString() : null
+        };
+        res.status(201).json(response);
+    }
+    catch (error) {
+        if (error instanceof Error) {
+            if (error.message.includes('Only project owners')) {
+                res.status(403).json({ error: 'forbidden', message: error.message });
+                return;
+            }
+            if (error.message.includes('not found')) {
+                res.status(404).json({ error: 'not-found', message: error.message });
+                return;
+            }
+        }
+        throw error;
+    }
+}));
+app.post('/api/invitations/accept', asyncHandler(async (req, res) => {
+    const token = req.cookies[config.security.sessionCookieName];
+    if (!token) {
+        res.status(401).json({ error: 'auth/no-token', message: 'No token' });
+        return;
+    }
+    const payload = await tokenService.verifyToken(token);
+    const body = parseBody(acceptInvitationRequestSchema, req, res);
+    if (!body) {
+        return;
+    }
+    try {
+        await invitationService.acceptInvitation({
+            token: body.token,
+            userId: payload.userId
+        });
+        res.status(200).json({ message: 'Invitation accepted' });
+    }
+    catch (error) {
+        if (error instanceof Error) {
+            if (error.message.includes('Invalid or expired')) {
+                res.status(400).json({ error: 'invalid-invitation', message: error.message });
+                return;
+            }
+        }
+        throw error;
+    }
+}));
+app.get('/api/invitations/:token', asyncHandler(async (req, res) => {
+    const { token } = req.params;
+    const invitation = await invitationService.getInvitationByToken(token);
+    if (!invitation) {
+        res.status(404).json({ error: 'not-found', message: 'Invitation not found or expired' });
+        return;
+    }
+    const response = {
+        id: invitation.id,
+        projectId: invitation.projectId,
+        token: invitation.token,
+        createdAt: invitation.createdAt.toISOString(),
+        expiresAt: invitation.expiresAt ? invitation.expiresAt.toISOString() : null
+    };
+    res.json(response);
 }));
 app.delete('/api/epics/:epicId', asyncHandler(async (req, res) => {
     const token = req.cookies[config.security.sessionCookieName];

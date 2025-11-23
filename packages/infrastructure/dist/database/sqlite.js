@@ -101,47 +101,74 @@ export function initializeSqliteDatabase(options) {
       FOREIGN KEY (last_edited_by_user_id) REFERENCES users(id) ON DELETE SET NULL
     );
     CREATE INDEX IF NOT EXISTS idx_tasks_epic_status_pos ON tasks(epic_id, status, position);
+    CREATE TABLE IF NOT EXISTS project_members (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      project_id INTEGER NOT NULL,
+      user_id INTEGER NOT NULL,
+      role TEXT NOT NULL, -- 'owner' | 'contributor'
+      created_at TEXT NOT NULL,
+      FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+      UNIQUE(project_id, user_id)
+    );
+    CREATE TABLE IF NOT EXISTS project_invitations (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      project_id INTEGER NOT NULL,
+      token TEXT NOT NULL UNIQUE,
+      created_by_user_id INTEGER NOT NULL,
+      used_by_user_id INTEGER,
+      used_at TEXT,
+      created_at TEXT NOT NULL,
+      expires_at TEXT,
+      FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+      FOREIGN KEY (created_by_user_id) REFERENCES users(id) ON DELETE CASCADE,
+      FOREIGN KEY (used_by_user_id) REFERENCES users(id) ON DELETE SET NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_project_members_user_id ON project_members(user_id);
+    CREATE INDEX IF NOT EXISTS idx_project_members_project_id ON project_members(project_id);
+    CREATE INDEX IF NOT EXISTS idx_project_invitations_token ON project_invitations(token);
   `);
     // Migration: Add creator_user_id column and/or remove title column if needed
     try {
         const taskInfo = db.prepare(`PRAGMA table_info('tasks')`).all();
         if (taskInfo.length === 0) {
             // Table doesn't exist yet, will be created by CREATE TABLE IF NOT EXISTS above
-            return db;
+            // Continue to project_members migration
         }
-        const hasTitleColumn = taskInfo.some((col) => col.name === 'title');
-        const hasCreatorColumn = taskInfo.some((col) => col.name === 'creator_user_id');
-        const hasLastEditedColumn = taskInfo.some((col) => col.name === 'last_edited_by_user_id');
-        // If we need to add creator_user_id, last_edited_by_user_id, or remove title, recreate the table
-        if (!hasCreatorColumn || !hasLastEditedColumn || hasTitleColumn) {
-            // Get the first user ID to use as default creator for existing tasks
-            const firstUser = db.prepare('SELECT id FROM users LIMIT 1').get();
-            const defaultCreatorId = firstUser?.id ?? 1;
-            // Build the SELECT statement based on what columns exist
-            let selectClause = 'SELECT id, epic_id';
-            if (hasCreatorColumn) {
-                selectClause += ', creator_user_id';
-            }
-            else {
-                selectClause += `, ${defaultCreatorId} as creator_user_id`;
-            }
-            // Handle description - use it if exists, otherwise use title if exists, otherwise empty string
-            if (taskInfo.some((col) => col.name === 'description')) {
-                if (hasTitleColumn) {
-                    selectClause += ', COALESCE(description, title, \'\') as description';
+        else {
+            const hasTitleColumn = taskInfo.some((col) => col.name === 'title');
+            const hasCreatorColumn = taskInfo.some((col) => col.name === 'creator_user_id');
+            const hasLastEditedColumn = taskInfo.some((col) => col.name === 'last_edited_by_user_id');
+            // If we need to add creator_user_id, last_edited_by_user_id, or remove title, recreate the table
+            if (!hasCreatorColumn || !hasLastEditedColumn || hasTitleColumn) {
+                // Get the first user ID to use as default creator for existing tasks
+                const firstUser = db.prepare('SELECT id FROM users LIMIT 1').get();
+                const defaultCreatorId = firstUser?.id ?? 1;
+                // Build the SELECT statement based on what columns exist
+                let selectClause = 'SELECT id, epic_id';
+                if (hasCreatorColumn) {
+                    selectClause += ', creator_user_id';
                 }
                 else {
-                    selectClause += ', COALESCE(description, \'\') as description';
+                    selectClause += `, ${defaultCreatorId} as creator_user_id`;
                 }
-            }
-            else if (hasTitleColumn) {
-                selectClause += ', COALESCE(title, \'\') as description';
-            }
-            else {
-                selectClause += ', \'\' as description';
-            }
-            selectClause += ', status, position, created_at, updated_at FROM tasks';
-            db.exec(`
+                // Handle description - use it if exists, otherwise use title if exists, otherwise empty string
+                if (taskInfo.some((col) => col.name === 'description')) {
+                    if (hasTitleColumn) {
+                        selectClause += ', COALESCE(description, title, \'\') as description';
+                    }
+                    else {
+                        selectClause += ', COALESCE(description, \'\') as description';
+                    }
+                }
+                else if (hasTitleColumn) {
+                    selectClause += ', COALESCE(title, \'\') as description';
+                }
+                else {
+                    selectClause += ', \'\' as description';
+                }
+                selectClause += ', status, position, created_at, updated_at FROM tasks';
+                db.exec(`
         PRAGMA foreign_keys = OFF;
         CREATE TABLE tasks_new (
           id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -163,8 +190,8 @@ export function initializeSqliteDatabase(options) {
           epic_id, 
           ${hasCreatorColumn ? 'creator_user_id' : `${defaultCreatorId} as creator_user_id`},
           ${taskInfo.some((col) => col.name === 'description')
-                ? (hasTitleColumn ? 'COALESCE(description, title, \'\')' : 'COALESCE(description, \'\')')
-                : (hasTitleColumn ? 'COALESCE(title, \'\')' : '\'\'')} as description,
+                    ? (hasTitleColumn ? 'COALESCE(description, title, \'\')' : 'COALESCE(description, \'\')')
+                    : (hasTitleColumn ? 'COALESCE(title, \'\')' : '\'\'')} as description,
           status, 
           position, 
           created_at, 
@@ -176,6 +203,7 @@ export function initializeSqliteDatabase(options) {
         CREATE INDEX IF NOT EXISTS idx_tasks_epic_status_pos ON tasks(epic_id, status, position);
         PRAGMA foreign_keys = ON;
       `);
+            }
         }
     }
     catch (err) {
@@ -183,7 +211,26 @@ export function initializeSqliteDatabase(options) {
         // eslint-disable-next-line no-console
         console.error('[db] Migration error:', err);
     }
-    return db;
+    // Migration: Add project members for existing projects (set owner as member)
+    try {
+        const memberInfo = db.prepare(`PRAGMA table_info('project_members')`).all();
+        if (memberInfo.length > 0) {
+            // Table exists, check if we need to migrate existing owners
+            const existingMembers = db.prepare('SELECT COUNT(*) as count FROM project_members').get();
+            if (existingMembers && existingMembers.count === 0) {
+                // No members yet, add owners as members
+                db.exec(`
+          INSERT INTO project_members (project_id, user_id, role, created_at)
+          SELECT id, owner_user_id, 'owner', created_at
+          FROM projects
+        `);
+            }
+        }
+    }
+    catch (err) {
+        // eslint-disable-next-line no-console
+        console.error('[db] Migration error for project_members:', err);
+    }
     // Emit a single startup log with DB path to help diagnose multiple-process setups
     try {
         // eslint-disable-next-line no-console

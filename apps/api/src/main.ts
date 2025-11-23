@@ -533,20 +533,18 @@ app.patch(
     const updated = await projectService.updateProject({
       id: projectIdNum,
       ...body
-    });
+    }, payload.userId);
     if (!updated) {
       res.status(404).json({ error: 'not-found', message: 'Project not found' });
       return;
     }
-    // Get user's role for this project
-    const role = await projectService.getUserRole(projectIdNum, payload.userId);
     res.json({
       id: updated.id,
       name: updated.name,
       description: updated.description,
       createdAt: updated.createdAt.toISOString(),
       updatedAt: updated.updatedAt.toISOString(),
-      role: role ?? undefined
+      role: updated.role
     });
   })
 );

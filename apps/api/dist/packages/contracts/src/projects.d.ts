@@ -27,20 +27,59 @@ export declare const projectSchema: z.ZodObject<{
     description: z.ZodNullable<z.ZodString>;
     createdAt: z.ZodString;
     updatedAt: z.ZodString;
+    role: z.ZodOptional<z.ZodEnum<["owner", "contributor"]>>;
 }, "strip", z.ZodTypeAny, {
     id: number;
     description: string | null;
     name: string;
     createdAt: string;
     updatedAt: string;
+    role?: "owner" | "contributor" | undefined;
 }, {
     id: number;
     description: string | null;
     name: string;
     createdAt: string;
     updatedAt: string;
+    role?: "owner" | "contributor" | undefined;
 }>;
 export type ProjectResponse = z.infer<typeof projectSchema>;
 export interface ListProjectsResponse {
     projects: ProjectResponse[];
 }
+export declare const createInvitationRequestSchema: z.ZodObject<{
+    projectId: z.ZodNumber;
+}, "strip", z.ZodTypeAny, {
+    projectId: number;
+}, {
+    projectId: number;
+}>;
+export type CreateInvitationRequest = z.infer<typeof createInvitationRequestSchema>;
+export declare const acceptInvitationRequestSchema: z.ZodObject<{
+    token: z.ZodString;
+}, "strip", z.ZodTypeAny, {
+    token: string;
+}, {
+    token: string;
+}>;
+export type AcceptInvitationRequest = z.infer<typeof acceptInvitationRequestSchema>;
+export declare const invitationResponseSchema: z.ZodObject<{
+    id: z.ZodNumber;
+    projectId: z.ZodNumber;
+    token: z.ZodString;
+    createdAt: z.ZodString;
+    expiresAt: z.ZodNullable<z.ZodString>;
+}, "strip", z.ZodTypeAny, {
+    token: string;
+    id: number;
+    createdAt: string;
+    projectId: number;
+    expiresAt: string | null;
+}, {
+    token: string;
+    id: number;
+    createdAt: string;
+    projectId: number;
+    expiresAt: string | null;
+}>;
+export type InvitationResponse = z.infer<typeof invitationResponseSchema>;

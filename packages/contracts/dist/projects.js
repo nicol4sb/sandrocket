@@ -12,5 +12,19 @@ export const projectSchema = z.object({
     name: z.string(),
     description: z.string().nullable(),
     createdAt: z.string(),
-    updatedAt: z.string()
+    updatedAt: z.string(),
+    role: z.enum(['owner', 'contributor']).optional()
+});
+export const createInvitationRequestSchema = z.object({
+    projectId: z.number().int()
+});
+export const acceptInvitationRequestSchema = z.object({
+    token: z.string()
+});
+export const invitationResponseSchema = z.object({
+    id: z.number().int(),
+    projectId: z.number().int(),
+    token: z.string(),
+    createdAt: z.string(),
+    expiresAt: z.string().nullable()
 });

@@ -15,6 +15,10 @@ export class SqliteProjectRepository {
        VALUES (@owner_user_id, @name, @description, @created_at, @updated_at)`);
         this.findByIdStmt = this.db.prepare('SELECT * FROM projects WHERE id = ?');
         this.listByOwnerStmt = this.db.prepare('SELECT * FROM projects WHERE owner_user_id = ? ORDER BY created_at ASC');
+        this.listByUserStmt = this.db.prepare(`SELECT DISTINCT p.* FROM projects p
+       INNER JOIN project_members pm ON p.id = pm.project_id
+       WHERE pm.user_id = ?
+       ORDER BY p.created_at ASC`);
         this.updateStmt = this.db.prepare(`UPDATE projects SET
          name = COALESCE(@name, name),
          description = COALESCE(@description, description),
@@ -44,6 +48,10 @@ export class SqliteProjectRepository {
     }
     async listByOwner(userId) {
         const rows = this.listByOwnerStmt.all(userId);
+        return rows.map(mapRowToProject);
+    }
+    async listByUser(userId) {
+        const rows = this.listByUserStmt.all(userId);
         return rows.map(mapRowToProject);
     }
     async update(input) {

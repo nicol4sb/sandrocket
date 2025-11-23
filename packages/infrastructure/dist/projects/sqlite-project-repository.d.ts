@@ -5,12 +5,14 @@ export declare class SqliteProjectRepository implements ProjectRepository {
     private readonly insertStmt;
     private readonly findByIdStmt;
     private readonly listByOwnerStmt;
+    private readonly listByUserStmt;
     private readonly updateStmt;
     private readonly deleteStmt;
     constructor(db: Database);
     create(input: CreateProjectInput): Promise<Project>;
     findById(id: number): Promise<Project | null>;
     listByOwner(userId: number): Promise<Project[]>;
+    listByUser(userId: number): Promise<Project[]>;
     update(input: UpdateProjectInput): Promise<Project | null>;
     delete(id: number): Promise<boolean>;
 }
