@@ -746,25 +746,20 @@ export function InlineText(props: { value: string; placeholder?: string; onChang
           onKeyDown={(e) => {
             e.stopPropagation(); // Prevent drag from starting
             if (e.key === 'Enter') {
-              if (e.altKey) {
-                // Alt+Enter: insert newline at cursor position
+              if (e.shiftKey) {
+                // Shift+Enter: insert newline at cursor position (allow default behavior)
                 const textarea = e.target as HTMLTextAreaElement;
                 const start = textarea.selectionStart;
                 const end = textarea.selectionEnd;
-                const newValue = val.slice(0, start) + '\n' + val.slice(end);
-                // Check maxLength
-                if (props.maxLength === undefined || newValue.length <= props.maxLength) {
-                  setVal(newValue);
-                  schedule(newValue);
-                  // Set cursor position after the newline
-                  requestAnimationFrame(() => {
-                    textarea.setSelectionRange(start + 1, start + 1);
-                    // Auto-resize
-                    textarea.style.height = 'auto';
-                    textarea.style.height = `${textarea.scrollHeight}px`;
-                  });
+                const currentValue = textarea.value;
+                const newValue = currentValue.slice(0, start) + '\n' + currentValue.slice(end);
+                // Check maxLength before allowing the newline
+                if (props.maxLength !== undefined && newValue.length > props.maxLength) {
+                  e.preventDefault();
+                  return;
                 }
-                e.preventDefault();
+                // Let the browser handle the newline insertion naturally
+                // We'll update our state in onChange
                 return;
               } else {
                 // Enter: save and exit

@@ -316,7 +316,7 @@ export function EpicLane(props: {
               {/* Empty task placeholder */}
               <li className="task empty-task">
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', width: '100%' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', position: 'relative' }}>
                     <textarea
                       ref={(el) => {
                         emptyTaskTextareaRef.current = el;
@@ -339,8 +339,8 @@ export function EpicLane(props: {
                       }}
                       onKeyDown={(e) => {
                         if (e.key === 'Enter') {
-                          if (e.altKey) {
-                            // Alt+Enter: allow newline (default behavior)
+                          if (e.shiftKey) {
+                            // Shift+Enter: allow newline (default behavior)
                             return;
                           } else {
                             // Enter: create task and clear
@@ -377,6 +377,30 @@ export function EpicLane(props: {
                         boxShadow: 'none'
                       }}
                     />
+                    <div className="task-hint-tooltip">
+                      <svg 
+                        width="16" 
+                        height="16" 
+                        viewBox="0 0 16 16" 
+                        fill="none" 
+                        xmlns="http://www.w3.org/2000/svg"
+                        className="hint-icon"
+                      >
+                        <circle cx="8" cy="8" r="7" stroke="currentColor" strokeWidth="1.5" fill="none"/>
+                        <path d="M8 11V8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+                        <circle cx="8" cy="5" r="0.75" fill="currentColor"/>
+                      </svg>
+                      <div className="tooltip-content">
+                        <div className="tooltip-arrow"></div>
+                        <div className="tooltip-text">
+                          <strong>Keyboard shortcuts:</strong>
+                          <br />
+                          <kbd>Enter</kbd> to save
+                          <br />
+                          <kbd>Shift</kbd> + <kbd>Enter</kbd> for new line
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </li>
