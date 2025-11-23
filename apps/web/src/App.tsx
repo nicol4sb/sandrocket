@@ -1110,7 +1110,140 @@ export function InlineText(props: { value: string; placeholder?: string; onChang
           // Only enter edit mode if drag didn't start
           if (!props.editable || isEditing) return;
           
-          // Check if drag is active - if so, don't enter edit mode
+          // If no drag listeners, enter edit mode immediately (e.g., for backlog)
+          const hasDragListeners = props.dragListeners && Object.keys(props.dragListeners).length > 0;
+          
+          if (!hasDragListeners) {
+            // No drag listeners - enter edit mode immediately
+            if (props.onClick) props.onClick(e);
+            
+            const currentSpan = spanRef.current;
+            if (!currentSpan) return;
+            
+            const clickX = e.clientX;
+            const clickY = e.clientY;
+            
+            // Calculate cursor position at click point
+            let charIndex = currentSpan.textContent?.length || 0;
+            
+            // Helper to calculate text offset by walking the DOM tree
+            const calculateTextOffset = (targetNode: Node, targetOffset: number): number => {
+              const walker = document.createTreeWalker(
+                currentSpan,
+                NodeFilter.SHOW_TEXT,
+                null
+              );
+              let count = 0;
+              let node: Node | null;
+              while (node = walker.nextNode()) {
+                if (node === targetNode && node.nodeType === Node.TEXT_NODE) {
+                  return count + targetOffset;
+                }
+                count += node.textContent?.length || 0;
+              }
+              return count;
+            };
+            
+            if (document.caretRangeFromPoint) {
+              const range = document.caretRangeFromPoint(clickX, clickY);
+              if (range) {
+                if (range.startContainer.nodeType === Node.TEXT_NODE) {
+                  charIndex = calculateTextOffset(range.startContainer, range.startOffset);
+                } else {
+                  if (range.startContainer.childNodes.length > range.startOffset) {
+                    const childNode = range.startContainer.childNodes[range.startOffset];
+                    if (childNode && childNode.nodeType === Node.TEXT_NODE) {
+                      charIndex = calculateTextOffset(childNode, 0);
+                    } else {
+                      const rangeFromStart = document.createRange();
+                      rangeFromStart.setStart(currentSpan, 0);
+                      rangeFromStart.setEnd(range.startContainer, range.startOffset);
+                      charIndex = rangeFromStart.toString().length;
+                    }
+                  } else {
+                    const rangeFromStart = document.createRange();
+                    rangeFromStart.setStart(currentSpan, 0);
+                    rangeFromStart.setEnd(range.startContainer, 0);
+                    charIndex = rangeFromStart.toString().length;
+                  }
+                }
+              }
+            } else if (document.caretPositionFromPoint) {
+              const pos = document.caretPositionFromPoint(clickX, clickY);
+              if (pos && pos.offsetNode) {
+                if (pos.offsetNode.nodeType === Node.TEXT_NODE) {
+                  charIndex = calculateTextOffset(pos.offsetNode, pos.offset);
+                } else {
+                  try {
+                    const rangeFromStart = document.createRange();
+                    rangeFromStart.setStart(currentSpan, 0);
+                    if (pos.offsetNode.childNodes.length > pos.offset) {
+                      const childNode = pos.offsetNode.childNodes[pos.offset];
+                      if (childNode && childNode.nodeType === Node.TEXT_NODE) {
+                        rangeFromStart.setEnd(childNode, 0);
+                      } else {
+                        rangeFromStart.setEnd(pos.offsetNode, pos.offset);
+                      }
+                    } else {
+                      rangeFromStart.setEnd(pos.offsetNode, 0);
+                    }
+                    charIndex = rangeFromStart.toString().length;
+                  } catch (err) {
+                    charIndex = calculateTextOffset(pos.offsetNode, 0);
+                  }
+                }
+              }
+            } else {
+              // Fallback for multiline text
+              const text = currentSpan.textContent || '';
+              const rect = currentSpan.getBoundingClientRect();
+              const relativeX = clickX - rect.left;
+              const relativeY = clickY - rect.top;
+              const style = window.getComputedStyle(currentSpan);
+              const font = `${style.fontSize} ${style.fontFamily}`;
+              const lineHeight = parseFloat(style.lineHeight) || parseFloat(style.fontSize) * 1.2;
+              const canvas = document.createElement('canvas');
+              const context = canvas.getContext('2d');
+              if (context) {
+                context.font = font;
+                const lineNumber = Math.floor(relativeY / lineHeight);
+                const lines = text.split('\n');
+                let charCount = 0;
+                for (let i = 0; i < lineNumber && i < lines.length; i++) {
+                  charCount += lines[i].length + 1;
+                }
+                if (lineNumber < lines.length) {
+                  const lineText = lines[lineNumber];
+                  for (let i = 0; i < lineText.length; i++) {
+                    const width = context.measureText(lineText.substring(0, i + 1)).width;
+                    if (width > relativeX) {
+                      charIndex = charCount + i;
+                      break;
+                    }
+                  }
+                  if (charIndex === charCount) {
+                    charIndex = charCount + lineText.length;
+                  }
+                } else {
+                  charIndex = text.length;
+                }
+              }
+            }
+            
+            // Store cursor position (use cursorPositionRef for multiline, clickPositionRef for single-line)
+            if (props.multiline) {
+              cursorPositionRef.current = charIndex;
+            } else {
+              clickPositionRef.current = charIndex;
+            }
+            
+            // Enter edit mode with correct cursor position
+            setIsEditing(true);
+            if (props.onEditingChange) props.onEditingChange(true);
+            return;
+          }
+          
+          // Has drag listeners - check if drag is active
           if (props.isDragging || (props.activeId !== null && props.activeId === props.taskId)) {
             return;
           }
