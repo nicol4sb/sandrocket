@@ -584,7 +584,7 @@ export default function App() {
 
 // TaskGroup removed: unified flat list per epic
 
-export function InlineText(props: { value: string; placeholder?: string; onChange: (val: string) => void; editable?: boolean; className?: string; multiline?: boolean; onClick?: (e: React.MouseEvent) => void; onEditingChange?: (editing: boolean) => void; onSave?: () => void }) {
+export function InlineText(props: { value: string; placeholder?: string; onChange: (val: string) => void; editable?: boolean; className?: string; multiline?: boolean; onClick?: (e: React.MouseEvent) => void; onEditingChange?: (editing: boolean) => void; onSave?: () => void; maxLength?: number }) {
   const [val, setVal] = useState(props.value);
   const [isEditing, setIsEditing] = useState(false);
   const debounceRef = useRef<number | null>(null);
@@ -604,23 +604,26 @@ export function InlineText(props: { value: string; placeholder?: string; onChang
       // If we have an initial height from the span, use it to prevent jumping
       if (initialHeightRef.current !== null) {
         const savedHeight = initialHeightRef.current;
-        initialHeightRef.current = null; // Clear immediately
+        console.log('[InlineText] useEffect - setting height:', savedHeight);
         // Set initial height to match span immediately - don't let it shrink
-        textarea.style.height = `${savedHeight}px`;
         textarea.style.minHeight = `${savedHeight}px`;
-        // After rendering, check if content needs more space
+        textarea.style.height = `${savedHeight}px`;
+        // After rendering, check if content needs more space, but keep minHeight
         requestAnimationFrame(() => {
           requestAnimationFrame(() => {
-            if (textareaRef.current) {
-              // Temporarily remove min-height to get accurate scrollHeight
-              const oldMinHeight = textareaRef.current.style.minHeight;
-              textareaRef.current.style.minHeight = '0';
+            if (textareaRef.current && initialHeightRef.current !== null) {
+              const savedHeight = initialHeightRef.current;
+              initialHeightRef.current = null; // Clear after first use
+              // Measure scrollHeight - minHeight will prevent shrinking
               textareaRef.current.style.height = 'auto';
               const scrollHeight = textareaRef.current.scrollHeight;
+              console.log('[InlineText] scrollHeight:', scrollHeight, 'savedHeight:', savedHeight);
               // Use the larger value, but never shrink below original
               const finalHeight = Math.max(savedHeight, scrollHeight);
               textareaRef.current.style.height = `${finalHeight}px`;
-              textareaRef.current.style.minHeight = oldMinHeight;
+              // Keep minHeight to prevent any shrinking
+              textareaRef.current.style.minHeight = `${savedHeight}px`;
+              console.log('[InlineText] Final height set to:', finalHeight);
             }
           });
         });
@@ -676,7 +679,16 @@ export function InlineText(props: { value: string; placeholder?: string; onChang
     if (isEditing) {
       return (
         <textarea
-          ref={textareaRef}
+          ref={(el) => {
+            textareaRef.current = el;
+            // Set height immediately when textarea is mounted if we have saved height
+            if (el && initialHeightRef.current !== null) {
+              const savedHeight = initialHeightRef.current;
+              console.log('[InlineText] Setting initial height in ref callback:', savedHeight);
+              el.style.minHeight = `${savedHeight}px`;
+              el.style.height = `${savedHeight}px`;
+            }
+          }}
           className={props.className}
           value={val}
           placeholder={props.placeholder}
@@ -708,16 +720,23 @@ export function InlineText(props: { value: string; placeholder?: string; onChang
             resize: 'none',
             overflow: 'hidden',
             width: '100%',
-            boxSizing: 'border-box'
+            boxSizing: 'border-box',
+            minHeight: initialHeightRef.current !== null ? `${initialHeightRef.current}px` : undefined,
+            height: initialHeightRef.current !== null ? `${initialHeightRef.current}px` : undefined
           } as React.CSSProperties}
           onChange={(e) => { 
-            const next = e.target.value; 
+            let next = e.target.value;
+            // Enforce maxLength if specified
+            if (props.maxLength !== undefined && next.length > props.maxLength) {
+              next = next.slice(0, props.maxLength);
+            }
             setVal(next); 
             schedule(next);
             // Auto-resize on change
             e.target.style.height = 'auto';
             e.target.style.height = `${e.target.scrollHeight}px`;
           }}
+          maxLength={props.maxLength}
           onBlur={() => { 
             if (debounceRef.current) { window.clearTimeout(debounceRef.current); debounceRef.current = null; } 
             commit(val);
@@ -728,7 +747,24 @@ export function InlineText(props: { value: string; placeholder?: string; onChang
             e.stopPropagation(); // Prevent drag from starting
             if (e.key === 'Enter') {
               if (e.altKey) {
-                // Alt+Enter: allow newline (default behavior)
+                // Alt+Enter: insert newline at cursor position
+                const textarea = e.target as HTMLTextAreaElement;
+                const start = textarea.selectionStart;
+                const end = textarea.selectionEnd;
+                const newValue = val.slice(0, start) + '\n' + val.slice(end);
+                // Check maxLength
+                if (props.maxLength === undefined || newValue.length <= props.maxLength) {
+                  setVal(newValue);
+                  schedule(newValue);
+                  // Set cursor position after the newline
+                  requestAnimationFrame(() => {
+                    textarea.setSelectionRange(start + 1, start + 1);
+                    // Auto-resize
+                    textarea.style.height = 'auto';
+                    textarea.style.height = `${textarea.scrollHeight}px`;
+                  });
+                }
+                e.preventDefault();
                 return;
               } else {
                 // Enter: save and exit
@@ -875,8 +911,16 @@ export function InlineText(props: { value: string; placeholder?: string; onChang
           }
           
           // Capture the span's height before switching to edit mode
-          const spanHeight = span.getBoundingClientRect().height;
-          initialHeightRef.current = spanHeight;
+          // Use getBoundingClientRect for accurate height including padding/margins
+          const spanRect = span.getBoundingClientRect();
+          const computedStyle = window.getComputedStyle(span);
+          const spanHeight = spanRect.height || 
+            parseFloat(computedStyle.height) || 
+            span.scrollHeight;
+          // Use the maximum to ensure we capture full height
+          const finalHeight = Math.max(spanHeight, span.scrollHeight);
+          initialHeightRef.current = finalHeight;
+          console.log('[InlineText] Captured span height:', finalHeight, 'spanHeight:', spanHeight, 'scrollHeight:', span.scrollHeight);
           
           // Store cursor position before switching to edit mode
           // Ensure charIndex is valid (not NaN or negative)

@@ -158,6 +158,7 @@ function SortableTask(props: {
         onClick={(e) => e.stopPropagation()}
         onEditingChange={setIsTaskEditing}
         onSave={props.onSave}
+        maxLength={150}
       />
       {!isTaskEditing && (
         <button

@@ -561,8 +561,6 @@ main.dashboard > .app-header {
   overflow: hidden !important;
   width: 100% !important;
   box-sizing: border-box !important;
-  min-height: 0 !important;
-  height: auto !important;
   display: block !important;
 }
 .task .content textarea:focus,
@@ -788,7 +786,6 @@ textarea {
 .task .content textarea,
 .task textarea.content {
   resize: none !important;
-  min-height: 0 !important;
   line-height: inherit !important;
 }
 .link { background: transparent; color: #4ec9b0; padding: 0; box-shadow: none; border: none; cursor: pointer; }
