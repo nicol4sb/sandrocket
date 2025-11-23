@@ -121,6 +121,7 @@ function SortableTask(props: {
   activeId?: number | null;
 }) {
   const [isTaskEditing, setIsTaskEditing] = useState(false);
+  
   const {
     attributes,
     listeners,
@@ -166,6 +167,9 @@ function SortableTask(props: {
         enterBehavior="newline"
         maxLength={150}
         textareaRef={props.textareaRef}
+        isDragging={isDragging}
+        activeId={props.activeId}
+        taskId={props.task.id}
       />
       {!isTaskEditing && (
         <button

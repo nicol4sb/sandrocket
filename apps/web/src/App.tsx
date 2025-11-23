@@ -858,7 +858,7 @@ export default function App() {
 
 // TaskGroup removed: unified flat list per epic
 
-export function InlineText(props: { value: string; placeholder?: string; onChange: (val: string) => void; editable?: boolean; className?: string; multiline?: boolean; onClick?: (e: React.MouseEvent) => void; onEditingChange?: (editing: boolean) => void; onSave?: () => void; maxLength?: number; onTab?: (shift: boolean) => void; enterBehavior?: 'save' | 'newline'; textareaRef?: React.RefObject<HTMLTextAreaElement>; dragListeners?: any; dragAttributes?: any }) {
+export function InlineText(props: { value: string; placeholder?: string; onChange: (val: string) => void; editable?: boolean; className?: string; multiline?: boolean; onClick?: (e: React.MouseEvent) => void; onEditingChange?: (editing: boolean) => void; onSave?: () => void; maxLength?: number; onTab?: (shift: boolean) => void; enterBehavior?: 'save' | 'newline'; textareaRef?: React.RefObject<HTMLTextAreaElement>; dragListeners?: any; dragAttributes?: any; isDragging?: boolean; activeId?: number | null; taskId?: number }) {
   const [val, setVal] = useState(props.value);
   const [isEditing, setIsEditing] = useState(false);
   const debounceRef = useRef<number | null>(null);
@@ -1105,18 +1105,32 @@ export function InlineText(props: { value: string; placeholder?: string; onChang
           boxShadow: 'none',
           background: 'transparent'
         } as React.CSSProperties}
-        onDoubleClick={(e) => {
-          // Prevent drag from starting on double-click
-          e.stopPropagation();
-          // Double-click to enter edit mode (single click is for drag)
+        onClick={(e) => {
+          // Single-click to enter edit mode
+          // Only enter edit mode if drag didn't start
           if (!props.editable || isEditing) return;
+          
+          // Check if drag is active - if so, don't enter edit mode
+          if (props.isDragging || (props.activeId !== null && props.activeId === props.taskId)) {
+            return;
+          }
+          
           if (props.onClick) props.onClick(e);
           
-          const currentSpan = spanRef.current;
-          if (!currentSpan) return;
-          
-          const clickX = e.clientX;
-          const clickY = e.clientY;
+          // Use a delay to check if drag started
+          const timeoutId = window.setTimeout(() => {
+            // Check again if drag started during the delay
+            if (props.isDragging || (props.activeId !== null && props.activeId === props.taskId)) {
+              return;
+            }
+            
+            // No drag started, proceed with edit mode
+            if (!isEditing && props.editable && spanRef.current) {
+              const currentSpan = spanRef.current;
+              if (!currentSpan) return;
+              
+              const clickX = e.clientX;
+              const clickY = e.clientY;
           
           // Calculate cursor position at click point
           let charIndex = currentSpan.textContent?.length || 0;
@@ -1225,16 +1239,24 @@ export function InlineText(props: { value: string; placeholder?: string; onChang
             }
           }
           
-          // Store cursor position (use cursorPositionRef for multiline, clickPositionRef for single-line)
-          if (props.multiline) {
-            cursorPositionRef.current = charIndex;
-          } else {
-            clickPositionRef.current = charIndex;
-          }
+              // Store cursor position (use cursorPositionRef for multiline, clickPositionRef for single-line)
+              if (props.multiline) {
+                cursorPositionRef.current = charIndex;
+              } else {
+                clickPositionRef.current = charIndex;
+              }
+              
+              // Enter edit mode with correct cursor position
+              setIsEditing(true);
+              if (props.onEditingChange) props.onEditingChange(true);
+            }
+          }, 150); // Wait 150ms to see if drag started
           
-          // Enter edit mode with correct cursor position
-          setIsEditing(true);
-          if (props.onEditingChange) props.onEditingChange(true);
+          // Store timeout to clear if needed
+          if (clickTimeoutRef.current) {
+            window.clearTimeout(clickTimeoutRef.current);
+          }
+          clickTimeoutRef.current = timeoutId;
         }}
       >
         {val ? val : <span style={{ opacity: 0.5 }}>{props.placeholder}</span>}
