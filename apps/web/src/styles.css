@@ -897,7 +897,11 @@ main.dashboard > .app-header {
   pointer-events: auto;
 }
 
-.task .content span,
+.task .content span {
+  cursor: text;
+  pointer-events: auto !important; /* Need pointer events for double-click to edit */
+}
+
 .task .content textarea {
   cursor: text;
   pointer-events: auto;

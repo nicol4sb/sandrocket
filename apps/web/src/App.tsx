@@ -858,7 +858,7 @@ export default function App() {
 
 // TaskGroup removed: unified flat list per epic
 
-export function InlineText(props: { value: string; placeholder?: string; onChange: (val: string) => void; editable?: boolean; className?: string; multiline?: boolean; onClick?: (e: React.MouseEvent) => void; onEditingChange?: (editing: boolean) => void; onSave?: () => void; maxLength?: number; onTab?: (shift: boolean) => void; enterBehavior?: 'save' | 'newline'; textareaRef?: React.RefObject<HTMLTextAreaElement> }) {
+export function InlineText(props: { value: string; placeholder?: string; onChange: (val: string) => void; editable?: boolean; className?: string; multiline?: boolean; onClick?: (e: React.MouseEvent) => void; onEditingChange?: (editing: boolean) => void; onSave?: () => void; maxLength?: number; onTab?: (shift: boolean) => void; enterBehavior?: 'save' | 'newline'; textareaRef?: React.RefObject<HTMLTextAreaElement>; dragListeners?: any; dragAttributes?: any }) {
   const [val, setVal] = useState(props.value);
   const [isEditing, setIsEditing] = useState(false);
   const debounceRef = useRef<number | null>(null);
@@ -868,6 +868,11 @@ export function InlineText(props: { value: string; placeholder?: string; onChang
   const clickPositionRef = useRef<number | null>(null);
   const initialHeightRef = useRef<number | null>(null);
   const cursorPositionRef = useRef<number | null>(null);
+  const clickTimeoutRef = useRef<number | null>(null);
+  const isDraggingRef = useRef<boolean>(false);
+  const pendingClickRef = useRef<{ x: number; y: number } | null>(null);
+  const pointerDownRef = useRef<{ x: number; y: number; time: number } | null>(null);
+  const hasMovedRef = useRef<boolean>(false);
   
   useEffect(() => { setVal(props.value); }, [props.value]);
   
@@ -1084,20 +1089,42 @@ export function InlineText(props: { value: string; placeholder?: string; onChang
       <span
         ref={spanRef}
         className={props.className}
-        onClick={(e) => {
-          if (!props.editable) return;
+        {...(props.dragAttributes || {})}
+        {...(props.dragListeners || {})}
+        style={{ 
+          cursor: props.editable ? 'text' : 'default', 
+          display: 'block', 
+          whiteSpace: 'pre-wrap',
+          padding: 0,
+          margin: 0,
+          lineHeight: 'inherit',
+          fontFamily: 'inherit',
+          fontSize: 'inherit',
+          border: 'none',
+          outline: 'none',
+          boxShadow: 'none',
+          background: 'transparent'
+        } as React.CSSProperties}
+        onDoubleClick={(e) => {
+          // Prevent drag from starting on double-click
+          e.stopPropagation();
+          // Double-click to enter edit mode (single click is for drag)
+          if (!props.editable || isEditing) return;
           if (props.onClick) props.onClick(e);
-          // Don't stop propagation - allow drag to work
-          // Only stop if we're actually entering edit mode (handled by mousedown)
-          const span = e.currentTarget;
           
-          // Use browser's caret API for accurate multiline positioning
-          let charIndex = span.textContent?.length || 0;
+          const currentSpan = spanRef.current;
+          if (!currentSpan) return;
+          
+          const clickX = e.clientX;
+          const clickY = e.clientY;
+          
+          // Calculate cursor position at click point
+          let charIndex = currentSpan.textContent?.length || 0;
           
           // Helper to calculate text offset by walking the DOM tree
           const calculateTextOffset = (targetNode: Node, targetOffset: number): number => {
             const walker = document.createTreeWalker(
-              span,
+              currentSpan,
               NodeFilter.SHOW_TEXT,
               null
             );
@@ -1113,42 +1140,38 @@ export function InlineText(props: { value: string; placeholder?: string; onChang
           };
           
           if (document.caretRangeFromPoint) {
-            const range = document.caretRangeFromPoint(e.clientX, e.clientY);
+            const range = document.caretRangeFromPoint(clickX, clickY);
             if (range) {
               if (range.startContainer.nodeType === Node.TEXT_NODE) {
                 charIndex = calculateTextOffset(range.startContainer, range.startOffset);
               } else {
-                // If container is not a text node, try to find the text node
                 if (range.startContainer.childNodes.length > range.startOffset) {
                   const childNode = range.startContainer.childNodes[range.startOffset];
                   if (childNode && childNode.nodeType === Node.TEXT_NODE) {
                     charIndex = calculateTextOffset(childNode, 0);
                   } else {
-                    // Count all text before this position
                     const rangeFromStart = document.createRange();
-                    rangeFromStart.setStart(span, 0);
+                    rangeFromStart.setStart(currentSpan, 0);
                     rangeFromStart.setEnd(range.startContainer, range.startOffset);
                     charIndex = rangeFromStart.toString().length;
                   }
                 } else {
-                  // Count all text before this container
                   const rangeFromStart = document.createRange();
-                  rangeFromStart.setStart(span, 0);
+                  rangeFromStart.setStart(currentSpan, 0);
                   rangeFromStart.setEnd(range.startContainer, 0);
                   charIndex = rangeFromStart.toString().length;
                 }
               }
             }
           } else if (document.caretPositionFromPoint) {
-            const pos = document.caretPositionFromPoint(e.clientX, e.clientY);
+            const pos = document.caretPositionFromPoint(clickX, clickY);
             if (pos && pos.offsetNode) {
               if (pos.offsetNode.nodeType === Node.TEXT_NODE) {
                 charIndex = calculateTextOffset(pos.offsetNode, pos.offset);
               } else {
-                // Try to create a range to calculate offset
                 try {
                   const rangeFromStart = document.createRange();
-                  rangeFromStart.setStart(span, 0);
+                  rangeFromStart.setStart(currentSpan, 0);
                   if (pos.offsetNode.childNodes.length > pos.offset) {
                     const childNode = pos.offsetNode.childNodes[pos.offset];
                     if (childNode && childNode.nodeType === Node.TEXT_NODE) {
@@ -1166,30 +1189,29 @@ export function InlineText(props: { value: string; placeholder?: string; onChang
               }
             }
           } else {
-            // Fallback to canvas measurement for single-line (less accurate for multiline)
-            const text = span.textContent || '';
-            const rect = span.getBoundingClientRect();
-            const clickX = e.clientX - rect.left;
-            const clickY = e.clientY - rect.top;
-            const style = window.getComputedStyle(span);
+            // Fallback for multiline text
+            const text = currentSpan.textContent || '';
+            const rect = currentSpan.getBoundingClientRect();
+            const relativeX = clickX - rect.left;
+            const relativeY = clickY - rect.top;
+            const style = window.getComputedStyle(currentSpan);
             const font = `${style.fontSize} ${style.fontFamily}`;
             const lineHeight = parseFloat(style.lineHeight) || parseFloat(style.fontSize) * 1.2;
             const canvas = document.createElement('canvas');
             const context = canvas.getContext('2d');
             if (context) {
               context.font = font;
-              // For multiline, estimate which line and position
-              const lineNumber = Math.floor(clickY / lineHeight);
+              const lineNumber = Math.floor(relativeY / lineHeight);
               const lines = text.split('\n');
               let charCount = 0;
               for (let i = 0; i < lineNumber && i < lines.length; i++) {
-                charCount += lines[i].length + 1; // +1 for newline
+                charCount += lines[i].length + 1;
               }
               if (lineNumber < lines.length) {
                 const lineText = lines[lineNumber];
                 for (let i = 0; i < lineText.length; i++) {
                   const width = context.measureText(lineText.substring(0, i + 1)).width;
-                  if (width > clickX) {
+                  if (width > relativeX) {
                     charIndex = charCount + i;
                     break;
                   }
@@ -1203,41 +1225,16 @@ export function InlineText(props: { value: string; placeholder?: string; onChang
             }
           }
           
-          // Capture the span's height before switching to edit mode
-          // Use getBoundingClientRect for accurate height including padding/margins
-          const spanRect = span.getBoundingClientRect();
-          const computedStyle = window.getComputedStyle(span);
-          const spanHeight = spanRect.height || 
-            parseFloat(computedStyle.height) || 
-            span.scrollHeight;
-          // Use the maximum to ensure we capture full height
-          const finalHeight = Math.max(spanHeight, span.scrollHeight);
-          initialHeightRef.current = finalHeight;
-          console.log('[InlineText] Captured span height:', finalHeight, 'spanHeight:', spanHeight, 'scrollHeight:', span.scrollHeight);
-          
-          // Store cursor position before switching to edit mode
-          // Ensure charIndex is valid (not NaN or negative)
-          if (isNaN(charIndex) || charIndex < 0) {
-            charIndex = 0;
+          // Store cursor position (use cursorPositionRef for multiline, clickPositionRef for single-line)
+          if (props.multiline) {
+            cursorPositionRef.current = charIndex;
+          } else {
+            clickPositionRef.current = charIndex;
           }
-          cursorPositionRef.current = charIndex;
           
+          // Enter edit mode with correct cursor position
           setIsEditing(true);
           if (props.onEditingChange) props.onEditingChange(true);
-        }}
-        style={{ 
-          cursor: props.editable ? 'text' : 'default', 
-          display: 'block', 
-          whiteSpace: 'pre-wrap',
-          padding: 0,
-          margin: 0,
-          lineHeight: 'inherit',
-          fontFamily: 'inherit',
-          fontSize: 'inherit',
-          border: 'none',
-          outline: 'none',
-          boxShadow: 'none',
-          background: 'transparent'
         }}
       >
         {val ? val : <span style={{ opacity: 0.5 }}>{props.placeholder}</span>}

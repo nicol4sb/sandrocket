@@ -118,6 +118,7 @@ function SortableTask(props: {
   onSave?: () => void;
   onTab?: (shift: boolean) => void;
   textareaRef?: React.RefObject<HTMLTextAreaElement>;
+  activeId?: number | null;
 }) {
   const [isTaskEditing, setIsTaskEditing] = useState(false);
   const {
@@ -157,10 +158,8 @@ function SortableTask(props: {
         editable
         multiline
         className="content"
-        onClick={(e) => {
-          // Don't stop propagation - allow drag to work
-          // The InlineText component will handle edit mode internally
-        }}
+        dragListeners={isTaskEditing ? {} : listeners}
+        dragAttributes={attributes}
         onEditingChange={setIsTaskEditing}
         onSave={props.onSave}
         onTab={props.onTab}
@@ -216,9 +215,7 @@ export function EpicLane(props: {
   const sensors = useSensors(
     useSensor(PointerSensor, { 
       activationConstraint: { 
-        distance: 8,
-        // Better mobile support: allow touch activation
-        tolerance: 5
+        distance: 0, // No distance required - drag starts immediately on pointer down
       } 
     }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
@@ -372,6 +369,7 @@ export function EpicLane(props: {
                     }
                   }}
                   textareaRef={taskTextareaRefs.current.get(t.id)}
+                  activeId={activeId}
                 />
               ))}
               {/* Empty task placeholder */}
