@@ -803,6 +803,20 @@ export default function App() {
                     </div>
                   )}
                   
+                  {/* New Project button */}
+                  <div className="mobile-menu-section">
+                    <button
+                      type="button"
+                      className="mobile-menu-item"
+                      onClick={() => {
+                        setShowProjectModal(true);
+                        setShowMobileMenu(false);
+                      }}
+                    >
+                      + New Project
+                    </button>
+                  </div>
+                  
                   {/* Separator */}
                   <div className="mobile-menu-separator"></div>
                   

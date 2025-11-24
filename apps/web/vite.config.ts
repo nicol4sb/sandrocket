@@ -15,6 +15,18 @@ export default defineConfig({
     // Prioritize .tsx and .ts files over .js files
     extensions: ['.tsx', '.ts', '.jsx', '.js', '.json']
   },
+  build: {
+    rollupOptions: {
+      output: {
+        // Ensure all scripts are external files, not inline
+        inlineDynamicImports: false,
+      },
+    },
+    // Disable inline scripts in production
+    modulePreload: {
+      polyfill: false, // Disable the modulepreload polyfill that creates inline scripts
+    },
+  },
   server: {
     port: 3000,
     proxy: {

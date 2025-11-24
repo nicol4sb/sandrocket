@@ -106,7 +106,29 @@ const taskService = createTaskService({
 
 const app = express();
 
-app.use(helmet());
+// Configure CSP: allow unsafe-inline only in development (for Vite HMR)
+// In production, Vite is configured to not use inline scripts (modulePreload.polyfill: false)
+const isDevelopment = process.env.NODE_ENV !== 'production';
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: [
+        "'self'",
+        // Only allow unsafe-inline in development (Vite HMR needs it)
+        // Production builds should have no inline scripts after disabling modulePreload polyfill
+        ...(isDevelopment ? ["'unsafe-inline'"] : [])
+      ],
+      styleSrc: ["'self'", "'unsafe-inline'"], // CSS-in-JS may need this
+      imgSrc: ["'self'", "data:", "https:"],
+      connectSrc: ["'self'"],
+      fontSrc: ["'self'", "data:"],
+      objectSrc: ["'none'"],
+      mediaSrc: ["'self'"],
+      frameSrc: ["'none'"],
+    },
+  },
+}));
 // Block all crawlers and AI bots
 app.use((req, res, next) => {
   res.setHeader('X-Robots-Tag', 'noindex, nofollow, noarchive, nosnippet, noimageindex');
