@@ -1025,6 +1025,7 @@ main.dashboard > .app-header {
   padding: 0.875rem;
   background: #1e1e1e;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  font-size: inherit; /* Match task font size */
 }
 .epic-backlog input { 
   width: 100%; 
@@ -1061,6 +1062,9 @@ main.dashboard > .app-header {
   word-break: break-word;
   transition: all 0.2s ease;
   box-shadow: none;
+  font-family: inherit;
+  font-size: inherit;
+  line-height: inherit;
 }
 .epic-backlog textarea:focus {
   border: none;
@@ -2182,7 +2186,7 @@ footer {
   }
 
   .epic-backlog textarea {
-    font-size: 0.85rem;
+    font-size: inherit; /* Match task font size */
     padding: 0.4rem 0.6rem;
     min-height: 2rem;
   }
@@ -2304,7 +2308,7 @@ footer {
   }
 
   .epic-backlog textarea {
-    font-size: 0.8rem;
+    font-size: inherit; /* Match task .content font size */
     padding: 0.35rem 0.5rem;
   }
 
@@ -2316,6 +2320,10 @@ footer {
 
   .task .content {
     font-size: 0.8rem;
+  }
+  
+  .epic-backlog {
+    font-size: 0.85rem; /* Match .task font size so textarea inherits correctly */
   }
 
   .empty-task {
