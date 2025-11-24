@@ -2,7 +2,7 @@ import { z } from 'zod';
 
 export const createEpicRequestSchema = z.object({
   name: z.string().min(1, 'Epic name is required'),
-  description: z.string().max(1000).optional().nullable()
+  description: z.string().max(10000).optional().nullable() // Allow 2-3 pages of text (~3000-4500 chars per page)
 });
 export type CreateEpicRequest = z.infer<typeof createEpicRequestSchema>;
 
@@ -22,7 +22,7 @@ export interface ListEpicsResponse {
 
 export const updateEpicRequestSchema = z.object({
   name: z.string().min(1).optional(),
-  description: z.string().max(1000).nullable().optional()
+  description: z.string().max(10000).nullable().optional() // Allow 2-3 pages of text (~3000-4500 chars per page)
 });
 export type UpdateEpicRequest = z.infer<typeof updateEpicRequestSchema>;
 
