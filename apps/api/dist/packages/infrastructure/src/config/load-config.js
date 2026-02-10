@@ -1,7 +1,26 @@
-import { existsSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { existsSync, readFileSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
 import { config as loadEnv } from 'dotenv';
 import { z } from 'zod';
+function findProjectRoot(startPath = process.cwd()) {
+    let current = resolve(startPath);
+    while (current !== dirname(current)) {
+        const packageJsonPath = resolve(current, 'package.json');
+        if (existsSync(packageJsonPath)) {
+            try {
+                const packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf-8'));
+                if (packageJson.workspaces) {
+                    return current;
+                }
+            }
+            catch {
+                // continue searching
+            }
+        }
+        current = dirname(current);
+    }
+    return process.cwd();
+}
 const rawConfigSchema = z.object({
     NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
     PORT: z.coerce.number().int().positive().max(65535).default(9000),
@@ -21,7 +40,10 @@ const rawConfigSchema = z.object({
     SESSION_COOKIE_NAME: z.string().min(1).default('sandrocket_session'),
     SESSION_COOKIE_SECURE: z.coerce.boolean().optional().default(false),
     CORS_ALLOWLIST: z.string().optional(),
-    CLIENT_ORIGIN: z.string().optional()
+    CLIENT_ORIGIN: z.string().optional(),
+    UPLOAD_DIR: z.string().min(1).default('uploads/documents'),
+    MAX_FILE_SIZE_MB: z.coerce.number().positive().default(10),
+    MAX_PROJECT_STORAGE_MB: z.coerce.number().positive().default(200)
 });
 const DEFAULT_ENV_FILES = ['.env', '.env.local'];
 export function loadConfig(options = {}) {
@@ -97,6 +119,11 @@ export function loadConfig(options = {}) {
         },
         frontend: {
             origin: values.CLIENT_ORIGIN
+        },
+        uploads: {
+            dir: resolve(findProjectRoot(), values.UPLOAD_DIR),
+            maxFileSizeBytes: values.MAX_FILE_SIZE_MB * 1024 * 1024,
+            maxProjectStorageBytes: values.MAX_PROJECT_STORAGE_MB * 1024 * 1024
         }
     };
 }

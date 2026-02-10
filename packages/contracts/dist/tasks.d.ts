@@ -38,9 +38,9 @@ export declare const taskSchema: z.ZodObject<{
     lastEditedByUserId: z.ZodNullable<z.ZodNumber>;
 }, "strip", z.ZodTypeAny, {
     status: "backlog" | "in_progress" | "done";
-    description: string;
     id: number;
     createdAt: string;
+    description: string;
     updatedAt: string;
     epicId: number;
     position: number;
@@ -48,9 +48,9 @@ export declare const taskSchema: z.ZodObject<{
     lastEditedByUserId: number | null;
 }, {
     status: "backlog" | "in_progress" | "done";
-    description: string;
     id: number;
     createdAt: string;
+    description: string;
     updatedAt: string;
     epicId: number;
     position: number;

@@ -33,6 +33,11 @@ export interface AppConfig {
     frontend: {
         origin?: string;
     };
+    uploads: {
+        dir: string;
+        maxFileSizeBytes: number;
+        maxProjectStorageBytes: number;
+    };
 }
 export interface LoadConfigOptions {
     /**

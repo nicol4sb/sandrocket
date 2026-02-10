@@ -7,12 +7,13 @@ import cors from 'cors';
 import express from 'express';
 import helmet from 'helmet';
 import morgan from 'morgan';
+import multer from 'multer';
 import { AuthError, createAuthService } from '@sandrocket/core';
 import { BcryptPasswordHasher, JwtTokenService, SqliteUserRepository, initializeSqliteDatabase, loadConfig } from '@sandrocket/infrastructure';
 import { createProjectService, createInvitationService } from '@sandrocket/core';
-import { SqliteProjectRepository, SqliteProjectMemberRepository, SqliteProjectInvitationRepository, SqliteEpicRepository } from '@sandrocket/infrastructure';
+import { SqliteProjectRepository, SqliteProjectMemberRepository, SqliteProjectInvitationRepository, SqliteEpicRepository, SqliteDocumentRepository, SqliteDocumentActivityRepository } from '@sandrocket/infrastructure';
 import { createProjectRequestSchema, updateProjectRequestSchema, acceptInvitationRequestSchema } from '@sandrocket/contracts';
-import { createEpicService } from '@sandrocket/core';
+import { createEpicService, createDocumentService } from '@sandrocket/core';
 import { createEpicRequestSchema, updateEpicRequestSchema } from '@sandrocket/contracts';
 import { createTaskService } from '@sandrocket/core';
 import { SqliteTaskRepository } from '@sandrocket/infrastructure';
@@ -49,6 +50,32 @@ const epicService = createEpicService({
 const taskService = createTaskService({
     tasks: new SqliteTaskRepository(database)
 });
+const documentRepository = new SqliteDocumentRepository(database);
+const documentActivityRepository = new SqliteDocumentActivityRepository(database);
+const documentService = createDocumentService({
+    documents: documentRepository,
+    activity: documentActivityRepository,
+    config: {
+        uploadDir: config.uploads.dir,
+        maxFileSizeBytes: config.uploads.maxFileSizeBytes,
+        maxProjectStorageBytes: config.uploads.maxProjectStorageBytes
+    }
+});
+const upload = multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: config.uploads.maxFileSizeBytes }
+});
+// Simple in-memory user display name cache for document responses
+const userDisplayNameCache = new Map();
+async function getUserDisplayName(userId) {
+    if (userDisplayNameCache.has(userId)) {
+        return userDisplayNameCache.get(userId);
+    }
+    const user = await authService.getUser(userId);
+    const name = user?.displayName ?? 'Unknown';
+    userDisplayNameCache.set(userId, name);
+    return name;
+}
 const app = express();
 // Configure CSP: allow unsafe-inline only in development (for Vite HMR)
 // In production, Vite is configured to not use inline scripts (modulePreload.polyfill: false)
@@ -591,6 +618,167 @@ app.delete('/api/tasks/:taskId', asyncHandler(async (req, res) => {
     const deleted = await taskService.deleteTask(taskIdNum);
     if (!deleted) {
         res.status(404).json({ error: 'not-found', message: 'Task not found' });
+        return;
+    }
+    res.status(204).send();
+}));
+// Documents API
+app.post('/api/projects/:projectId/documents', upload.single('file'), asyncHandler(async (req, res) => {
+    const token = req.cookies[config.security.sessionCookieName];
+    if (!token) {
+        res.status(401).json({ error: 'auth/no-token', message: 'No token' });
+        return;
+    }
+    const payload = await tokenService.verifyToken(token);
+    const { projectId } = req.params;
+    const projectIdNum = Number(projectId);
+    // Verify membership
+    const member = await projectMemberRepository.findByProjectAndUser(projectIdNum, payload.userId);
+    if (!member) {
+        res.status(403).json({ error: 'forbidden', message: 'Not a member of this project' });
+        return;
+    }
+    const file = req.file;
+    if (!file) {
+        res.status(400).json({ error: 'validation-error', message: 'No file provided' });
+        return;
+    }
+    try {
+        const doc = await documentService.upload(projectIdNum, payload.userId, {
+            originalname: file.originalname,
+            mimetype: file.mimetype,
+            buffer: file.buffer,
+            size: file.size
+        });
+        const uploaderName = await getUserDisplayName(payload.userId);
+        const response = {
+            id: doc.id,
+            projectId: doc.projectId,
+            originalFilename: doc.originalFilename,
+            mimeType: doc.mimeType,
+            sizeBytes: doc.sizeBytes,
+            uploaderUserId: doc.uploaderUserId,
+            uploaderDisplayName: uploaderName,
+            createdAt: doc.createdAt.toISOString()
+        };
+        res.status(201).json(response);
+    }
+    catch (error) {
+        if (error instanceof Error && (error.message.includes('limit') || error.message.includes('exceeds'))) {
+            res.status(413).json({ error: 'file-too-large', message: error.message });
+            return;
+        }
+        throw error;
+    }
+}));
+app.get('/api/projects/:projectId/documents', asyncHandler(async (req, res) => {
+    const token = req.cookies[config.security.sessionCookieName];
+    if (!token) {
+        res.status(401).json({ error: 'auth/no-token', message: 'No token' });
+        return;
+    }
+    const payload = await tokenService.verifyToken(token);
+    const { projectId } = req.params;
+    const projectIdNum = Number(projectId);
+    const member = await projectMemberRepository.findByProjectAndUser(projectIdNum, payload.userId);
+    if (!member) {
+        res.status(403).json({ error: 'forbidden', message: 'Not a member of this project' });
+        return;
+    }
+    const { documents, totalSizeBytes } = await documentService.list(projectIdNum);
+    const activity = await documentService.getActivity(projectIdNum);
+    const documentResponses = await Promise.all(documents.map(async (doc) => ({
+        id: doc.id,
+        projectId: doc.projectId,
+        originalFilename: doc.originalFilename,
+        mimeType: doc.mimeType,
+        sizeBytes: doc.sizeBytes,
+        uploaderUserId: doc.uploaderUserId,
+        uploaderDisplayName: await getUserDisplayName(doc.uploaderUserId),
+        createdAt: doc.createdAt.toISOString()
+    })));
+    const activityResponses = await Promise.all(activity.map(async (a) => ({
+        id: a.id,
+        action: a.action,
+        filename: a.filename,
+        userDisplayName: await getUserDisplayName(a.userId),
+        createdAt: a.createdAt.toISOString()
+    })));
+    const body = {
+        documents: documentResponses,
+        activity: activityResponses,
+        totalSizeBytes,
+        maxSizeBytes: config.uploads.maxProjectStorageBytes
+    };
+    res.json(body);
+}));
+app.get('/api/documents/:documentId/view', asyncHandler(async (req, res) => {
+    const token = req.cookies[config.security.sessionCookieName];
+    if (!token) {
+        res.status(401).json({ error: 'auth/no-token', message: 'No token' });
+        return;
+    }
+    const payload = await tokenService.verifyToken(token);
+    const { documentId } = req.params;
+    const result = await documentService.getFile(Number(documentId));
+    if (!result) {
+        res.status(404).json({ error: 'not-found', message: 'Document not found' });
+        return;
+    }
+    const member = await projectMemberRepository.findByProjectAndUser(result.document.projectId, payload.userId);
+    if (!member) {
+        res.status(403).json({ error: 'forbidden', message: 'Not a member of this project' });
+        return;
+    }
+    res.setHeader('Content-Type', result.document.mimeType);
+    res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(result.document.originalFilename)}"`);
+    res.sendFile(resolve(result.filePath));
+}));
+app.get('/api/documents/:documentId/download', asyncHandler(async (req, res) => {
+    const token = req.cookies[config.security.sessionCookieName];
+    if (!token) {
+        res.status(401).json({ error: 'auth/no-token', message: 'No token' });
+        return;
+    }
+    const payload = await tokenService.verifyToken(token);
+    const { documentId } = req.params;
+    const result = await documentService.getFile(Number(documentId));
+    if (!result) {
+        res.status(404).json({ error: 'not-found', message: 'Document not found' });
+        return;
+    }
+    const member = await projectMemberRepository.findByProjectAndUser(result.document.projectId, payload.userId);
+    if (!member) {
+        res.status(403).json({ error: 'forbidden', message: 'Not a member of this project' });
+        return;
+    }
+    res.setHeader('Content-Type', result.document.mimeType);
+    res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(result.document.originalFilename)}"`);
+    res.sendFile(resolve(result.filePath));
+}));
+app.delete('/api/documents/:documentId', asyncHandler(async (req, res) => {
+    const token = req.cookies[config.security.sessionCookieName];
+    if (!token) {
+        res.status(401).json({ error: 'auth/no-token', message: 'No token' });
+        return;
+    }
+    const payload = await tokenService.verifyToken(token);
+    const { documentId } = req.params;
+    const docId = Number(documentId);
+    // Get the document to check project membership
+    const result = await documentService.getFile(docId);
+    if (!result) {
+        res.status(404).json({ error: 'not-found', message: 'Document not found' });
+        return;
+    }
+    const member = await projectMemberRepository.findByProjectAndUser(result.document.projectId, payload.userId);
+    if (!member) {
+        res.status(403).json({ error: 'forbidden', message: 'Not a member of this project' });
+        return;
+    }
+    const deleted = await documentService.deleteDocument(docId, payload.userId);
+    if (!deleted) {
+        res.status(404).json({ error: 'not-found', message: 'Document not found' });
         return;
     }
     res.status(204).send();

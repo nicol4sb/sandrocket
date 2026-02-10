@@ -10,3 +10,6 @@ export * from './epics/service.js';
 export * from './tasks/types.js';
 export * from './tasks/ports.js';
 export * from './tasks/service.js';
+export * from './documents/types.js';
+export * from './documents/ports.js';
+export * from './documents/service.js';

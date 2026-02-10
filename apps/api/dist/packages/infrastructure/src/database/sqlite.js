@@ -127,6 +127,32 @@ export function initializeSqliteDatabase(options) {
     CREATE INDEX IF NOT EXISTS idx_project_members_user_id ON project_members(user_id);
     CREATE INDEX IF NOT EXISTS idx_project_members_project_id ON project_members(project_id);
     CREATE INDEX IF NOT EXISTS idx_project_invitations_token ON project_invitations(token);
+    CREATE TABLE IF NOT EXISTS project_documents (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      project_id INTEGER NOT NULL,
+      uploader_user_id INTEGER NOT NULL,
+      original_filename TEXT NOT NULL,
+      stored_filename TEXT NOT NULL UNIQUE,
+      mime_type TEXT NOT NULL,
+      size_bytes INTEGER NOT NULL,
+      created_at TEXT NOT NULL,
+      FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+      FOREIGN KEY (uploader_user_id) REFERENCES users(id) ON DELETE CASCADE
+    );
+    CREATE INDEX IF NOT EXISTS idx_project_documents_project ON project_documents(project_id, created_at DESC);
+    CREATE TABLE IF NOT EXISTS document_activity_log (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      document_id INTEGER,
+      project_id INTEGER NOT NULL,
+      user_id INTEGER NOT NULL,
+      action TEXT NOT NULL,
+      filename TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      FOREIGN KEY (document_id) REFERENCES project_documents(id) ON DELETE SET NULL,
+      FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    );
+    CREATE INDEX IF NOT EXISTS idx_doc_activity_project ON document_activity_log(project_id, created_at DESC);
   `);
     // Migration: Add creator_user_id column and/or remove title column if needed
     try {
