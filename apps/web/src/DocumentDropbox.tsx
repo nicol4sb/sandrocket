@@ -92,9 +92,9 @@ export function DocumentDropbox({ projectId, baseUrl }: DocumentDropboxProps) {
   }, [showActivity]);
 
   const uploadFile = async (file: File) => {
-    const maxFileSize = 10 * 1024 * 1024; // 10MB client-side check
+    const maxFileSize = 50 * 1024 * 1024; // 50MB client-side check
     if (file.size > maxFileSize) {
-      setError(`File "${file.name}" exceeds the 10MB limit (${formatBytes(file.size)})`);
+      setError(`File "${file.name}" exceeds the 50MB limit (${formatBytes(file.size)})`);
       return;
     }
 
@@ -270,7 +270,7 @@ export function DocumentDropbox({ projectId, baseUrl }: DocumentDropboxProps) {
             Drop files here or click to browse
           </span>
         )}
-        <span className="doc-dropzone-hint">Max 10MB per file</span>
+        <span className="doc-dropzone-hint">Max 50MB per file</span>
       </div>
 
       {error && (
