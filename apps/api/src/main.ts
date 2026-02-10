@@ -794,9 +794,13 @@ app.post(
       return;
     }
 
+    // Multer decodes multipart filenames as Latin-1; re-decode as UTF-8
+    // so accented characters (éàè etc.) are preserved correctly.
+    const originalname = Buffer.from(file.originalname, 'latin1').toString('utf8');
+
     try {
       const doc = await documentService.upload(projectIdNum, payload.userId, {
-        originalname: file.originalname,
+        originalname,
         mimetype: file.mimetype,
         buffer: file.buffer,
         size: file.size
@@ -900,7 +904,8 @@ app.get(
     }
 
     res.setHeader('Content-Type', result.document.mimeType);
-    res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(result.document.originalFilename)}"`);
+    const asciiName = result.document.originalFilename.replace(/[^\x20-\x7E]/g, '_');
+    res.setHeader('Content-Disposition', `inline; filename="${asciiName}"; filename*=UTF-8''${encodeURIComponent(result.document.originalFilename)}`);
     res.sendFile(resolve(result.filePath));
   })
 );
@@ -928,7 +933,8 @@ app.get(
     }
 
     res.setHeader('Content-Type', result.document.mimeType);
-    res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(result.document.originalFilename)}"`);
+    const asciiName = result.document.originalFilename.replace(/[^\x20-\x7E]/g, '_');
+    res.setHeader('Content-Disposition', `attachment; filename="${asciiName}"; filename*=UTF-8''${encodeURIComponent(result.document.originalFilename)}`);
     res.sendFile(resolve(result.filePath));
   })
 );

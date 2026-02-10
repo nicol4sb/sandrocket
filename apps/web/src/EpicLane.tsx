@@ -313,7 +313,7 @@ export function EpicLane(props: {
         </div>
         <DroppableZone id="drop-tasks" className="task-drop-zone">
           <SortableContext items={taskIds} strategy={verticalListSortingStrategy}>
-            <ul style={{ listStyle: 'none', padding: 0, margin: 0, minHeight: '60px' }}>
+            <ul style={{ listStyle: 'none', padding: 0, margin: 0, minHeight: '30px' }}>
               {sortedTasks.map((t, index) => (
                 <SortableTask
                   key={t.id}
