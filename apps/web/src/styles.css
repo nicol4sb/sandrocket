@@ -2618,9 +2618,9 @@ footer {
 
 /* File list */
 .doc-file-list {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 0.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
 }
 
 .doc-file-row {
@@ -2654,9 +2654,7 @@ footer {
 .doc-file-name {
   font-size: 0.8rem;
   color: #e0e0e0;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  word-break: break-word;
 }
 
 .doc-file-meta {
