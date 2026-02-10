@@ -13,7 +13,7 @@ Sand Rocket is a collaborative task planning app with a Tintin-rocket personalit
 
 ## Quick Start
 
-1. Install dependencies: `npm install` --
+1. Install dependencies: `npm install`
 2. (Optional) Copy `.env.example` to `.env` at the repo root and adjust values
 3. Development (HMR): `npm run dev`
    - Frontend at `http://localhost:5173` (Vite, hot reload)
