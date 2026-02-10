@@ -42,7 +42,7 @@ const rawConfigSchema = z.object({
     CORS_ALLOWLIST: z.string().optional(),
     CLIENT_ORIGIN: z.string().optional(),
     UPLOAD_DIR: z.string().min(1).default('uploads/documents'),
-    MAX_FILE_SIZE_MB: z.coerce.number().positive().default(10),
+    MAX_FILE_SIZE_MB: z.coerce.number().positive().default(50),
     MAX_PROJECT_STORAGE_MB: z.coerce.number().positive().default(200)
 });
 const DEFAULT_ENV_FILES = ['.env', '.env.local'];
