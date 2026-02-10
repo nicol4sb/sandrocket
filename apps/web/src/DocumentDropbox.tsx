@@ -220,6 +220,10 @@ export function DocumentDropbox({ projectId, baseUrl }: DocumentDropboxProps) {
     window.open(`${baseUrl}/documents/${docId}/download`, '_blank');
   };
 
+  const handleExport = () => {
+    window.open(`${baseUrl}/projects/${projectId}/export`, '_blank');
+  };
+
   const usedPercent = maxSizeBytes > 0 ? Math.min((totalSizeBytes / maxSizeBytes) * 100, 100) : 0;
 
   return (
@@ -227,6 +231,18 @@ export function DocumentDropbox({ projectId, baseUrl }: DocumentDropboxProps) {
       <div className="doc-dropbox-header">
         <h3 className="doc-dropbox-title">Documents</h3>
         <div className="doc-dropbox-header-actions">
+          <button
+            type="button"
+            className="doc-export-btn"
+            onClick={handleExport}
+            title="Download project backup (zip)"
+          >
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+              <path d="M2 10v3a1 1 0 001 1h10a1 1 0 001-1v-3" />
+              <path d="M8 2v8M4.5 7.5 8 11l3.5-3.5" />
+            </svg>
+            <span>Backup</span>
+          </button>
           {activity.length > 0 && (
             <div className="doc-activity-container" ref={activityRef}>
               <button

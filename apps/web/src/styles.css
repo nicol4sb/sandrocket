@@ -2703,6 +2703,25 @@ footer {
   position: relative;
 }
 
+.doc-export-btn {
+  background: none;
+  border: 1px solid #444;
+  cursor: pointer;
+  padding: 0.2rem 0.5rem;
+  border-radius: 0.375rem;
+  color: #888;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.7rem;
+  transition: all 150ms ease;
+}
+.doc-export-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #e0e0e0;
+  border-color: #666;
+}
+
 .doc-activity-btn {
   background: none;
   border: none;
