@@ -151,7 +151,7 @@ app.use(helmet({
         ...(isDevelopment ? ["'unsafe-inline'"] : [])
       ],
       styleSrc: ["'self'", "'unsafe-inline'"], // CSS-in-JS may need this
-      imgSrc: ["'self'", "data:", "https:"],
+      imgSrc: ["'self'", "data:", "blob:", "https:"],
       connectSrc: ["'self'"],
       fontSrc: ["'self'", "data:"],
       objectSrc: ["'none'"],
