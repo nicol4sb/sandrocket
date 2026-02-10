@@ -8,4 +8,6 @@ export * from './projects/sqlite-project-member-repository.js';
 export * from './projects/sqlite-project-invitation-repository.js';
 export * from './epics/sqlite-epic-repository.js';
 export * from './tasks/sqlite-task-repository.js';
+export * from './documents/sqlite-document-repository.js';
+export * from './documents/sqlite-document-activity-repository.js';
 

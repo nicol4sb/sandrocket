@@ -1,7 +1,26 @@
-import { existsSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { existsSync, readFileSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
 import { config as loadEnv } from 'dotenv';
 import { z } from 'zod';
+
+function findProjectRoot(startPath: string = process.cwd()): string {
+  let current = resolve(startPath);
+  while (current !== dirname(current)) {
+    const packageJsonPath = resolve(current, 'package.json');
+    if (existsSync(packageJsonPath)) {
+      try {
+        const packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf-8'));
+        if (packageJson.workspaces) {
+          return current;
+        }
+      } catch {
+        // continue searching
+      }
+    }
+    current = dirname(current);
+  }
+  return process.cwd();
+}
 
 export type AuthProvider = 'firebase' | 'firebase-emulator' | 'mock';
 
@@ -40,6 +59,11 @@ export interface AppConfig {
   frontend: {
     origin?: string;
   };
+  uploads: {
+    dir: string;
+    maxFileSizeBytes: number;
+    maxProjectStorageBytes: number;
+  };
 }
 
 const rawConfigSchema = z.object({
@@ -61,7 +85,10 @@ const rawConfigSchema = z.object({
   SESSION_COOKIE_NAME: z.string().min(1).default('sandrocket_session'),
   SESSION_COOKIE_SECURE: z.coerce.boolean().optional().default(false),
   CORS_ALLOWLIST: z.string().optional(),
-  CLIENT_ORIGIN: z.string().optional()
+  CLIENT_ORIGIN: z.string().optional(),
+  UPLOAD_DIR: z.string().min(1).default('uploads/documents'),
+  MAX_FILE_SIZE_MB: z.coerce.number().positive().default(10),
+  MAX_PROJECT_STORAGE_MB: z.coerce.number().positive().default(200)
 });
 
 export interface LoadConfigOptions {
@@ -168,6 +195,11 @@ export function loadConfig(options: LoadConfigOptions = {}): AppConfig {
     },
     frontend: {
       origin: values.CLIENT_ORIGIN
+    },
+    uploads: {
+      dir: resolve(findProjectRoot(), values.UPLOAD_DIR),
+      maxFileSizeBytes: values.MAX_FILE_SIZE_MB * 1024 * 1024,
+      maxProjectStorageBytes: values.MAX_PROJECT_STORAGE_MB * 1024 * 1024
     }
   };
 }

@@ -35,6 +35,9 @@ yarn-error.log*
 *.db-shm
 *.db-wal
 
+# Uploaded documents
+uploads/
+
 # SSL Certificates
 *.pem
 cert.conf

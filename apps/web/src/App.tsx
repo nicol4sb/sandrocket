@@ -23,6 +23,7 @@ import { AuthSuccessResponse, ListProjectsResponse, TaskResponse } from '@sandro
 import { Login } from './components/Login';
 import { Modal } from './components/Modal';
 import { EpicLane } from './EpicLane';
+import { DocumentDropbox } from './DocumentDropbox';
 import './styles.css';
 
 const DEFAULT_BASE_URL = '/api';
@@ -862,23 +863,28 @@ export default function App() {
         {!current ? (
           <div className="card">No project selected</div>
         ) : (
-          <div className="epic-columns">
-            {(epicsByProject[current.id] ?? []).map((e) => (
-              <EpicLane
-                key={e.id}
-                epic={e}
-                tasks={tasksByEpic[e.id] ?? []}
-                baseUrl={baseUrl}
-                onInlineUpdate={(id, fields) => updateTask(id, fields)}
-                onReorder={(taskId, position) => reorderTask(taskId, e.id, position)}
-                onDeleteTask={(id) => deleteTask(id)}
-                onCreateTask={(epicId, description) => createTask(epicId, description)}
-                onEpicUpdate={(id, fields) => updateEpic(id, fields)}
-                onDeleteEpic={(id) => deleteEpic(id)}
-                currentUserId={auth.user.id}
-              />
-            ))}
-          </div>
+          <>
+            <div className="epic-columns">
+              {(epicsByProject[current.id] ?? []).map((e) => (
+                <EpicLane
+                  key={e.id}
+                  epic={e}
+                  tasks={tasksByEpic[e.id] ?? []}
+                  baseUrl={baseUrl}
+                  onInlineUpdate={(id, fields) => updateTask(id, fields)}
+                  onReorder={(taskId, position) => reorderTask(taskId, e.id, position)}
+                  onDeleteTask={(id) => deleteTask(id)}
+                  onCreateTask={(epicId, description) => createTask(epicId, description)}
+                  onEpicUpdate={(id, fields) => updateEpic(id, fields)}
+                  onDeleteEpic={(id) => deleteEpic(id)}
+                  currentUserId={auth.user.id}
+                />
+              ))}
+            </div>
+            <div className="doc-dropbox-section">
+              <DocumentDropbox projectId={current.id} baseUrl={baseUrl} />
+            </div>
+          </>
         )}
       </section>
 
