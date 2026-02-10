@@ -52,6 +52,8 @@ export function DocumentDropbox({ projectId, baseUrl }: DocumentDropboxProps) {
   const [maxSizeBytes, setMaxSizeBytes] = useState(200 * 1024 * 1024);
   const [isDragOver, setIsDragOver] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0); // 0-100
+  const [uploadFileName, setUploadFileName] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [showActivity, setShowActivity] = useState(false);
   const [viewingDoc, setViewingDoc] = useState<DocumentResponse | null>(null);
@@ -91,7 +93,7 @@ export function DocumentDropbox({ projectId, baseUrl }: DocumentDropboxProps) {
     return () => document.removeEventListener('mousedown', handleClick);
   }, [showActivity]);
 
-  const uploadFile = async (file: File) => {
+  const uploadFile = (file: File) => {
     const maxFileSize = 50 * 1024 * 1024; // 50MB client-side check
     if (file.size > maxFileSize) {
       setError(`File "${file.name}" exceeds the 50MB limit (${formatBytes(file.size)})`);
@@ -99,26 +101,47 @@ export function DocumentDropbox({ projectId, baseUrl }: DocumentDropboxProps) {
     }
 
     setUploading(true);
+    setUploadProgress(0);
+    setUploadFileName(file.name);
     setError(null);
-    try {
-      const formData = new FormData();
-      formData.append('file', file);
-      const res = await fetch(`${baseUrl}/projects/${projectId}/documents`, {
-        method: 'POST',
-        credentials: 'include',
-        body: formData
-      });
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({ message: 'Upload failed' }));
-        setError(data.message || 'Upload failed');
-        return;
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const xhr = new XMLHttpRequest();
+    xhr.withCredentials = true;
+
+    xhr.upload.addEventListener('progress', (e) => {
+      if (e.lengthComputable) {
+        setUploadProgress(Math.round((e.loaded / e.total) * 100));
       }
-      await fetchDocuments();
-    } catch {
-      setError('Upload failed');
-    } finally {
+    });
+
+    xhr.addEventListener('load', () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        fetchDocuments();
+      } else {
+        try {
+          const data = JSON.parse(xhr.responseText);
+          setError(data.message || 'Upload failed');
+        } catch {
+          setError('Upload failed');
+        }
+      }
       setUploading(false);
-    }
+      setUploadProgress(0);
+      setUploadFileName(null);
+    });
+
+    xhr.addEventListener('error', () => {
+      setError('Upload failed');
+      setUploading(false);
+      setUploadProgress(0);
+      setUploadFileName(null);
+    });
+
+    xhr.open('POST', `${baseUrl}/projects/${projectId}/documents`);
+    xhr.send(formData);
   };
 
   const handleDrop = (e: React.DragEvent) => {
@@ -264,7 +287,17 @@ export function DocumentDropbox({ projectId, baseUrl }: DocumentDropboxProps) {
           style={{ display: 'none' }}
         />
         {uploading ? (
-          <span className="doc-dropzone-text">Uploading...</span>
+          <>
+            <span className="doc-dropzone-text">
+              Uploading {uploadFileName ? `"${uploadFileName}"` : ''}… {uploadProgress}%
+            </span>
+            <div className="doc-upload-progress-track">
+              <div
+                className="doc-upload-progress-fill"
+                style={{ width: `${uploadProgress}%` }}
+              />
+            </div>
+          </>
         ) : (
           <span className="doc-dropzone-text">
             Drop files here or click to browse
