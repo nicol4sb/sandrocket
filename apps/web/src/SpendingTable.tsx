@@ -83,7 +83,7 @@ function exportSpendingToExcel(
   projectName: string
 ) {
   const rows: (string | number)[][] = [
-    ['Date', 'Description', 'Bank', 'Amount'],
+    ['Payment date', 'Description', 'Bank', 'Amount'],
     ...entries.map((e) => [e.entryDate, e.description, e.bank, e.amount]),
     ['', '', 'Total', totalAmount]
   ];
@@ -318,7 +318,7 @@ export function SpendingTable({ projectId, projectName, baseUrl }: SpendingTable
             <table className="spending-table">
               <thead>
                 <tr>
-                  <th className="spending-col-date">Date <span className="spending-col-optional">(optional)</span></th>
+                  <th className="spending-col-date">Payment date <span className="spending-col-optional">(optional)</span></th>
                   <th>Description</th>
                   <th className="spending-col-bank">Bank</th>
                   <th className="spending-col-amount">Amount</th>
