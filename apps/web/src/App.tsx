@@ -865,26 +865,28 @@ export default function App() {
           <div className="card">No project selected</div>
         ) : (
           <>
-            <div className="epic-columns">
-              {(epicsByProject[current.id] ?? []).map((e) => (
-                <EpicLane
-                  key={e.id}
-                  epic={e}
-                  tasks={tasksByEpic[e.id] ?? []}
-                  baseUrl={baseUrl}
-                  onInlineUpdate={(id, fields) => updateTask(id, fields)}
-                  onReorder={(taskId, position) => reorderTask(taskId, e.id, position)}
-                  onDeleteTask={(id) => deleteTask(id)}
-                  onCreateTask={(epicId, description) => createTask(epicId, description)}
-                  onEpicUpdate={(id, fields) => updateEpic(id, fields)}
-                  onDeleteEpic={(id) => deleteEpic(id)}
-                  currentUserId={auth.user.id}
-                />
-              ))}
-            </div>
-            <SpendingTable projectId={current.id} projectName={current.name} baseUrl={baseUrl} />
-            <div className="doc-dropbox-section">
-              <DocumentDropbox projectId={current.id} baseUrl={baseUrl} />
+            <div className="board-layout">
+              <SpendingTable projectId={current.id} projectName={current.name} baseUrl={baseUrl} />
+              <div className="epic-columns">
+                {(epicsByProject[current.id] ?? []).map((e) => (
+                  <EpicLane
+                    key={e.id}
+                    epic={e}
+                    tasks={tasksByEpic[e.id] ?? []}
+                    baseUrl={baseUrl}
+                    onInlineUpdate={(id, fields) => updateTask(id, fields)}
+                    onReorder={(taskId, position) => reorderTask(taskId, e.id, position)}
+                    onDeleteTask={(id) => deleteTask(id)}
+                    onCreateTask={(epicId, description) => createTask(epicId, description)}
+                    onEpicUpdate={(id, fields) => updateEpic(id, fields)}
+                    onDeleteEpic={(id) => deleteEpic(id)}
+                    currentUserId={auth.user.id}
+                  />
+                ))}
+              </div>
+              <div className="doc-dropbox-section">
+                <DocumentDropbox projectId={current.id} baseUrl={baseUrl} />
+              </div>
             </div>
           </>
         )}

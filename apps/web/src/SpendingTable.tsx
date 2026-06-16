@@ -65,6 +65,25 @@ function exportSpendingToExcel(
   XLSX.writeFile(workbook, `${safeFilename(projectName)}-spending.xlsx`);
 }
 
+function SpendingCaret({ open }: { open: boolean }) {
+  return (
+    <svg
+      className={`spending-caret${open ? ' spending-caret-open' : ''}`}
+      width="12"
+      height="12"
+      viewBox="0 0 12 12"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+    >
+      <path d="M3 4.5 6 7.5 9 4.5" />
+    </svg>
+  );
+}
+
 export function SpendingTable({ projectId, projectName, baseUrl }: SpendingTableProps) {
   const [visible, setVisible] = useState(false);
   const [entries, setEntries] = useState<SpendingEntryResponse[]>([]);
@@ -183,116 +202,121 @@ export function SpendingTable({ projectId, projectName, baseUrl }: SpendingTable
     return null;
   }
 
-  if (!visible) {
-    return (
-      <div className="spending-section">
-        <div className="spending-collapsed">
-          <div className="spending-collapsed-text">
-            <span className="spending-collapsed-icon">€</span>
-            <span>Track project spending</span>
-          </div>
-          <button
-            type="button"
-            className="spending-show-btn"
-            onClick={() => void setVisibility(true)}
-            disabled={saving}
-          >
-            Show
-          </button>
-        </div>
-      </div>
-    );
-  }
+  const toggleVisibility = () => {
+    void setVisibility(!visible);
+  };
 
   return (
     <div className="spending-section">
-      <div className="spending-panel">
-        <div className="spending-header">
-          <h3 className="spending-title">Spending</h3>
+      <div className={`spending-accordion${visible ? ' spending-accordion-open' : ''}`}>
+        <div className="spending-accordion-header">
+          <button
+            type="button"
+            className="spending-toggle"
+            onClick={toggleVisibility}
+            disabled={saving}
+            aria-expanded={visible}
+            title={visible ? 'Hide spending' : 'Show spending'}
+          >
+            <span className="spending-toggle-icon">€</span>
+            <span className="spending-toggle-label">Spending</span>
+            {!visible && entries.length > 0 && (
+              <span className="spending-toggle-summary">{formatAmount(totalAmount)}</span>
+            )}
+          </button>
           <div className="spending-header-actions">
+            {visible && (
+              <button
+                type="button"
+                className="spending-export-btn"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  exportSpendingToExcel(entries, totalAmount, projectName);
+                }}
+                disabled={entries.length === 0}
+                title="Export spending to Excel"
+              >
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+                  <path d="M2 10v3a1 1 0 001 1h10a1 1 0 001-1v-3" />
+                  <path d="M8 2v8M4.5 7.5 8 11l3.5-3.5M2 13h10" />
+                </svg>
+                <span>Excel</span>
+              </button>
+            )}
             <button
               type="button"
-              className="spending-export-btn"
-              onClick={() => exportSpendingToExcel(entries, totalAmount, projectName)}
-              disabled={entries.length === 0}
-              title="Export spending to Excel"
-            >
-              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
-                <path d="M2 10v3a1 1 0 001 1h10a1 1 0 001-1v-3" />
-                <path d="M8 2v8M4.5 7.5 8 11l3.5-3.5M2 13h10" />
-              </svg>
-              <span>Excel</span>
-            </button>
-            <button
-              type="button"
-              className="spending-hide-btn"
-              onClick={() => void setVisibility(false)}
+              className="spending-caret-btn"
+              onClick={toggleVisibility}
               disabled={saving}
-              title="Hide spending table"
+              aria-expanded={visible}
+              aria-label={visible ? 'Hide spending' : 'Show spending'}
+              title={visible ? 'Hide spending' : 'Show spending'}
             >
-              Hide
+              <SpendingCaret open={visible} />
             </button>
           </div>
         </div>
 
-        <div className="spending-table-wrap">
-          <table className="spending-table">
-            <thead>
-              <tr>
-                <th>Description</th>
-                <th className="spending-col-amount">Amount</th>
-              </tr>
-            </thead>
-            <tbody>
-              {entries.map((entry) => (
-                <SpendingRow
-                  key={entry.id}
-                  entry={entry}
-                  onCommit={(description, amount) => void updateEntry(entry, description, amount)}
-                />
-              ))}
-              <tr className="spending-row-draft">
-                <td>
-                  <input
-                    type="text"
-                    className="spending-input"
-                    placeholder="Add a line…"
-                    value={draft.description}
-                    onChange={(e) => setDraft((d) => ({ ...d, description: e.target.value }))}
-                    onBlur={handleDraftBlur}
-                    onKeyDown={(e) => {
-                      focusAmountOnTab(e, draftAmountRef);
-                      if (e.key === 'Enter') {
-                        e.currentTarget.blur();
-                      }
-                    }}
+        {visible && (
+          <div className="spending-table-wrap">
+            <table className="spending-table">
+              <thead>
+                <tr>
+                  <th>Description</th>
+                  <th className="spending-col-amount">Amount</th>
+                </tr>
+              </thead>
+              <tbody>
+                {entries.map((entry) => (
+                  <SpendingRow
+                    key={entry.id}
+                    entry={entry}
+                    onCommit={(description, amount) => void updateEntry(entry, description, amount)}
                   />
-                </td>
-                <td className="spending-col-amount">
-                  <input
-                    ref={draftAmountRef}
-                    type="text"
-                    inputMode="decimal"
-                    className="spending-input spending-input-amount"
-                    placeholder="0"
-                    value={draft.amount}
-                    onChange={(e) => setDraft((d) => ({ ...d, amount: e.target.value }))}
-                    onBlur={handleDraftBlur}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        e.currentTarget.blur();
-                      }
-                    }}
-                  />
-                </td>
-              </tr>
-              <tr className="spending-row-total">
-                <td>Total</td>
-                <td className="spending-col-amount">{formatAmount(totalAmount)}</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
+                ))}
+                <tr className="spending-row-draft">
+                  <td>
+                    <input
+                      type="text"
+                      className="spending-input"
+                      placeholder="Add a line…"
+                      value={draft.description}
+                      onChange={(e) => setDraft((d) => ({ ...d, description: e.target.value }))}
+                      onBlur={handleDraftBlur}
+                      onKeyDown={(e) => {
+                        focusAmountOnTab(e, draftAmountRef);
+                        if (e.key === 'Enter') {
+                          e.currentTarget.blur();
+                        }
+                      }}
+                    />
+                  </td>
+                  <td className="spending-col-amount">
+                    <input
+                      ref={draftAmountRef}
+                      type="text"
+                      inputMode="decimal"
+                      className="spending-input spending-input-amount"
+                      placeholder="0"
+                      value={draft.amount}
+                      onChange={(e) => setDraft((d) => ({ ...d, amount: e.target.value }))}
+                      onBlur={handleDraftBlur}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.currentTarget.blur();
+                        }
+                      }}
+                    />
+                  </td>
+                </tr>
+                <tr className="spending-row-total">
+                  <td>Total</td>
+                  <td className="spending-col-amount">{formatAmount(totalAmount)}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
     </div>
   );
