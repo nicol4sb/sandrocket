@@ -73,6 +73,55 @@ function isFocusMovingWithinRow(e: React.FocusEvent<HTMLElement>): boolean {
   return row.contains(next);
 }
 
+const SPENDING_COL = {
+  DATE: 0,
+  DESCRIPTION: 1,
+  BANK: 2,
+  AMOUNT: 3
+} as const;
+
+function navigateSpendingCellVertically(
+  e: React.KeyboardEvent<HTMLInputElement>,
+  colIndex: number
+): void {
+  if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
+
+  const row = e.currentTarget.closest('tr');
+  const tbody = row?.closest('tbody');
+  if (!row || !tbody) return;
+
+  const dataRows = Array.from(
+    tbody.querySelectorAll<HTMLTableRowElement>('tr.spending-row, tr.spending-row-draft')
+  );
+  const rowIndex = dataRows.indexOf(row);
+  if (rowIndex === -1) return;
+
+  const nextRowIndex = e.key === 'ArrowUp' ? rowIndex - 1 : rowIndex + 1;
+  if (nextRowIndex < 0 || nextRowIndex >= dataRows.length) return;
+
+  const nextInput = dataRows[nextRowIndex]?.cells[colIndex]?.querySelector<HTMLInputElement>(
+    '.spending-input'
+  );
+  if (!nextInput) return;
+
+  e.preventDefault();
+  nextInput.focus();
+  if (nextInput.type === 'text') {
+    nextInput.select();
+  }
+}
+
+function onSpendingCellKeyDown(
+  e: React.KeyboardEvent<HTMLInputElement>,
+  colIndex: number
+): void {
+  if (e.key === 'Enter') {
+    e.currentTarget.blur();
+    return;
+  }
+  navigateSpendingCellVertically(e, colIndex);
+}
+
 function safeFilename(name: string): string {
   return name.replace(/[^a-zA-Z0-9À-ÿ _-]/g, '').trim() || 'project';
 }
@@ -345,6 +394,8 @@ export function SpendingTable({ projectId, projectName, baseUrl }: SpendingTable
                       value={draft.entryDate}
                       max={dateMax}
                       onChange={(e) => setDraft((d) => ({ ...d, entryDate: e.target.value }))}
+                      onBlur={handleDraftBlur}
+                      onKeyDown={(e) => onSpendingCellKeyDown(e, SPENDING_COL.DATE)}
                       title={`Optional — defaults to today (up to ${formatDisplayDate(dateMax)})`}
                     />
                   </td>
@@ -356,9 +407,7 @@ export function SpendingTable({ projectId, projectName, baseUrl }: SpendingTable
                       value={draft.description}
                       onChange={(e) => setDraft((d) => ({ ...d, description: e.target.value }))}
                       onBlur={handleDraftBlur}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') e.currentTarget.blur();
-                      }}
+                      onKeyDown={(e) => onSpendingCellKeyDown(e, SPENDING_COL.DESCRIPTION)}
                     />
                   </td>
                   <td className="spending-col-bank">
@@ -369,9 +418,7 @@ export function SpendingTable({ projectId, projectName, baseUrl }: SpendingTable
                       value={draft.bank}
                       onChange={(e) => setDraft((d) => ({ ...d, bank: e.target.value }))}
                       onBlur={handleDraftBlur}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') e.currentTarget.blur();
-                      }}
+                      onKeyDown={(e) => onSpendingCellKeyDown(e, SPENDING_COL.BANK)}
                     />
                   </td>
                   <td className="spending-col-amount">
@@ -383,9 +430,7 @@ export function SpendingTable({ projectId, projectName, baseUrl }: SpendingTable
                       value={draft.amount}
                       onChange={(e) => setDraft((d) => ({ ...d, amount: e.target.value }))}
                       onBlur={handleDraftBlur}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') e.currentTarget.blur();
-                      }}
+                      onKeyDown={(e) => onSpendingCellKeyDown(e, SPENDING_COL.AMOUNT)}
                     />
                   </td>
                   <td className="spending-col-actions" />
@@ -472,6 +517,8 @@ function SpendingRow(props: {
           value={entryDate}
           max={props.dateMax}
           onChange={(e) => commitDate(e.target.value)}
+          onBlur={commitAll}
+          onKeyDown={(e) => onSpendingCellKeyDown(e, SPENDING_COL.DATE)}
           title="Optional — defaults to today"
         />
       </td>
@@ -482,9 +529,7 @@ function SpendingRow(props: {
           value={description}
           onChange={(e) => setDescription(e.target.value)}
           onBlur={commitAll}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') e.currentTarget.blur();
-          }}
+          onKeyDown={(e) => onSpendingCellKeyDown(e, SPENDING_COL.DESCRIPTION)}
         />
       </td>
       <td className="spending-col-bank">
@@ -495,9 +540,7 @@ function SpendingRow(props: {
           value={bank}
           onChange={(e) => setBank(e.target.value)}
           onBlur={commitAll}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') e.currentTarget.blur();
-          }}
+          onKeyDown={(e) => onSpendingCellKeyDown(e, SPENDING_COL.BANK)}
         />
       </td>
       <td className="spending-col-amount">
@@ -508,9 +551,7 @@ function SpendingRow(props: {
           value={amount}
           onChange={(e) => setAmount(e.target.value)}
           onBlur={commitAll}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') e.currentTarget.blur();
-          }}
+          onKeyDown={(e) => onSpendingCellKeyDown(e, SPENDING_COL.AMOUNT)}
         />
       </td>
       <td className="spending-col-actions">
