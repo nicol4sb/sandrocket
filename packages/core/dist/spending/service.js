@@ -21,22 +21,24 @@ class SpendingServiceImpl {
         await this.deps.spending.setVisible(projectId, visible);
         return visible;
     }
-    async createEntry(projectId, description, amount, entryDate) {
+    async createEntry(projectId, description, amount, entryDate, bank) {
         const maxPos = await this.deps.spending.getMaxPosition(projectId);
         return this.deps.spending.create({
             projectId,
             description: description.trim(),
             amount,
             entryDate: resolveEntryDate(entryDate),
+            bank: (bank ?? '').trim(),
             position: maxPos + 1
         });
     }
-    async updateEntry(id, description, amount, entryDate) {
+    async updateEntry(id, description, amount, entryDate, bank) {
         return this.deps.spending.update({
             id,
             description,
             amount,
-            entryDate: entryDate === undefined ? undefined : resolveEntryDate(entryDate)
+            entryDate: entryDate === undefined ? undefined : resolveEntryDate(entryDate),
+            bank: bank === undefined ? undefined : bank.trim()
         });
     }
     async deleteEntry(id) {

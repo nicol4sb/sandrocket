@@ -11,6 +11,7 @@ interface SpendingTableProps {
 interface DraftRow {
   entryDate: string;
   description: string;
+  bank: string;
   amount: string;
 }
 
@@ -25,7 +26,7 @@ function resolveEntryDate(value: string): string {
 }
 
 function newDraftRow(): DraftRow {
-  return { entryDate: todayIso(), description: '', amount: '' };
+  return { entryDate: todayIso(), description: '', bank: '', amount: '' };
 }
 
 function toIsoDate(d: Date): string {
@@ -82,12 +83,12 @@ function exportSpendingToExcel(
   projectName: string
 ) {
   const rows: (string | number)[][] = [
-    ['Date', 'Description', 'Amount'],
-    ...entries.map((e) => [e.entryDate, e.description, e.amount]),
-    ['', 'Total', totalAmount]
+    ['Date', 'Description', 'Bank', 'Amount'],
+    ...entries.map((e) => [e.entryDate, e.description, e.bank, e.amount]),
+    ['', '', 'Total', totalAmount]
   ];
   const worksheet = XLSX.utils.aoa_to_sheet(rows);
-  worksheet['!cols'] = [{ wch: 12 }, { wch: 40 }, { wch: 14 }];
+  worksheet['!cols'] = [{ wch: 12 }, { wch: 32 }, { wch: 16 }, { wch: 14 }];
   const workbook = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(workbook, worksheet, 'Spending');
   XLSX.writeFile(workbook, `${safeFilename(projectName)}-spending.xlsx`);
@@ -165,7 +166,12 @@ export function SpendingTable({ projectId, projectName, baseUrl }: SpendingTable
     }
   };
 
-  const createEntry = async (entryDate: string, description: string, amountStr: string) => {
+  const createEntry = async (
+    entryDate: string,
+    description: string,
+    bank: string,
+    amountStr: string
+  ) => {
     const amount = parseAmount(amountStr);
     if (amount === null) return;
     if (!rowHasContent(description, amountStr)) return;
@@ -179,6 +185,7 @@ export function SpendingTable({ projectId, projectName, baseUrl }: SpendingTable
         body: JSON.stringify({
           description: description.trim(),
           amount,
+          bank: bank.trim(),
           ...(entryDate.trim() ? { entryDate: entryDate.trim() } : {})
         })
       });
@@ -210,6 +217,7 @@ export function SpendingTable({ projectId, projectName, baseUrl }: SpendingTable
     entry: SpendingEntryResponse,
     entryDate: string,
     description: string,
+    bank: string,
     amountStr: string
   ) => {
     const amount = parseAmount(amountStr);
@@ -224,6 +232,7 @@ export function SpendingTable({ projectId, projectName, baseUrl }: SpendingTable
         body: JSON.stringify({
           description: description.trim(),
           amount,
+          bank: bank.trim(),
           entryDate: resolveEntryDate(entryDate)
         })
       });
@@ -237,9 +246,9 @@ export function SpendingTable({ projectId, projectName, baseUrl }: SpendingTable
 
   const handleDraftBlur = (e: React.FocusEvent<HTMLElement>) => {
     if (isFocusMovingWithinRow(e)) return;
-    const { entryDate, description, amount } = draftRef.current;
+    const { entryDate, description, bank, amount } = draftRef.current;
     if (rowHasContent(description, amount)) {
-      void createEntry(entryDate, description, amount);
+      void createEntry(entryDate, description, bank, amount);
     }
   };
 
@@ -311,6 +320,7 @@ export function SpendingTable({ projectId, projectName, baseUrl }: SpendingTable
                 <tr>
                   <th className="spending-col-date">Date <span className="spending-col-optional">(optional)</span></th>
                   <th>Description</th>
+                  <th className="spending-col-bank">Bank</th>
                   <th className="spending-col-amount">Amount</th>
                   <th className="spending-col-actions" aria-label="Actions" />
                 </tr>
@@ -321,8 +331,8 @@ export function SpendingTable({ projectId, projectName, baseUrl }: SpendingTable
                     key={entry.id}
                     entry={entry}
                     dateMax={dateMax}
-                    onCommit={(entryDate, description, amount) =>
-                      void updateEntry(entry, entryDate, description, amount)
+                    onCommit={(entryDate, description, bank, amount) =>
+                      void updateEntry(entry, entryDate, description, bank, amount)
                     }
                     onDelete={() => void deleteEntry(entry.id)}
                   />
@@ -351,6 +361,19 @@ export function SpendingTable({ projectId, projectName, baseUrl }: SpendingTable
                       }}
                     />
                   </td>
+                  <td className="spending-col-bank">
+                    <input
+                      type="text"
+                      className="spending-input"
+                      placeholder="Bank…"
+                      value={draft.bank}
+                      onChange={(e) => setDraft((d) => ({ ...d, bank: e.target.value }))}
+                      onBlur={handleDraftBlur}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') e.currentTarget.blur();
+                      }}
+                    />
+                  </td>
                   <td className="spending-col-amount">
                     <input
                       type="text"
@@ -368,7 +391,7 @@ export function SpendingTable({ projectId, projectName, baseUrl }: SpendingTable
                   <td className="spending-col-actions" />
                 </tr>
                 <tr className="spending-row-total">
-                  <td colSpan={2}>Total</td>
+                  <td colSpan={3}>Total</td>
                   <td className="spending-col-amount">{formatAmount(totalAmount)}</td>
                   <td className="spending-col-actions" />
                 </tr>
@@ -384,35 +407,45 @@ export function SpendingTable({ projectId, projectName, baseUrl }: SpendingTable
 function SpendingRow(props: {
   entry: SpendingEntryResponse;
   dateMax: string;
-  onCommit: (entryDate: string, description: string, amount: string) => void;
+  onCommit: (entryDate: string, description: string, bank: string, amount: string) => void;
   onDelete: () => void;
 }) {
   const [entryDate, setEntryDate] = useState(props.entry.entryDate);
   const [description, setDescription] = useState(props.entry.description);
+  const [bank, setBank] = useState(props.entry.bank);
   const [amount, setAmount] = useState(formatAmountInput(props.entry.amount));
   const entryDateRef = useRef(entryDate);
   const descriptionRef = useRef(description);
+  const bankRef = useRef(bank);
   const amountRef = useRef(amount);
   entryDateRef.current = entryDate;
   descriptionRef.current = description;
+  bankRef.current = bank;
   amountRef.current = amount;
 
   useEffect(() => {
     setEntryDate(props.entry.entryDate);
     setDescription(props.entry.description);
+    setBank(props.entry.bank);
     setAmount(formatAmountInput(props.entry.amount));
-  }, [props.entry.entryDate, props.entry.description, props.entry.amount]);
+  }, [props.entry.entryDate, props.entry.description, props.entry.bank, props.entry.amount]);
 
   const commitAll = (e: React.FocusEvent<HTMLElement>) => {
     if (isFocusMovingWithinRow(e)) return;
     const resolvedDate = resolveEntryDate(entryDateRef.current);
     const dateChanged = resolvedDate !== props.entry.entryDate;
     const descChanged = descriptionRef.current !== props.entry.description;
+    const bankChanged = bankRef.current !== props.entry.bank;
     const parsed = parseAmount(amountRef.current);
     const prevParsed = props.entry.amount;
     const amountChanged = parsed !== null && parsed !== prevParsed;
-    if (dateChanged || descChanged || amountChanged) {
-      props.onCommit(resolvedDate, descriptionRef.current, amountRef.current);
+    if (dateChanged || descChanged || bankChanged || amountChanged) {
+      props.onCommit(
+        resolvedDate,
+        descriptionRef.current,
+        bankRef.current,
+        amountRef.current
+      );
     }
   };
 
@@ -421,7 +454,12 @@ function SpendingRow(props: {
     entryDateRef.current = nextDate;
     const resolved = resolveEntryDate(nextDate);
     if (resolved !== props.entry.entryDate) {
-      void props.onCommit(resolved, descriptionRef.current, amountRef.current);
+      void props.onCommit(
+        resolved,
+        descriptionRef.current,
+        bankRef.current,
+        amountRef.current
+      );
     }
   };
 
@@ -443,6 +481,19 @@ function SpendingRow(props: {
           className="spending-input"
           value={description}
           onChange={(e) => setDescription(e.target.value)}
+          onBlur={commitAll}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') e.currentTarget.blur();
+          }}
+        />
+      </td>
+      <td className="spending-col-bank">
+        <input
+          type="text"
+          className="spending-input"
+          placeholder="Bank…"
+          value={bank}
+          onChange={(e) => setBank(e.target.value)}
           onBlur={commitAll}
           onKeyDown={(e) => {
             if (e.key === 'Enter') e.currentTarget.blur();

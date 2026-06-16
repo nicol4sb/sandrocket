@@ -89,6 +89,7 @@ function toSpendingEntryResponse(entry) {
         description: entry.description,
         amount: entry.amount,
         entryDate: entry.entryDate,
+        bank: entry.bank,
         position: entry.position,
         createdAt: entry.createdAt.toISOString(),
         updatedAt: entry.updatedAt.toISOString()
@@ -697,7 +698,7 @@ app.post('/api/projects/:projectId/spending', asyncHandler(async (req, res) => {
     const body = parseBody(createSpendingEntryRequestSchema, req, res);
     if (!body)
         return;
-    const entry = await spendingService.createEntry(projectId, body.description ?? '', body.amount, body.entryDate);
+    const entry = await spendingService.createEntry(projectId, body.description ?? '', body.amount, body.entryDate, body.bank ?? '');
     res.status(201).json(toSpendingEntryResponse(entry));
 }));
 app.patch('/api/spending/:entryId', asyncHandler(async (req, res) => {
@@ -721,7 +722,7 @@ app.patch('/api/spending/:entryId', asyncHandler(async (req, res) => {
     const body = parseBody(updateSpendingEntryRequestSchema, req, res);
     if (!body)
         return;
-    const updated = await spendingService.updateEntry(entryId, body.description, body.amount, body.entryDate);
+    const updated = await spendingService.updateEntry(entryId, body.description, body.amount, body.entryDate, body.bank);
     if (!updated) {
         res.status(404).json({ error: 'not-found', message: 'Spending entry not found' });
         return;

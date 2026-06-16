@@ -159,6 +159,7 @@ export function initializeSqliteDatabase(options) {
       description TEXT NOT NULL DEFAULT '',
       amount REAL NOT NULL DEFAULT 0,
       entry_date TEXT NOT NULL DEFAULT (date('now')),
+      bank TEXT NOT NULL DEFAULT '',
       position INTEGER NOT NULL DEFAULT 0,
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL,
@@ -294,6 +295,17 @@ export function initializeSqliteDatabase(options) {
     catch (err) {
         // eslint-disable-next-line no-console
         console.error('[db] Migration error for spending entry_date:', err);
+    }
+    // Migration: Add bank column to project_spending_entries
+    try {
+        const spendingInfo = db.prepare(`PRAGMA table_info('project_spending_entries')`).all();
+        if (spendingInfo.length > 0 && !spendingInfo.some((col) => col.name === 'bank')) {
+            db.exec(`ALTER TABLE project_spending_entries ADD COLUMN bank TEXT NOT NULL DEFAULT ''`);
+        }
+    }
+    catch (err) {
+        // eslint-disable-next-line no-console
+        console.error('[db] Migration error for spending bank:', err);
     }
     // Emit a single startup log with DB path to help diagnose multiple-process setups
     try {

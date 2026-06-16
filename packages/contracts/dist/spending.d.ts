@@ -5,6 +5,7 @@ export declare const spendingEntryResponseSchema: z.ZodObject<{
     description: z.ZodString;
     amount: z.ZodNumber;
     entryDate: z.ZodString;
+    bank: z.ZodString;
     position: z.ZodNumber;
     createdAt: z.ZodString;
     updatedAt: z.ZodString;
@@ -17,6 +18,7 @@ export declare const spendingEntryResponseSchema: z.ZodObject<{
     position: number;
     amount: number;
     entryDate: string;
+    bank: string;
 }, {
     id: number;
     projectId: number;
@@ -26,6 +28,7 @@ export declare const spendingEntryResponseSchema: z.ZodObject<{
     position: number;
     amount: number;
     entryDate: string;
+    bank: string;
 }>;
 export type SpendingEntryResponse = z.infer<typeof spendingEntryResponseSchema>;
 export interface ListSpendingResponse {
@@ -45,27 +48,33 @@ export declare const createSpendingEntryRequestSchema: z.ZodObject<{
     description: z.ZodDefault<z.ZodString>;
     amount: z.ZodNumber;
     entryDate: z.ZodOptional<z.ZodString>;
+    bank: z.ZodDefault<z.ZodOptional<z.ZodString>>;
 }, "strip", z.ZodTypeAny, {
     description: string;
     amount: number;
+    bank: string;
     entryDate?: string | undefined;
 }, {
     amount: number;
     description?: string | undefined;
     entryDate?: string | undefined;
+    bank?: string | undefined;
 }>;
 export type CreateSpendingEntryRequest = z.infer<typeof createSpendingEntryRequestSchema>;
 export declare const updateSpendingEntryRequestSchema: z.ZodObject<{
     description: z.ZodOptional<z.ZodString>;
     amount: z.ZodOptional<z.ZodNumber>;
     entryDate: z.ZodOptional<z.ZodString>;
+    bank: z.ZodOptional<z.ZodString>;
 }, "strip", z.ZodTypeAny, {
     description?: string | undefined;
     amount?: number | undefined;
     entryDate?: string | undefined;
+    bank?: string | undefined;
 }, {
     description?: string | undefined;
     amount?: number | undefined;
     entryDate?: string | undefined;
+    bank?: string | undefined;
 }>;
 export type UpdateSpendingEntryRequest = z.infer<typeof updateSpendingEntryRequestSchema>;

@@ -4,6 +4,7 @@ export interface SpendingEntry {
   description: string;
   amount: number;
   entryDate: string; // YYYY-MM-DD
+  bank: string;
   position: number;
   createdAt: Date;
   updatedAt: Date;
@@ -14,6 +15,7 @@ export interface CreateSpendingEntryInput {
   description: string;
   amount: number;
   entryDate: string;
+  bank: string;
   position: number;
 }
 
@@ -22,4 +24,5 @@ export interface UpdateSpendingEntryInput {
   description?: string;
   amount?: number;
   entryDate?: string;
+  bank?: string;
 }

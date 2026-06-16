@@ -13,12 +13,19 @@ function resolveEntryDate(entryDate?: string): string {
 export interface SpendingService {
   list(projectId: number): Promise<{ visible: boolean; entries: SpendingEntry[]; totalAmount: number }>;
   setVisible(projectId: number, visible: boolean): Promise<boolean>;
-  createEntry(projectId: number, description: string, amount: number, entryDate?: string): Promise<SpendingEntry>;
+  createEntry(
+    projectId: number,
+    description: string,
+    amount: number,
+    entryDate?: string,
+    bank?: string
+  ): Promise<SpendingEntry>;
   updateEntry(
     id: number,
     description?: string,
     amount?: number,
-    entryDate?: string
+    entryDate?: string,
+    bank?: string
   ): Promise<SpendingEntry | null>;
   deleteEntry(id: number): Promise<boolean>;
 }
@@ -48,7 +55,8 @@ class SpendingServiceImpl implements SpendingService {
     projectId: number,
     description: string,
     amount: number,
-    entryDate?: string
+    entryDate?: string,
+    bank?: string
   ): Promise<SpendingEntry> {
     const maxPos = await this.deps.spending.getMaxPosition(projectId);
     return this.deps.spending.create({
@@ -56,6 +64,7 @@ class SpendingServiceImpl implements SpendingService {
       description: description.trim(),
       amount,
       entryDate: resolveEntryDate(entryDate),
+      bank: (bank ?? '').trim(),
       position: maxPos + 1
     });
   }
@@ -64,13 +73,15 @@ class SpendingServiceImpl implements SpendingService {
     id: number,
     description?: string,
     amount?: number,
-    entryDate?: string
+    entryDate?: string,
+    bank?: string
   ): Promise<SpendingEntry | null> {
     return this.deps.spending.update({
       id,
       description,
       amount,
-      entryDate: entryDate === undefined ? undefined : resolveEntryDate(entryDate)
+      entryDate: entryDate === undefined ? undefined : resolveEntryDate(entryDate),
+      bank: bank === undefined ? undefined : bank.trim()
     });
   }
 

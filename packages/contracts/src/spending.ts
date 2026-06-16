@@ -8,6 +8,7 @@ export const spendingEntryResponseSchema = z.object({
   description: z.string(),
   amount: z.number(),
   entryDate: isoDateSchema,
+  bank: z.string(),
   position: z.number().int(),
   createdAt: z.string(),
   updatedAt: z.string()
@@ -28,13 +29,15 @@ export type UpdateSpendingVisibilityRequest = z.infer<typeof updateSpendingVisib
 export const createSpendingEntryRequestSchema = z.object({
   description: z.string().max(500).default(''),
   amount: z.number().finite(),
-  entryDate: isoDateSchema.optional()
+  entryDate: isoDateSchema.optional(),
+  bank: z.string().max(100).optional().default('')
 });
 export type CreateSpendingEntryRequest = z.infer<typeof createSpendingEntryRequestSchema>;
 
 export const updateSpendingEntryRequestSchema = z.object({
   description: z.string().max(500).optional(),
   amount: z.number().finite().optional(),
-  entryDate: isoDateSchema.optional()
+  entryDate: isoDateSchema.optional(),
+  bank: z.string().max(100).optional()
 });
 export type UpdateSpendingEntryRequest = z.infer<typeof updateSpendingEntryRequestSchema>;
