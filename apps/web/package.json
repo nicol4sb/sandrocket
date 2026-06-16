@@ -17,7 +17,8 @@
     "@dnd-kit/utilities": "3.2.2",
     "@sandrocket/contracts": "file:../../packages/contracts",
     "react": "^18.3.1",
-    "react-dom": "^18.3.1"
+    "react-dom": "^18.3.1",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@types/react": "^18.3.4",

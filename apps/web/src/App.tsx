@@ -24,6 +24,7 @@ import { Login } from './components/Login';
 import { Modal } from './components/Modal';
 import { EpicLane } from './EpicLane';
 import { DocumentDropbox } from './DocumentDropbox';
+import { SpendingTable } from './SpendingTable';
 import './styles.css';
 
 const DEFAULT_BASE_URL = '/api';
@@ -881,6 +882,7 @@ export default function App() {
                 />
               ))}
             </div>
+            <SpendingTable projectId={current.id} projectName={current.name} baseUrl={baseUrl} />
             <div className="doc-dropbox-section">
               <DocumentDropbox projectId={current.id} baseUrl={baseUrl} />
             </div>
