@@ -11,6 +11,7 @@ interface SpendingRow {
   project_id: number;
   description: string;
   amount: number;
+  entry_date: string;
   position: number;
   created_at: string;
   updated_at: string;
@@ -22,6 +23,7 @@ function mapRow(row: SpendingRow): SpendingEntry {
     projectId: row.project_id,
     description: row.description,
     amount: row.amount,
+    entryDate: row.entry_date,
     position: row.position,
     createdAt: new Date(row.created_at),
     updatedAt: new Date(row.updated_at)
@@ -40,17 +42,18 @@ export class SqliteSpendingRepository implements SpendingRepository {
 
   constructor(private readonly db: Database) {
     this.insertStmt = db.prepare(
-      `INSERT INTO project_spending_entries (project_id, description, amount, position, created_at, updated_at)
-       VALUES (@project_id, @description, @amount, @position, @created_at, @updated_at)`
+      `INSERT INTO project_spending_entries (project_id, description, amount, entry_date, position, created_at, updated_at)
+       VALUES (@project_id, @description, @amount, @entry_date, @position, @created_at, @updated_at)`
     );
     this.findByIdStmt = db.prepare('SELECT * FROM project_spending_entries WHERE id = ?');
     this.listByProjectStmt = db.prepare(
-      'SELECT * FROM project_spending_entries WHERE project_id = ? ORDER BY position ASC, id ASC'
+      'SELECT * FROM project_spending_entries WHERE project_id = ? ORDER BY entry_date ASC, id ASC'
     );
     this.updateStmt = db.prepare(
       `UPDATE project_spending_entries SET
          description = COALESCE(@description, description),
          amount = COALESCE(@amount, amount),
+         entry_date = COALESCE(@entry_date, entry_date),
          updated_at = @updated_at
        WHERE id = @id`
     );
@@ -80,6 +83,7 @@ export class SqliteSpendingRepository implements SpendingRepository {
       project_id: input.projectId,
       description: input.description,
       amount: input.amount,
+      entry_date: input.entryDate,
       position: input.position,
       created_at: now,
       updated_at: now
@@ -98,6 +102,7 @@ export class SqliteSpendingRepository implements SpendingRepository {
       id: input.id,
       description: input.description ?? null,
       amount: input.amount ?? null,
+      entry_date: input.entryDate ?? null,
       updated_at: new Date().toISOString()
     });
     const after = this.findByIdStmt.get(input.id) as SpendingRow | undefined;

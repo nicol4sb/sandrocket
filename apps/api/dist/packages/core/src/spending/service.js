@@ -1,3 +1,10 @@
+function todayIsoDate() {
+    return new Date().toISOString().slice(0, 10);
+}
+function resolveEntryDate(entryDate) {
+    const trimmed = entryDate?.trim();
+    return trimmed && /^\d{4}-\d{2}-\d{2}$/.test(trimmed) ? trimmed : todayIsoDate();
+}
 class SpendingServiceImpl {
     constructor(deps) {
         this.deps = deps;
@@ -14,17 +21,23 @@ class SpendingServiceImpl {
         await this.deps.spending.setVisible(projectId, visible);
         return visible;
     }
-    async createEntry(projectId, description, amount) {
+    async createEntry(projectId, description, amount, entryDate) {
         const maxPos = await this.deps.spending.getMaxPosition(projectId);
         return this.deps.spending.create({
             projectId,
             description: description.trim(),
             amount,
+            entryDate: resolveEntryDate(entryDate),
             position: maxPos + 1
         });
     }
-    async updateEntry(id, description, amount) {
-        return this.deps.spending.update({ id, description, amount });
+    async updateEntry(id, description, amount, entryDate) {
+        return this.deps.spending.update({
+            id,
+            description,
+            amount,
+            entryDate: entryDate === undefined ? undefined : resolveEntryDate(entryDate)
+        });
     }
     async deleteEntry(id) {
         return this.deps.spending.delete(id);

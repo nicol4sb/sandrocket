@@ -158,12 +158,13 @@ export function initializeSqliteDatabase(options) {
       project_id INTEGER NOT NULL,
       description TEXT NOT NULL DEFAULT '',
       amount REAL NOT NULL DEFAULT 0,
+      entry_date TEXT NOT NULL DEFAULT (date('now')),
       position INTEGER NOT NULL DEFAULT 0,
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL,
       FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
     );
-    CREATE INDEX IF NOT EXISTS idx_spending_project ON project_spending_entries(project_id, position ASC);
+    CREATE INDEX IF NOT EXISTS idx_spending_project ON project_spending_entries(project_id, entry_date ASC, id ASC);
   `);
     // Migration: Add creator_user_id column and/or remove title column if needed
     try {
@@ -278,6 +279,21 @@ export function initializeSqliteDatabase(options) {
     catch (err) {
         // eslint-disable-next-line no-console
         console.error('[db] Migration error for spending_visible:', err);
+    }
+    // Migration: Add entry_date column to project_spending_entries
+    try {
+        const spendingInfo = db.prepare(`PRAGMA table_info('project_spending_entries')`).all();
+        if (spendingInfo.length > 0 && !spendingInfo.some((col) => col.name === 'entry_date')) {
+            db.exec(`
+        ALTER TABLE project_spending_entries ADD COLUMN entry_date TEXT;
+        UPDATE project_spending_entries SET entry_date = date(created_at) WHERE entry_date IS NULL;
+      `);
+            db.exec(`CREATE INDEX IF NOT EXISTS idx_spending_project_date ON project_spending_entries(project_id, entry_date ASC, id ASC)`);
+        }
+    }
+    catch (err) {
+        // eslint-disable-next-line no-console
+        console.error('[db] Migration error for spending entry_date:', err);
     }
     // Emit a single startup log with DB path to help diagnose multiple-process setups
     try {

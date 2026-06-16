@@ -7,8 +7,8 @@ export interface SpendingService {
         totalAmount: number;
     }>;
     setVisible(projectId: number, visible: boolean): Promise<boolean>;
-    createEntry(projectId: number, description: string, amount: number): Promise<SpendingEntry>;
-    updateEntry(id: number, description?: string, amount?: number): Promise<SpendingEntry | null>;
+    createEntry(projectId: number, description: string, amount: number, entryDate?: string): Promise<SpendingEntry>;
+    updateEntry(id: number, description?: string, amount?: number, entryDate?: string): Promise<SpendingEntry | null>;
     deleteEntry(id: number): Promise<boolean>;
 }
 export interface SpendingServiceDependencies {

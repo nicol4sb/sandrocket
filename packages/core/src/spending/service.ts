@@ -1,11 +1,25 @@
 import { SpendingRepository } from './ports.js';
 import { SpendingEntry } from './types.js';
 
+function todayIsoDate(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function resolveEntryDate(entryDate?: string): string {
+  const trimmed = entryDate?.trim();
+  return trimmed && /^\d{4}-\d{2}-\d{2}$/.test(trimmed) ? trimmed : todayIsoDate();
+}
+
 export interface SpendingService {
   list(projectId: number): Promise<{ visible: boolean; entries: SpendingEntry[]; totalAmount: number }>;
   setVisible(projectId: number, visible: boolean): Promise<boolean>;
-  createEntry(projectId: number, description: string, amount: number): Promise<SpendingEntry>;
-  updateEntry(id: number, description?: string, amount?: number): Promise<SpendingEntry | null>;
+  createEntry(projectId: number, description: string, amount: number, entryDate?: string): Promise<SpendingEntry>;
+  updateEntry(
+    id: number,
+    description?: string,
+    amount?: number,
+    entryDate?: string
+  ): Promise<SpendingEntry | null>;
   deleteEntry(id: number): Promise<boolean>;
 }
 
@@ -30,18 +44,34 @@ class SpendingServiceImpl implements SpendingService {
     return visible;
   }
 
-  async createEntry(projectId: number, description: string, amount: number): Promise<SpendingEntry> {
+  async createEntry(
+    projectId: number,
+    description: string,
+    amount: number,
+    entryDate?: string
+  ): Promise<SpendingEntry> {
     const maxPos = await this.deps.spending.getMaxPosition(projectId);
     return this.deps.spending.create({
       projectId,
       description: description.trim(),
       amount,
+      entryDate: resolveEntryDate(entryDate),
       position: maxPos + 1
     });
   }
 
-  async updateEntry(id: number, description?: string, amount?: number): Promise<SpendingEntry | null> {
-    return this.deps.spending.update({ id, description, amount });
+  async updateEntry(
+    id: number,
+    description?: string,
+    amount?: number,
+    entryDate?: string
+  ): Promise<SpendingEntry | null> {
+    return this.deps.spending.update({
+      id,
+      description,
+      amount,
+      entryDate: entryDate === undefined ? undefined : resolveEntryDate(entryDate)
+    });
   }
 
   async deleteEntry(id: number): Promise<boolean> {
