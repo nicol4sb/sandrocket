@@ -13,14 +13,15 @@ import PDFDocument from 'pdfkit';
 import { AuthError, createAuthService } from '@sandrocket/core';
 import { BcryptPasswordHasher, JwtTokenService, SqliteUserRepository, initializeSqliteDatabase, loadConfig } from '@sandrocket/infrastructure';
 import { createProjectService, createInvitationService } from '@sandrocket/core';
-import { SqliteProjectRepository, SqliteProjectMemberRepository, SqliteProjectInvitationRepository, SqliteEpicRepository, SqliteDocumentRepository, SqliteDocumentActivityRepository } from '@sandrocket/infrastructure';
+import { SqliteProjectRepository, SqliteProjectMemberRepository, SqliteProjectInvitationRepository, SqliteEpicRepository, SqliteDocumentRepository, SqliteDocumentActivityRepository, SqliteSpendingRepository } from '@sandrocket/infrastructure';
 import { createProjectRequestSchema, updateProjectRequestSchema, acceptInvitationRequestSchema } from '@sandrocket/contracts';
-import { createEpicService, createDocumentService } from '@sandrocket/core';
+import { createEpicService, createDocumentService, createSpendingService } from '@sandrocket/core';
 import { createEpicRequestSchema, updateEpicRequestSchema } from '@sandrocket/contracts';
 import { createTaskService } from '@sandrocket/core';
 import { SqliteTaskRepository } from '@sandrocket/infrastructure';
 import { createTaskRequestSchema, reorderTaskRequestSchema, updateTaskRequestSchema } from '@sandrocket/contracts';
 import { loginRequestSchema, registerRequestSchema } from '@sandrocket/contracts';
+import { updateSpendingVisibilityRequestSchema, createSpendingEntryRequestSchema, updateSpendingEntryRequestSchema } from '@sandrocket/contracts';
 const config = loadConfig();
 const database = initializeSqliteDatabase({
     filename: config.database.filename
@@ -64,6 +65,8 @@ const documentService = createDocumentService({
         maxProjectStorageBytes: config.uploads.maxProjectStorageBytes
     }
 });
+const spendingRepository = new SqliteSpendingRepository(database);
+const spendingService = createSpendingService({ spending: spendingRepository });
 const upload = multer({
     storage: multer.memoryStorage(),
     limits: { fileSize: config.uploads.maxFileSizeBytes }
@@ -78,6 +81,17 @@ async function getUserDisplayName(userId) {
     const name = user?.displayName ?? 'Unknown';
     userDisplayNameCache.set(userId, name);
     return name;
+}
+function toSpendingEntryResponse(entry) {
+    return {
+        id: entry.id,
+        projectId: entry.projectId,
+        description: entry.description,
+        amount: entry.amount,
+        position: entry.position,
+        createdAt: entry.createdAt.toISOString(),
+        updatedAt: entry.updatedAt.toISOString()
+    };
 }
 const app = express();
 // Configure CSP: allow unsafe-inline only in development (for Vite HMR)
@@ -621,6 +635,119 @@ app.delete('/api/tasks/:taskId', asyncHandler(async (req, res) => {
     const deleted = await taskService.deleteTask(taskIdNum);
     if (!deleted) {
         res.status(404).json({ error: 'not-found', message: 'Task not found' });
+        return;
+    }
+    res.status(204).send();
+}));
+// Spending API
+app.get('/api/projects/:projectId/spending', asyncHandler(async (req, res) => {
+    const token = req.cookies[config.security.sessionCookieName];
+    if (!token) {
+        res.status(401).json({ error: 'auth/no-token', message: 'No token' });
+        return;
+    }
+    const payload = await tokenService.verifyToken(token);
+    const projectId = Number(req.params.projectId);
+    const member = await projectMemberRepository.findByProjectAndUser(projectId, payload.userId);
+    if (!member) {
+        res.status(403).json({ error: 'forbidden', message: 'Not a member of this project' });
+        return;
+    }
+    const data = await spendingService.list(projectId);
+    const body = {
+        visible: data.visible,
+        totalAmount: data.totalAmount,
+        entries: data.entries.map(toSpendingEntryResponse)
+    };
+    res.json(body);
+}));
+app.patch('/api/projects/:projectId/spending/visibility', asyncHandler(async (req, res) => {
+    const token = req.cookies[config.security.sessionCookieName];
+    if (!token) {
+        res.status(401).json({ error: 'auth/no-token', message: 'No token' });
+        return;
+    }
+    const payload = await tokenService.verifyToken(token);
+    const projectId = Number(req.params.projectId);
+    const member = await projectMemberRepository.findByProjectAndUser(projectId, payload.userId);
+    if (!member) {
+        res.status(403).json({ error: 'forbidden', message: 'Not a member of this project' });
+        return;
+    }
+    const body = parseBody(updateSpendingVisibilityRequestSchema, req, res);
+    if (!body)
+        return;
+    await spendingService.setVisible(projectId, body.visible);
+    res.json({ visible: body.visible });
+}));
+app.post('/api/projects/:projectId/spending', asyncHandler(async (req, res) => {
+    const token = req.cookies[config.security.sessionCookieName];
+    if (!token) {
+        res.status(401).json({ error: 'auth/no-token', message: 'No token' });
+        return;
+    }
+    const payload = await tokenService.verifyToken(token);
+    const projectId = Number(req.params.projectId);
+    const member = await projectMemberRepository.findByProjectAndUser(projectId, payload.userId);
+    if (!member) {
+        res.status(403).json({ error: 'forbidden', message: 'Not a member of this project' });
+        return;
+    }
+    const body = parseBody(createSpendingEntryRequestSchema, req, res);
+    if (!body)
+        return;
+    const entry = await spendingService.createEntry(projectId, body.description ?? '', body.amount);
+    res.status(201).json(toSpendingEntryResponse(entry));
+}));
+app.patch('/api/spending/:entryId', asyncHandler(async (req, res) => {
+    const token = req.cookies[config.security.sessionCookieName];
+    if (!token) {
+        res.status(401).json({ error: 'auth/no-token', message: 'No token' });
+        return;
+    }
+    const payload = await tokenService.verifyToken(token);
+    const entryId = Number(req.params.entryId);
+    const existing = await spendingRepository.findById(entryId);
+    if (!existing) {
+        res.status(404).json({ error: 'not-found', message: 'Spending entry not found' });
+        return;
+    }
+    const member = await projectMemberRepository.findByProjectAndUser(existing.projectId, payload.userId);
+    if (!member) {
+        res.status(403).json({ error: 'forbidden', message: 'Not a member of this project' });
+        return;
+    }
+    const body = parseBody(updateSpendingEntryRequestSchema, req, res);
+    if (!body)
+        return;
+    const updated = await spendingService.updateEntry(entryId, body.description, body.amount);
+    if (!updated) {
+        res.status(404).json({ error: 'not-found', message: 'Spending entry not found' });
+        return;
+    }
+    res.json(toSpendingEntryResponse(updated));
+}));
+app.delete('/api/spending/:entryId', asyncHandler(async (req, res) => {
+    const token = req.cookies[config.security.sessionCookieName];
+    if (!token) {
+        res.status(401).json({ error: 'auth/no-token', message: 'No token' });
+        return;
+    }
+    const payload = await tokenService.verifyToken(token);
+    const entryId = Number(req.params.entryId);
+    const existing = await spendingRepository.findById(entryId);
+    if (!existing) {
+        res.status(404).json({ error: 'not-found', message: 'Spending entry not found' });
+        return;
+    }
+    const member = await projectMemberRepository.findByProjectAndUser(existing.projectId, payload.userId);
+    if (!member) {
+        res.status(403).json({ error: 'forbidden', message: 'Not a member of this project' });
+        return;
+    }
+    const deleted = await spendingService.deleteEntry(entryId);
+    if (!deleted) {
+        res.status(404).json({ error: 'not-found', message: 'Spending entry not found' });
         return;
     }
     res.status(204).send();

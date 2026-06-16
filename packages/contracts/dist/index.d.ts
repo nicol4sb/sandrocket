@@ -6,3 +6,4 @@ export * from './projects.js';
 export * from './epics.js';
 export * from './tasks.js';
 export * from './documents.js';
+export * from './spending.js';

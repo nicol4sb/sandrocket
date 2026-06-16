@@ -13,3 +13,6 @@ export * from './tasks/service.js';
 export * from './documents/types.js';
 export * from './documents/ports.js';
 export * from './documents/service.js';
+export * from './spending/types.js';
+export * from './spending/ports.js';
+export * from './spending/service.js';

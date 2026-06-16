@@ -153,6 +153,17 @@ export function initializeSqliteDatabase(options) {
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     );
     CREATE INDEX IF NOT EXISTS idx_doc_activity_project ON document_activity_log(project_id, created_at DESC);
+    CREATE TABLE IF NOT EXISTS project_spending_entries (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      project_id INTEGER NOT NULL,
+      description TEXT NOT NULL DEFAULT '',
+      amount REAL NOT NULL DEFAULT 0,
+      position INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+    );
+    CREATE INDEX IF NOT EXISTS idx_spending_project ON project_spending_entries(project_id, position ASC);
   `);
     // Migration: Add creator_user_id column and/or remove title column if needed
     try {
@@ -256,6 +267,17 @@ export function initializeSqliteDatabase(options) {
     catch (err) {
         // eslint-disable-next-line no-console
         console.error('[db] Migration error for project_members:', err);
+    }
+    // Migration: Add spending_visible column to projects
+    try {
+        const projectInfo = db.prepare(`PRAGMA table_info('projects')`).all();
+        if (projectInfo.length > 0 && !projectInfo.some((col) => col.name === 'spending_visible')) {
+            db.exec(`ALTER TABLE projects ADD COLUMN spending_visible INTEGER NOT NULL DEFAULT 0`);
+        }
+    }
+    catch (err) {
+        // eslint-disable-next-line no-console
+        console.error('[db] Migration error for spending_visible:', err);
     }
     // Emit a single startup log with DB path to help diagnose multiple-process setups
     try {
