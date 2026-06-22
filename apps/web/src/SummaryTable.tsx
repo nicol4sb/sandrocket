@@ -132,7 +132,7 @@ function findHeaderRowIndex(rows: unknown[][]): number {
   return -1;
 }
 
-export function parseDevisExcel(buffer: ArrayBuffer): ParsedDevisRow[] {
+function parseDevisExcel(buffer: ArrayBuffer): ParsedDevisRow[] {
   const workbook = XLSX.read(buffer, { type: 'array', cellDates: true });
   const sheetName = workbook.SheetNames[0];
   if (!sheetName) return [];
@@ -231,7 +231,7 @@ function exportSummaryToExcel(
   const worksheet = XLSX.utils.aoa_to_sheet(rows);
   worksheet['!cols'] = [{ wch: 42 }, { wch: 28 }, { wch: 14 }, { wch: 14 }];
   const workbook = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(workbook, worksheet, 'Budget Projet');
+  XLSX.utils.book_append_sheet(workbook, worksheet, 'Devis');
   XLSX.writeFile(workbook, `${safeFilename(projectName)}-devis.xlsx`);
 }
 

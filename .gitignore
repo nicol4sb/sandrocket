@@ -38,6 +38,10 @@ yarn-error.log*
 # Uploaded documents
 uploads/
 
+# Local Excel imports (user data, not part of the app)
+*.xlsx
+*.xls
+
 # SSL Certificates
 *.pem
 cert.conf
