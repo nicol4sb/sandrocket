@@ -449,6 +449,11 @@ export default function App() {
 
   const current = projects.find(p => p.id === selectedProjectId) ?? null;
 
+  const exportProject = () => {
+    if (!current) return;
+    window.open(`${baseUrl}/projects/${current.id}/export`, '_blank');
+  };
+
   return (
     <main className="dashboard">
       <header className="app-header">
@@ -558,6 +563,18 @@ export default function App() {
                     }}
                   >
                     🔗 Invite to Project
+                  </button>
+                )}
+                {selectedProjectId && current && (
+                  <button
+                    type="button"
+                    className="project-dropdown-item project-dropdown-muted"
+                    onClick={() => {
+                      exportProject();
+                      setShowProjectDropdown(false);
+                    }}
+                  >
+                    Export project…
                   </button>
                 )}
                 <button
@@ -695,6 +712,16 @@ export default function App() {
                           )}
                         </div>
                       )}
+                      <button
+                        type="button"
+                        className="mobile-menu-muted-action"
+                        onClick={() => {
+                          exportProject();
+                          setShowMobileMenu(false);
+                        }}
+                      >
+                        Export project…
+                      </button>
                     </div>
                   )}
                   
@@ -805,7 +832,7 @@ export default function App() {
                       </button>
                     </div>
                   )}
-                  
+
                   {/* New Project button */}
                   <div className="mobile-menu-section">
                     <button

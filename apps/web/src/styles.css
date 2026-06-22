@@ -76,6 +76,16 @@ main.dashboard > .app-header {
   margin-left: 0;
 }
 
+.project-dropdown-muted {
+  font-size: 0.82rem;
+  color: #888 !important;
+}
+
+.project-dropdown-muted:hover {
+  color: #ccc !important;
+  background: #2a2a2e !important;
+}
+
 .mobile-header {
   display: none !important;
   align-items: center;
@@ -190,6 +200,23 @@ main.dashboard > .app-header {
   color: #4ec9b0;
   font-weight: 700;
   cursor: pointer;
+}
+
+.mobile-menu-muted-action {
+  display: block;
+  width: 100%;
+  margin: 0 0 0.5rem;
+  padding: 0.35rem 1rem 0.75rem;
+  background: none;
+  border: none;
+  text-align: left;
+  font-size: 0.82rem;
+  color: #777;
+  cursor: pointer;
+}
+
+.mobile-menu-muted-action:hover {
+  color: #aaa;
 }
 
 .mobile-menu-project-wrapper {

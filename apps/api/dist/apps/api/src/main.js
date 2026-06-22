@@ -9,7 +9,6 @@ import helmet from 'helmet';
 import morgan from 'morgan';
 import multer from 'multer';
 import archiver from 'archiver';
-import PDFDocument from 'pdfkit';
 import { AuthError, createAuthService } from '@sandrocket/core';
 import { BcryptPasswordHasher, JwtTokenService, SqliteUserRepository, initializeSqliteDatabase, loadConfig } from '@sandrocket/infrastructure';
 import { createProjectService, createInvitationService } from '@sandrocket/core';
@@ -22,6 +21,7 @@ import { SqliteTaskRepository } from '@sandrocket/infrastructure';
 import { createTaskRequestSchema, reorderTaskRequestSchema, updateTaskRequestSchema } from '@sandrocket/contracts';
 import { loginRequestSchema, registerRequestSchema } from '@sandrocket/contracts';
 import { updateSpendingVisibilityRequestSchema, createSpendingEntryRequestSchema, updateSpendingEntryRequestSchema, importSpendingEntriesRequestSchema, updateSummaryVisibilityRequestSchema, createSummaryEntryRequestSchema, updateSummaryEntryRequestSchema, importSummaryEntriesRequestSchema } from '@sandrocket/contracts';
+import { buildDevisExcelBuffer, buildSpendingExcelBuffer, buildTasksExcelBuffer } from './project-export.js';
 const config = loadConfig();
 const database = initializeSqliteDatabase({
     filename: config.database.filename
@@ -1104,7 +1104,7 @@ app.delete('/api/documents/:documentId', asyncHandler(async (req, res) => {
     }
     res.status(204).send();
 }));
-// ── Project export (zip with PDF summary + all documents) ───────────
+// ── Project export (zip with importable Excel files + documents) ──────
 app.get('/api/projects/:projectId/export', asyncHandler(async (req, res) => {
     const token = req.cookies[config.security.sessionCookieName];
     if (!token) {
@@ -1123,32 +1123,23 @@ app.get('/api/projects/:projectId/export', asyncHandler(async (req, res) => {
         res.status(404).json({ error: 'not-found', message: 'Project not found' });
         return;
     }
-    // Gather data
     const epics = await epicService.listEpics(projectId);
     const epicTasks = await Promise.all(epics.map(async (epic) => ({
         epic,
         tasks: await taskService.listTasks(epic.id)
     })));
-    const documents = await documentRepository.listByProject(projectId);
-    // Resolve user display names for tasks
-    const userIds = new Set();
-    for (const { tasks } of epicTasks) {
-        for (const t of tasks) {
-            userIds.add(t.creatorUserId);
-        }
-    }
-    const userNames = new Map();
-    for (const uid of userIds) {
-        userNames.set(uid, await getUserDisplayName(uid));
-    }
-    // Sanitize project name for filename
+    const [spendingData, summaryData, documents] = await Promise.all([
+        spendingService.list(projectId),
+        summaryService.list(projectId),
+        documentRepository.listByProject(projectId)
+    ]);
+    const spendingEntries = [...spendingData.entries].sort((a, b) => a.position - b.position || a.id - b.id);
+    const summaryEntries = [...summaryData.entries].sort((a, b) => a.position - b.position || a.id - b.id);
     const safeName = project.name.replace(/[^a-zA-Z0-9À-ÿ _-]/g, '').trim() || 'project';
-    // Set response headers
-    const zipFilename = `${safeName}-backup.zip`;
+    const zipFilename = `${safeName}-export.zip`;
     const asciiFilename = zipFilename.replace(/[^\x20-\x7E]/g, '_');
     res.setHeader('Content-Type', 'application/zip');
     res.setHeader('Content-Disposition', `attachment; filename="${asciiFilename}"; filename*=UTF-8''${encodeURIComponent(zipFilename)}`);
-    // Create zip archive streamed to response
     const archive = archiver('zip', { zlib: { level: 5 } });
     archive.on('error', (err) => {
         console.error('[export] archive error:', err);
@@ -1157,89 +1148,56 @@ app.get('/api/projects/:projectId/export', asyncHandler(async (req, res) => {
         }
     });
     archive.pipe(res);
-    // ── Generate PDF summary ──────────────────────────────────────────
-    const pdfBuffer = await new Promise((resolvePromise, rejectPromise) => {
-        const doc = new PDFDocument({ size: 'A4', margin: 50 });
-        const chunks = [];
-        doc.on('data', (chunk) => chunks.push(chunk));
-        doc.on('end', () => resolvePromise(Buffer.concat(chunks)));
-        doc.on('error', rejectPromise);
-        // Title
-        doc.fontSize(22).font('Helvetica-Bold').text(project.name, { align: 'center' });
-        doc.moveDown(0.3);
-        doc.fontSize(10).font('Helvetica').fillColor('#666666')
-            .text(`Exported on ${new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}`, { align: 'center' });
-        doc.moveDown(1.5);
-        if (project.description) {
-            doc.fontSize(11).font('Helvetica').fillColor('#333333').text(project.description);
-            doc.moveDown(1);
-        }
-        const statusLabels = {
-            backlog: 'Backlog',
-            in_progress: 'In Progress',
-            done: 'Done'
-        };
-        const statusOrder = ['backlog', 'in_progress', 'done'];
-        for (const { epic, tasks } of epicTasks) {
-            // Epic header
-            doc.fontSize(16).font('Helvetica-Bold').fillColor('#000000').text(epic.name);
-            if (epic.description) {
-                doc.moveDown(0.2);
-                doc.fontSize(10).font('Helvetica').fillColor('#555555').text(epic.description);
-            }
-            doc.moveDown(0.5);
-            if (tasks.length === 0) {
-                doc.fontSize(10).font('Helvetica-Oblique').fillColor('#999999').text('No tasks');
-                doc.moveDown(1);
-                continue;
-            }
-            // Group tasks by status
-            const grouped = new Map();
-            for (const s of statusOrder) {
-                const matching = tasks.filter((t) => t.status === s);
-                if (matching.length > 0)
-                    grouped.set(s, matching);
-            }
-            for (const [status, statusTasks] of grouped) {
-                doc.fontSize(11).font('Helvetica-Bold').fillColor('#333333')
-                    .text(`${statusLabels[status] ?? status} (${statusTasks.length})`, { indent: 10 });
-                doc.moveDown(0.2);
-                for (const task of statusTasks) {
-                    const creator = userNames.get(task.creatorUserId) ?? 'Unknown';
-                    const created = new Date(task.createdAt).toLocaleDateString('en-GB');
-                    const updated = new Date(task.updatedAt).toLocaleDateString('en-GB');
-                    doc.fontSize(10).font('Helvetica').fillColor('#000000')
-                        .text(`• ${task.description}`, { indent: 20 });
-                    doc.fontSize(8).font('Helvetica').fillColor('#888888')
-                        .text(`  By ${creator} · Created ${created} · Updated ${updated}`, { indent: 20 });
-                    doc.moveDown(0.3);
-                }
-                doc.moveDown(0.3);
-            }
-            doc.moveDown(0.5);
-        }
-        // Documents section
-        if (documents.length > 0) {
-            doc.fontSize(16).font('Helvetica-Bold').fillColor('#000000').text('Documents');
-            doc.moveDown(0.3);
-            for (const d of documents) {
-                const uploaded = new Date(d.createdAt).toLocaleDateString('en-GB');
-                doc.fontSize(10).font('Helvetica').fillColor('#000000')
-                    .text(`• ${d.originalFilename}`, { indent: 10 });
-                doc.fontSize(8).font('Helvetica').fillColor('#888888')
-                    .text(`  ${(d.sizeBytes / 1024).toFixed(0)} KB · Uploaded ${uploaded}`, { indent: 10 });
-                doc.moveDown(0.2);
-            }
-        }
-        doc.end();
-    });
-    archive.append(pdfBuffer, { name: `${safeName}-backup/project-summary.pdf` });
-    // ── Add document files ────────────────────────────────────────────
+    archive.append(buildSpendingExcelBuffer(spendingEntries), { name: 'spending.xlsx' });
+    archive.append(buildDevisExcelBuffer(summaryEntries), { name: 'devis.xlsx' });
+    archive.append(buildTasksExcelBuffer(epicTasks), { name: 'tasks.xlsx' });
     const projectDocDir = join(config.uploads.dir, String(projectId));
     for (const d of documents) {
         const filePath = join(projectDocDir, d.storedFilename);
         if (existsSync(filePath)) {
-            archive.file(filePath, { name: `${safeName}-backup/documents/${d.originalFilename}` });
+            archive.file(filePath, { name: `documents/${d.originalFilename}` });
+        }
+    }
+    await archive.finalize();
+}));
+// ── Documents export (zip of uploaded files only) ─────────────────────
+app.get('/api/projects/:projectId/documents/export', asyncHandler(async (req, res) => {
+    const token = req.cookies[config.security.sessionCookieName];
+    if (!token) {
+        res.status(401).json({ error: 'auth/no-token', message: 'No token' });
+        return;
+    }
+    const payload = await tokenService.verifyToken(token);
+    const projectId = Number(req.params.projectId);
+    const member = await projectMemberRepository.findByProjectAndUser(projectId, payload.userId);
+    if (!member) {
+        res.status(403).json({ error: 'forbidden', message: 'Not a member of this project' });
+        return;
+    }
+    const project = await projectRepository.findById(projectId);
+    if (!project) {
+        res.status(404).json({ error: 'not-found', message: 'Project not found' });
+        return;
+    }
+    const documents = await documentRepository.listByProject(projectId);
+    const safeName = project.name.replace(/[^a-zA-Z0-9À-ÿ _-]/g, '').trim() || 'project';
+    const zipFilename = `${safeName}-documents.zip`;
+    const asciiFilename = zipFilename.replace(/[^\x20-\x7E]/g, '_');
+    res.setHeader('Content-Type', 'application/zip');
+    res.setHeader('Content-Disposition', `attachment; filename="${asciiFilename}"; filename*=UTF-8''${encodeURIComponent(zipFilename)}`);
+    const archive = archiver('zip', { zlib: { level: 5 } });
+    archive.on('error', (err) => {
+        console.error('[export] documents archive error:', err);
+        if (!res.headersSent) {
+            res.status(500).json({ error: 'export-failed', message: 'Export failed' });
+        }
+    });
+    archive.pipe(res);
+    const projectDocDir = join(config.uploads.dir, String(projectId));
+    for (const d of documents) {
+        const filePath = join(projectDocDir, d.storedFilename);
+        if (existsSync(filePath)) {
+            archive.file(filePath, { name: d.originalFilename });
         }
     }
     await archive.finalize();
