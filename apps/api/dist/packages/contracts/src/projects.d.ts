@@ -71,15 +71,15 @@ export declare const invitationResponseSchema: z.ZodObject<{
     expiresAt: z.ZodNullable<z.ZodString>;
 }, "strip", z.ZodTypeAny, {
     token: string;
+    projectId: number;
     id: number;
     createdAt: string;
-    projectId: number;
     expiresAt: string | null;
 }, {
     token: string;
+    projectId: number;
     id: number;
     createdAt: string;
-    projectId: number;
     expiresAt: string | null;
 }>;
 export type InvitationResponse = z.infer<typeof invitationResponseSchema>;

@@ -5,12 +5,6 @@ function resolveEntryDate(entryDate) {
     const trimmed = entryDate?.trim();
     return trimmed && /^\d{4}-\d{2}-\d{2}$/.test(trimmed) ? trimmed : todayIsoDate();
 }
-function resolveOptionalDate(value) {
-    const trimmed = value?.trim() ?? '';
-    if (!trimmed)
-        return '';
-    return /^\d{4}-\d{2}-\d{2}$/.test(trimmed) ? trimmed : '';
-}
 class SummaryServiceImpl {
     constructor(deps) {
         this.deps = deps;
@@ -27,30 +21,54 @@ class SummaryServiceImpl {
         await this.deps.summary.setVisible(projectId, visible);
         return visible;
     }
-    async createEntry(projectId, description, amount, entryDate, accomptePayeDate, paiementCompletDate) {
+    async createEntry(projectId, lot, amount, entryDate, fichierRetenu) {
         const maxPos = await this.deps.summary.getMaxPosition(projectId);
         return this.deps.summary.create({
             projectId,
-            description: description.trim(),
+            lot: lot.trim(),
+            fichierRetenu: (fichierRetenu ?? '').trim(),
             amount,
             entryDate: resolveEntryDate(entryDate),
-            accomptePayeDate: resolveOptionalDate(accomptePayeDate),
-            paiementCompletDate: resolveOptionalDate(paiementCompletDate),
             position: maxPos + 1
         });
     }
-    async updateEntry(id, description, amount, entryDate, accomptePayeDate, paiementCompletDate) {
+    async updateEntry(id, lot, amount, entryDate, fichierRetenu) {
         return this.deps.summary.update({
             id,
-            description,
+            lot: lot === undefined ? undefined : lot.trim(),
             amount,
             entryDate: entryDate === undefined ? undefined : resolveEntryDate(entryDate),
-            accomptePayeDate: accomptePayeDate === undefined ? undefined : resolveOptionalDate(accomptePayeDate),
-            paiementCompletDate: paiementCompletDate === undefined ? undefined : resolveOptionalDate(paiementCompletDate)
+            fichierRetenu: fichierRetenu === undefined ? undefined : fichierRetenu.trim()
         });
     }
     async deleteEntry(id) {
         return this.deps.summary.delete(id);
+    }
+    async importEntries(projectId, entries, replace = true) {
+        const normalized = entries.map((entry, index) => ({
+            lot: entry.lot.trim(),
+            fichierRetenu: (entry.fichierRetenu ?? '').trim(),
+            amount: entry.amount,
+            entryDate: resolveEntryDate(entry.entryDate),
+            position: index + 1
+        }));
+        let created;
+        if (replace) {
+            created = await this.deps.summary.replaceAll(projectId, normalized);
+        }
+        else {
+            const maxPos = await this.deps.summary.getMaxPosition(projectId);
+            created = [];
+            for (let i = 0; i < normalized.length; i++) {
+                created.push(await this.deps.summary.create({
+                    projectId,
+                    ...normalized[i],
+                    position: maxPos + i + 1
+                }));
+            }
+        }
+        const totalAmount = created.reduce((sum, e) => sum + e.amount, 0);
+        return { entries: created, totalAmount };
     }
 }
 export function createSummaryService(deps) {

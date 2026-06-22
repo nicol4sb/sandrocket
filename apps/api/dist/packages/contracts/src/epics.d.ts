@@ -18,19 +18,19 @@ export declare const epicSchema: z.ZodObject<{
     createdAt: z.ZodString;
     updatedAt: z.ZodString;
 }, "strip", z.ZodTypeAny, {
+    projectId: number;
     id: number;
     description: string | null;
     name: string;
     createdAt: string;
     updatedAt: string;
-    projectId: number;
 }, {
+    projectId: number;
     id: number;
     description: string | null;
     name: string;
     createdAt: string;
     updatedAt: string;
-    projectId: number;
 }>;
 export type EpicResponse = z.infer<typeof epicSchema>;
 export interface ListEpicsResponse {

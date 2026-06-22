@@ -85,7 +85,8 @@ import type {
   ListSpendingResponse,
   SpendingEntryResponse,
   ListSummaryResponse,
-  SummaryEntryResponse
+  SummaryEntryResponse,
+  ImportSummaryResponse
 } from '@sandrocket/contracts';
 import {
   updateSpendingVisibilityRequestSchema,
@@ -93,7 +94,8 @@ import {
   updateSpendingEntryRequestSchema,
   updateSummaryVisibilityRequestSchema,
   createSummaryEntryRequestSchema,
-  updateSummaryEntryRequestSchema
+  updateSummaryEntryRequestSchema,
+  importSummaryEntriesRequestSchema
 } from '@sandrocket/contracts';
 import { z } from 'zod';
 
@@ -180,11 +182,10 @@ function toSummaryEntryResponse(entry: SummaryEntry): SummaryEntryResponse {
   return {
     id: entry.id,
     projectId: entry.projectId,
-    description: entry.description,
+    lot: entry.lot,
+    fichierRetenu: entry.fichierRetenu,
     amount: entry.amount,
     entryDate: entry.entryDate,
-    accomptePayeDate: entry.accomptePayeDate,
-    paiementCompletDate: entry.paiementCompletDate,
     position: entry.position,
     createdAt: entry.createdAt.toISOString(),
     updatedAt: entry.updatedAt.toISOString()
@@ -1055,13 +1056,50 @@ app.post(
 
     const entry = await summaryService.createEntry(
       projectId,
-      body.description ?? '',
+      body.lot ?? '',
       body.amount,
       body.entryDate,
-      body.accomptePayeDate,
-      body.paiementCompletDate
+      body.fichierRetenu ?? ''
     );
     res.status(201).json(toSummaryEntryResponse(entry));
+  })
+);
+
+app.post(
+  '/api/projects/:projectId/summary/import',
+  asyncHandler(async (req, res) => {
+    const token = req.cookies[config.security.sessionCookieName];
+    if (!token) {
+      res.status(401).json({ error: 'auth/no-token', message: 'No token' });
+      return;
+    }
+    const payload = await tokenService.verifyToken(token);
+    const projectId = Number(req.params.projectId);
+
+    const member = await projectMemberRepository.findByProjectAndUser(projectId, payload.userId);
+    if (!member) {
+      res.status(403).json({ error: 'forbidden', message: 'Not a member of this project' });
+      return;
+    }
+
+    const body = parseBody(importSummaryEntriesRequestSchema, req, res);
+    if (!body) return;
+
+    const data = await summaryService.importEntries(
+      projectId,
+      body.entries.map((entry) => ({
+        lot: entry.lot ?? '',
+        fichierRetenu: entry.fichierRetenu ?? '',
+        amount: entry.amount,
+        entryDate: entry.entryDate
+      })),
+      body.replace
+    );
+    const response: ImportSummaryResponse = {
+      totalAmount: data.totalAmount,
+      entries: data.entries.map(toSummaryEntryResponse)
+    };
+    res.json(response);
   })
 );
 
@@ -1093,11 +1131,10 @@ app.patch(
 
     const updated = await summaryService.updateEntry(
       entryId,
-      body.description,
+      body.lot,
       body.amount,
       body.entryDate,
-      body.accomptePayeDate,
-      body.paiementCompletDate
+      body.fichierRetenu
     );
     if (!updated) {
       res.status(404).json({ error: 'not-found', message: 'Summary entry not found' });

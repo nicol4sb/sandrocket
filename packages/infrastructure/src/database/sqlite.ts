@@ -178,17 +178,16 @@ export function initializeSqliteDatabase(options: SqliteOptions): Database {
     CREATE TABLE IF NOT EXISTS project_summary_entries (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       project_id INTEGER NOT NULL,
-      description TEXT NOT NULL DEFAULT '',
+      lot TEXT NOT NULL DEFAULT '',
+      fichier_retenu TEXT NOT NULL DEFAULT '',
       amount REAL NOT NULL DEFAULT 0,
       entry_date TEXT NOT NULL DEFAULT (date('now')),
-      accompte_paye_date TEXT NOT NULL DEFAULT '',
-      paiement_complet_date TEXT NOT NULL DEFAULT '',
       position INTEGER NOT NULL DEFAULT 0,
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL,
       FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
     );
-    CREATE INDEX IF NOT EXISTS idx_summary_project ON project_summary_entries(project_id, entry_date ASC, id ASC);
+    CREATE INDEX IF NOT EXISTS idx_summary_project ON project_summary_entries(project_id, position ASC, id ASC);
   `);
 
   // Migration: Add creator_user_id column and/or remove title column if needed
@@ -341,6 +340,29 @@ export function initializeSqliteDatabase(options: SqliteOptions): Database {
   } catch (err) {
     // eslint-disable-next-line no-console
     console.error('[db] Migration error for summary_visible:', err);
+  }
+
+  // Migration: Devis table columns (lot + fichier_retenu)
+  try {
+    const summaryInfo = db.prepare(`PRAGMA table_info('project_summary_entries')`).all() as Array<{
+      name: string;
+    }>;
+    if (summaryInfo.length > 0) {
+      if (!summaryInfo.some((col) => col.name === 'lot')) {
+        db.exec(`ALTER TABLE project_summary_entries ADD COLUMN lot TEXT NOT NULL DEFAULT ''`);
+        if (summaryInfo.some((col) => col.name === 'description')) {
+          db.exec(`UPDATE project_summary_entries SET lot = description WHERE lot = ''`);
+        }
+      }
+      if (!summaryInfo.some((col) => col.name === 'fichier_retenu')) {
+        db.exec(
+          `ALTER TABLE project_summary_entries ADD COLUMN fichier_retenu TEXT NOT NULL DEFAULT ''`
+        );
+      }
+    }
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.error('[db] Migration error for summary lot/fichier_retenu:', err);
   }
 
   // Emit a single startup log with DB path to help diagnose multiple-process setups

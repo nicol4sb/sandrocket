@@ -18,12 +18,12 @@ export declare const updateTaskRequestSchema: z.ZodObject<{
     position: z.ZodOptional<z.ZodNumber>;
 }, "strip", z.ZodTypeAny, {
     status?: "backlog" | "in_progress" | "done" | undefined;
-    description?: string | undefined;
     position?: number | undefined;
+    description?: string | undefined;
 }, {
     status?: "backlog" | "in_progress" | "done" | undefined;
-    description?: string | undefined;
     position?: number | undefined;
+    description?: string | undefined;
 }>;
 export type UpdateTaskRequest = z.infer<typeof updateTaskRequestSchema>;
 export declare const taskSchema: z.ZodObject<{
@@ -38,22 +38,22 @@ export declare const taskSchema: z.ZodObject<{
     lastEditedByUserId: z.ZodNullable<z.ZodNumber>;
 }, "strip", z.ZodTypeAny, {
     status: "backlog" | "in_progress" | "done";
+    position: number;
     id: number;
     description: string;
     createdAt: string;
     updatedAt: string;
     epicId: number;
-    position: number;
     creatorUserId: number;
     lastEditedByUserId: number | null;
 }, {
     status: "backlog" | "in_progress" | "done";
+    position: number;
     id: number;
     description: string;
     createdAt: string;
     updatedAt: string;
     epicId: number;
-    position: number;
     creatorUserId: number;
     lastEditedByUserId: number | null;
 }>;
@@ -67,11 +67,11 @@ export declare const reorderTaskRequestSchema: z.ZodObject<{
     position: z.ZodNumber;
 }, "strip", z.ZodTypeAny, {
     status: "backlog" | "in_progress" | "done";
-    epicId: number;
     position: number;
+    epicId: number;
 }, {
     status: "backlog" | "in_progress" | "done";
-    epicId: number;
     position: number;
+    epicId: number;
 }>;
 export type ReorderTaskRequest = z.infer<typeof reorderTaskRequestSchema>;

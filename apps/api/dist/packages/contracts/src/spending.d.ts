@@ -10,25 +10,25 @@ export declare const spendingEntryResponseSchema: z.ZodObject<{
     createdAt: z.ZodString;
     updatedAt: z.ZodString;
 }, "strip", z.ZodTypeAny, {
+    projectId: number;
+    amount: number;
+    entryDate: string;
+    position: number;
     id: number;
     description: string;
     bank: string;
     createdAt: string;
     updatedAt: string;
-    projectId: number;
-    position: number;
-    amount: number;
-    entryDate: string;
 }, {
+    projectId: number;
+    amount: number;
+    entryDate: string;
+    position: number;
     id: number;
     description: string;
     bank: string;
     createdAt: string;
     updatedAt: string;
-    projectId: number;
-    position: number;
-    amount: number;
-    entryDate: string;
 }>;
 export type SpendingEntryResponse = z.infer<typeof spendingEntryResponseSchema>;
 export interface ListSpendingResponse {
@@ -50,15 +50,15 @@ export declare const createSpendingEntryRequestSchema: z.ZodObject<{
     entryDate: z.ZodOptional<z.ZodString>;
     bank: z.ZodDefault<z.ZodOptional<z.ZodString>>;
 }, "strip", z.ZodTypeAny, {
+    amount: number;
     description: string;
     bank: string;
-    amount: number;
     entryDate?: string | undefined;
 }, {
     amount: number;
+    entryDate?: string | undefined;
     description?: string | undefined;
     bank?: string | undefined;
-    entryDate?: string | undefined;
 }>;
 export type CreateSpendingEntryRequest = z.infer<typeof createSpendingEntryRequestSchema>;
 export declare const updateSpendingEntryRequestSchema: z.ZodObject<{
@@ -67,14 +67,14 @@ export declare const updateSpendingEntryRequestSchema: z.ZodObject<{
     entryDate: z.ZodOptional<z.ZodString>;
     bank: z.ZodOptional<z.ZodString>;
 }, "strip", z.ZodTypeAny, {
-    description?: string | undefined;
-    bank?: string | undefined;
     amount?: number | undefined;
     entryDate?: string | undefined;
+    description?: string | undefined;
+    bank?: string | undefined;
 }, {
-    description?: string | undefined;
-    bank?: string | undefined;
     amount?: number | undefined;
     entryDate?: string | undefined;
+    description?: string | undefined;
+    bank?: string | undefined;
 }>;
 export type UpdateSpendingEntryRequest = z.infer<typeof updateSpendingEntryRequestSchema>;

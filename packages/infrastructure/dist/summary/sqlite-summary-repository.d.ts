@@ -7,6 +7,7 @@ export declare class SqliteSummaryRepository implements SummaryRepository {
     private readonly listByProjectStmt;
     private readonly updateStmt;
     private readonly deleteStmt;
+    private readonly deleteByProjectStmt;
     private readonly maxPositionStmt;
     private readonly getVisibleStmt;
     private readonly setVisibleStmt;
@@ -16,6 +17,8 @@ export declare class SqliteSummaryRepository implements SummaryRepository {
     create(input: CreateSummaryEntryInput): Promise<SummaryEntry>;
     update(input: UpdateSummaryEntryInput): Promise<SummaryEntry | null>;
     delete(id: number): Promise<boolean>;
+    deleteByProject(projectId: number): Promise<void>;
+    replaceAll(projectId: number, inputs: Omit<CreateSummaryEntryInput, 'projectId'>[]): Promise<SummaryEntry[]>;
     getMaxPosition(projectId: number): Promise<number>;
     isVisible(projectId: number): Promise<boolean>;
     setVisible(projectId: number, visible: boolean): Promise<void>;

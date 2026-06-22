@@ -9,18 +9,18 @@ export declare const documentResponseSchema: z.ZodObject<{
     uploaderDisplayName: z.ZodString;
     createdAt: z.ZodString;
 }, "strip", z.ZodTypeAny, {
+    projectId: number;
     id: number;
     createdAt: string;
-    projectId: number;
     originalFilename: string;
     mimeType: string;
     sizeBytes: number;
     uploaderUserId: number;
     uploaderDisplayName: string;
 }, {
+    projectId: number;
     id: number;
     createdAt: string;
-    projectId: number;
     originalFilename: string;
     mimeType: string;
     sizeBytes: number;

@@ -1,6 +1,10 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import * as XLSX from 'xlsx';
-import type { ListSummaryResponse, SummaryEntryResponse } from '@sandrocket/contracts';
+import type {
+  ImportSummaryResponse,
+  ListSummaryResponse,
+  SummaryEntryResponse
+} from '@sandrocket/contracts';
 
 interface SummaryTableProps {
   projectId: number;
@@ -9,16 +13,30 @@ interface SummaryTableProps {
 }
 
 interface DraftRow {
+  lot: string;
+  fichierRetenu: string;
   entryDate: string;
-  description: string;
-  accomptePayeDate: string;
-  paiementCompletDate: string;
   amount: string;
 }
 
+interface ParsedDevisRow {
+  lot: string;
+  fichierRetenu: string;
+  entryDate: string;
+  amount: number;
+}
+
+const DEVIS_HEADERS = ['Lot', 'Fichier retenu', 'Date du devis', 'TTC (€)'] as const;
+
+const SUMMARY_COL = {
+  LOT: 0,
+  FICHIER: 1,
+  DATE: 2,
+  AMOUNT: 3
+} as const;
+
 function todayIso(): string {
-  const d = new Date();
-  return toIsoDate(d);
+  return toIsoDate(new Date());
 }
 
 function resolveEntryDate(value: string): string {
@@ -26,18 +44,8 @@ function resolveEntryDate(value: string): string {
   return trimmed || todayIso();
 }
 
-function normalizeOptionalDate(value: string): string {
-  return value.trim();
-}
-
 function newDraftRow(): DraftRow {
-  return {
-    entryDate: todayIso(),
-    description: '',
-    accomptePayeDate: '',
-    paiementCompletDate: '',
-    amount: ''
-  };
+  return { lot: '', fichierRetenu: '', entryDate: todayIso(), amount: '' };
 }
 
 function toIsoDate(d: Date): string {
@@ -52,6 +60,33 @@ function parseAmount(value: string): number | null {
   if (!trimmed) return 0;
   const n = Number(trimmed);
   return Number.isFinite(n) ? n : null;
+}
+
+function parseExcelAmount(value: unknown): number | null {
+  if (value == null || value === '') return 0;
+  if (typeof value === 'number') return Number.isFinite(value) ? value : null;
+  return parseAmount(String(value));
+}
+
+function parseExcelDate(value: unknown): string {
+  if (value == null || value === '') return todayIso();
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return toIsoDate(value);
+  }
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    const parsed = XLSX.SSF.parse_date_code(value);
+    if (parsed) {
+      return `${parsed.y}-${String(parsed.m).padStart(2, '0')}-${String(parsed.d).padStart(2, '0')}`;
+    }
+  }
+  const str = String(value).trim();
+  const frMatch = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (frMatch) {
+    const [, d, m, y] = frMatch;
+    return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
+  }
+  if (/^\d{4}-\d{2}-\d{2}$/.test(str)) return str;
+  return todayIso();
 }
 
 function formatAmount(amount: number): string {
@@ -72,8 +107,8 @@ function formatDisplayDate(iso: string): string {
   return `${d}/${m}/${y}`;
 }
 
-function rowHasContent(description: string, amountStr: string): boolean {
-  return description.trim().length > 0 || (parseAmount(amountStr) ?? 0) !== 0;
+function rowHasContent(lot: string, amountStr: string): boolean {
+  return lot.trim().length > 0 || (parseAmount(amountStr) ?? 0) !== 0;
 }
 
 function isFocusMovingWithinRow(e: React.FocusEvent<HTMLElement>): boolean {
@@ -83,13 +118,54 @@ function isFocusMovingWithinRow(e: React.FocusEvent<HTMLElement>): boolean {
   return row.contains(next);
 }
 
-const SUMMARY_COL = {
-  DATE: 0,
-  DESCRIPTION: 1,
-  ACCOMPTE: 2,
-  PAIEMENT: 3,
-  AMOUNT: 4
-} as const;
+function isTotalRow(lot: string, dateCell: unknown, amountCell: unknown): boolean {
+  const dateStr = String(dateCell ?? '').trim().toLowerCase();
+  const lotStr = lot.trim().toLowerCase();
+  return /total/.test(lotStr) || /total/.test(dateStr) || /total/.test(String(amountCell ?? ''));
+}
+
+function findHeaderRowIndex(rows: unknown[][]): number {
+  for (let i = 0; i < Math.min(rows.length, 5); i++) {
+    const first = String(rows[i]?.[0] ?? '').trim().toLowerCase();
+    if (first === 'lot' || first.includes('lot')) return i;
+  }
+  return -1;
+}
+
+export function parseDevisExcel(buffer: ArrayBuffer): ParsedDevisRow[] {
+  const workbook = XLSX.read(buffer, { type: 'array', cellDates: true });
+  const sheetName = workbook.SheetNames[0];
+  if (!sheetName) return [];
+  const sheet = workbook.Sheets[sheetName];
+  const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' }) as unknown[][];
+  const headerIdx = findHeaderRowIndex(rows);
+  const startIdx = headerIdx >= 0 ? headerIdx + 1 : 0;
+  const parsed: ParsedDevisRow[] = [];
+
+  for (let i = startIdx; i < rows.length; i++) {
+    const row = rows[i] ?? [];
+    const lot = String(row[0] ?? '').trim();
+    const fichierRetenu = String(row[1] ?? '').trim();
+    const dateRaw = row[2];
+    const amountRaw = row[3];
+
+    if (isTotalRow(lot, dateRaw, amountRaw)) continue;
+    if (!lot && !fichierRetenu && (amountRaw === '' || amountRaw == null)) continue;
+
+    const amount = parseExcelAmount(amountRaw);
+    if (amount === null) continue;
+    if (!lot && amount === 0) continue;
+
+    parsed.push({
+      lot,
+      fichierRetenu,
+      entryDate: parseExcelDate(dateRaw),
+      amount
+    });
+  }
+
+  return parsed;
+}
 
 function navigateSummaryCellVertically(
   e: React.KeyboardEvent<HTMLInputElement>,
@@ -143,20 +219,19 @@ function exportSummaryToExcel(
   projectName: string
 ) {
   const rows: (string | number)[][] = [
-    ['Date', 'Description', 'Accompte payé', 'Paiement complet', 'Amount'],
+    [...DEVIS_HEADERS],
     ...entries.map((e) => [
-      e.entryDate,
-      e.description,
-      e.accomptePayeDate,
-      e.paiementCompletDate,
+      e.lot,
+      e.fichierRetenu,
+      formatDisplayDate(e.entryDate),
       e.amount
     ]),
-    ['', '', '', 'Total', totalAmount]
+    ['', '', 'Total TTC', totalAmount]
   ];
   const worksheet = XLSX.utils.aoa_to_sheet(rows);
-  worksheet['!cols'] = [{ wch: 12 }, { wch: 28 }, { wch: 14 }, { wch: 16 }, { wch: 14 }];
+  worksheet['!cols'] = [{ wch: 42 }, { wch: 28 }, { wch: 14 }, { wch: 14 }];
   const workbook = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(workbook, worksheet, 'Devis');
+  XLSX.utils.book_append_sheet(workbook, worksheet, 'Budget Projet');
   XLSX.writeFile(workbook, `${safeFilename(projectName)}-devis.xlsx`);
 }
 
@@ -185,7 +260,9 @@ export function SummaryTable({ projectId, projectName, baseUrl }: SummaryTablePr
   const [draft, setDraft] = useState<DraftRow>(newDraftRow);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [importError, setImportError] = useState<string | null>(null);
   const draftRef = useRef(draft);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   draftRef.current = draft;
   const dateMax = todayIso();
 
@@ -198,9 +275,7 @@ export function SummaryTable({ projectId, projectName, baseUrl }: SummaryTablePr
       const data = (await res.json()) as ListSummaryResponse;
       setVisible(data.visible);
       setEntries(
-        [...data.entries].sort(
-          (a, b) => a.entryDate.localeCompare(b.entryDate) || a.id - b.id
-        )
+        [...data.entries].sort((a, b) => a.position - b.position || a.id - b.id)
       );
     } catch {
       // ignore
@@ -233,15 +308,14 @@ export function SummaryTable({ projectId, projectName, baseUrl }: SummaryTablePr
   };
 
   const createEntry = async (
+    lot: string,
+    fichierRetenu: string,
     entryDate: string,
-    description: string,
-    accomptePayeDate: string,
-    paiementCompletDate: string,
     amountStr: string
   ) => {
     const amount = parseAmount(amountStr);
     if (amount === null) return;
-    if (!rowHasContent(description, amountStr)) return;
+    if (!rowHasContent(lot, amountStr)) return;
 
     setSaving(true);
     try {
@@ -250,10 +324,9 @@ export function SummaryTable({ projectId, projectName, baseUrl }: SummaryTablePr
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          description: description.trim(),
+          lot: lot.trim(),
+          fichierRetenu: fichierRetenu.trim(),
           amount,
-          accomptePayeDate: normalizeOptionalDate(accomptePayeDate),
-          paiementCompletDate: normalizeOptionalDate(paiementCompletDate),
           ...(entryDate.trim() ? { entryDate: entryDate.trim() } : {})
         })
       });
@@ -263,6 +336,62 @@ export function SummaryTable({ projectId, projectName, baseUrl }: SummaryTablePr
       }
     } finally {
       setSaving(false);
+    }
+  };
+
+  const importEntries = async (parsed: ParsedDevisRow[]) => {
+    if (parsed.length === 0) {
+      setImportError('No data rows found in the Excel file.');
+      return;
+    }
+
+    if (entries.length > 0) {
+      const ok = window.confirm(
+        'Import will replace all existing devis lines with the Excel file. Continue?'
+      );
+      if (!ok) return;
+    }
+
+    setSaving(true);
+    setImportError(null);
+    try {
+      const res = await fetch(`${baseUrl}/projects/${projectId}/summary/import`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          replace: true,
+          entries: parsed.map((row) => ({
+            lot: row.lot,
+            fichierRetenu: row.fichierRetenu,
+            amount: row.amount,
+            entryDate: row.entryDate
+          }))
+        })
+      });
+      if (!res.ok) {
+        setImportError('Import failed. Check the file format.');
+        return;
+      }
+      const data = (await res.json()) as ImportSummaryResponse;
+      setEntries([...data.entries].sort((a, b) => a.position - b.position || a.id - b.id));
+      setVisible(true);
+      setDraft(newDraftRow());
+    } catch {
+      setImportError('Import failed. Check the file format.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleImportFile = async (file: File) => {
+    setImportError(null);
+    try {
+      const buffer = await file.arrayBuffer();
+      const parsed = parseDevisExcel(buffer);
+      await importEntries(parsed);
+    } catch {
+      setImportError('Could not read the Excel file.');
     }
   };
 
@@ -283,10 +412,9 @@ export function SummaryTable({ projectId, projectName, baseUrl }: SummaryTablePr
 
   const updateEntry = async (
     entry: SummaryEntryResponse,
+    lot: string,
+    fichierRetenu: string,
     entryDate: string,
-    description: string,
-    accomptePayeDate: string,
-    paiementCompletDate: string,
     amountStr: string
   ) => {
     const amount = parseAmount(amountStr);
@@ -299,11 +427,10 @@ export function SummaryTable({ projectId, projectName, baseUrl }: SummaryTablePr
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          description: description.trim(),
+          lot: lot.trim(),
+          fichierRetenu: fichierRetenu.trim(),
           amount,
-          entryDate: resolveEntryDate(entryDate),
-          accomptePayeDate: normalizeOptionalDate(accomptePayeDate),
-          paiementCompletDate: normalizeOptionalDate(paiementCompletDate)
+          entryDate: resolveEntryDate(entryDate)
         })
       });
       if (res.ok) {
@@ -316,10 +443,9 @@ export function SummaryTable({ projectId, projectName, baseUrl }: SummaryTablePr
 
   const handleDraftBlur = (e: React.FocusEvent<HTMLElement>) => {
     if (isFocusMovingWithinRow(e)) return;
-    const { entryDate, description, accomptePayeDate, paiementCompletDate, amount } =
-      draftRef.current;
-    if (rowHasContent(description, amount)) {
-      void createEntry(entryDate, description, accomptePayeDate, paiementCompletDate, amount);
+    const { lot, fichierRetenu, entryDate, amount } = draftRef.current;
+    if (rowHasContent(lot, amount)) {
+      void createEntry(lot, fichierRetenu, entryDate, amount);
     }
   };
 
@@ -335,6 +461,17 @@ export function SummaryTable({ projectId, projectName, baseUrl }: SummaryTablePr
 
   return (
     <div className="summary-section">
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
+        hidden
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          if (file) void handleImportFile(file);
+          e.target.value = '';
+        }}
+      />
       <div className={`summary-accordion${visible ? ' summary-accordion-open' : ''}`}>
         <div className="summary-accordion-header">
           <button
@@ -353,22 +490,40 @@ export function SummaryTable({ projectId, projectName, baseUrl }: SummaryTablePr
           </button>
           <div className="summary-header-actions">
             {visible && (
-              <button
-                type="button"
-                className="summary-export-btn"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  exportSummaryToExcel(entries, totalAmount, projectName);
-                }}
-                disabled={entries.length === 0}
-                title="Export devis to Excel"
-              >
-                <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
-                  <path d="M2 10v3a1 1 0 001 1h10a1 1 0 001-1v-3" />
-                  <path d="M8 2v8M4.5 7.5 8 11l3.5-3.5M2 13h10" />
-                </svg>
-                <span>Excel</span>
-              </button>
+              <>
+                <button
+                  type="button"
+                  className="summary-import-btn"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    fileInputRef.current?.click();
+                  }}
+                  disabled={saving}
+                  title="Import devis from Excel"
+                >
+                  <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+                    <path d="M2 6v3a1 1 0 001 1h10a1 1 0 001-1V6" />
+                    <path d="M8 10V2M4.5 5.5 8 2l3.5 3.5M2 13h10" />
+                  </svg>
+                  <span>Import</span>
+                </button>
+                <button
+                  type="button"
+                  className="summary-export-btn"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    exportSummaryToExcel(entries, totalAmount, projectName);
+                  }}
+                  disabled={entries.length === 0}
+                  title="Export devis to Excel"
+                >
+                  <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+                    <path d="M2 10v3a1 1 0 001 1h10a1 1 0 001-1v-3" />
+                    <path d="M8 2v8M4.5 7.5 8 11l3.5-3.5M2 13h10" />
+                  </svg>
+                  <span>Excel</span>
+                </button>
+              </>
             )}
             <button
               type="button"
@@ -386,16 +541,14 @@ export function SummaryTable({ projectId, projectName, baseUrl }: SummaryTablePr
 
         {visible && (
           <div className="summary-table-wrap">
+            {importError && <p className="summary-import-error">{importError}</p>}
             <table className="summary-table">
               <thead>
                 <tr>
-                  <th className="summary-col-date">
-                    Date <span className="summary-col-optional">(optional)</span>
-                  </th>
-                  <th>Description</th>
-                  <th className="summary-col-pay-date">Accompte payé</th>
-                  <th className="summary-col-pay-date">Paiement complet</th>
-                  <th className="summary-col-amount">Amount</th>
+                  <th className="summary-col-lot">Lot</th>
+                  <th className="summary-col-fichier">Fichier retenu</th>
+                  <th className="summary-col-date">Date du devis</th>
+                  <th className="summary-col-amount">TTC (€)</th>
                   <th className="summary-col-actions" aria-label="Actions" />
                 </tr>
               </thead>
@@ -405,20 +558,35 @@ export function SummaryTable({ projectId, projectName, baseUrl }: SummaryTablePr
                     key={entry.id}
                     entry={entry}
                     dateMax={dateMax}
-                    onCommit={(entryDate, description, accomptePayeDate, paiementCompletDate, amount) =>
-                      void updateEntry(
-                        entry,
-                        entryDate,
-                        description,
-                        accomptePayeDate,
-                        paiementCompletDate,
-                        amount
-                      )
+                    onCommit={(lot, fichierRetenu, entryDate, amount) =>
+                      void updateEntry(entry, lot, fichierRetenu, entryDate, amount)
                     }
                     onDelete={() => void deleteEntry(entry.id)}
                   />
                 ))}
                 <tr className="summary-row-draft">
+                  <td className="summary-col-lot">
+                    <input
+                      type="text"
+                      className="summary-input"
+                      placeholder="Add a line…"
+                      value={draft.lot}
+                      onChange={(e) => setDraft((d) => ({ ...d, lot: e.target.value }))}
+                      onBlur={handleDraftBlur}
+                      onKeyDown={(e) => onSummaryCellKeyDown(e, SUMMARY_COL.LOT)}
+                    />
+                  </td>
+                  <td className="summary-col-fichier">
+                    <input
+                      type="text"
+                      className="summary-input"
+                      placeholder="Fichier…"
+                      value={draft.fichierRetenu}
+                      onChange={(e) => setDraft((d) => ({ ...d, fichierRetenu: e.target.value }))}
+                      onBlur={handleDraftBlur}
+                      onKeyDown={(e) => onSummaryCellKeyDown(e, SUMMARY_COL.FICHIER)}
+                    />
+                  </td>
                   <td className="summary-col-date">
                     <input
                       type="date"
@@ -428,44 +596,7 @@ export function SummaryTable({ projectId, projectName, baseUrl }: SummaryTablePr
                       onChange={(e) => setDraft((d) => ({ ...d, entryDate: e.target.value }))}
                       onBlur={handleDraftBlur}
                       onKeyDown={(e) => onSummaryCellKeyDown(e, SUMMARY_COL.DATE)}
-                      title={`Optional — defaults to today (up to ${formatDisplayDate(dateMax)})`}
-                    />
-                  </td>
-                  <td>
-                    <input
-                      type="text"
-                      className="summary-input"
-                      placeholder="Add a line…"
-                      value={draft.description}
-                      onChange={(e) => setDraft((d) => ({ ...d, description: e.target.value }))}
-                      onBlur={handleDraftBlur}
-                      onKeyDown={(e) => onSummaryCellKeyDown(e, SUMMARY_COL.DESCRIPTION)}
-                    />
-                  </td>
-                  <td className="summary-col-pay-date">
-                    <input
-                      type="date"
-                      className="summary-input summary-input-date"
-                      value={draft.accomptePayeDate}
-                      max={dateMax}
-                      onChange={(e) =>
-                        setDraft((d) => ({ ...d, accomptePayeDate: e.target.value }))
-                      }
-                      onBlur={handleDraftBlur}
-                      onKeyDown={(e) => onSummaryCellKeyDown(e, SUMMARY_COL.ACCOMPTE)}
-                    />
-                  </td>
-                  <td className="summary-col-pay-date">
-                    <input
-                      type="date"
-                      className="summary-input summary-input-date"
-                      value={draft.paiementCompletDate}
-                      max={dateMax}
-                      onChange={(e) =>
-                        setDraft((d) => ({ ...d, paiementCompletDate: e.target.value }))
-                      }
-                      onBlur={handleDraftBlur}
-                      onKeyDown={(e) => onSummaryCellKeyDown(e, SUMMARY_COL.PAIEMENT)}
+                      title={`Defaults to today (up to ${formatDisplayDate(dateMax)})`}
                     />
                   </td>
                   <td className="summary-col-amount">
@@ -483,7 +614,7 @@ export function SummaryTable({ projectId, projectName, baseUrl }: SummaryTablePr
                   <td className="summary-col-actions" />
                 </tr>
                 <tr className="summary-row-total">
-                  <td colSpan={4}>Total</td>
+                  <td colSpan={3}>Total TTC</td>
                   <td className="summary-col-amount">{formatAmount(totalAmount)}</td>
                   <td className="summary-col-actions" />
                 </tr>
@@ -499,63 +630,43 @@ export function SummaryTable({ projectId, projectName, baseUrl }: SummaryTablePr
 function SummaryRow(props: {
   entry: SummaryEntryResponse;
   dateMax: string;
-  onCommit: (
-    entryDate: string,
-    description: string,
-    accomptePayeDate: string,
-    paiementCompletDate: string,
-    amount: string
-  ) => void;
+  onCommit: (lot: string, fichierRetenu: string, entryDate: string, amount: string) => void;
   onDelete: () => void;
 }) {
+  const [lot, setLot] = useState(props.entry.lot);
+  const [fichierRetenu, setFichierRetenu] = useState(props.entry.fichierRetenu);
   const [entryDate, setEntryDate] = useState(props.entry.entryDate);
-  const [description, setDescription] = useState(props.entry.description);
-  const [accomptePayeDate, setAccomptePayeDate] = useState(props.entry.accomptePayeDate);
-  const [paiementCompletDate, setPaiementCompletDate] = useState(props.entry.paiementCompletDate);
   const [amount, setAmount] = useState(formatAmountInput(props.entry.amount));
+  const lotRef = useRef(lot);
+  const fichierRetenuRef = useRef(fichierRetenu);
   const entryDateRef = useRef(entryDate);
-  const descriptionRef = useRef(description);
-  const accomptePayeDateRef = useRef(accomptePayeDate);
-  const paiementCompletDateRef = useRef(paiementCompletDate);
   const amountRef = useRef(amount);
+  lotRef.current = lot;
+  fichierRetenuRef.current = fichierRetenu;
   entryDateRef.current = entryDate;
-  descriptionRef.current = description;
-  accomptePayeDateRef.current = accomptePayeDate;
-  paiementCompletDateRef.current = paiementCompletDate;
   amountRef.current = amount;
 
   useEffect(() => {
+    setLot(props.entry.lot);
+    setFichierRetenu(props.entry.fichierRetenu);
     setEntryDate(props.entry.entryDate);
-    setDescription(props.entry.description);
-    setAccomptePayeDate(props.entry.accomptePayeDate);
-    setPaiementCompletDate(props.entry.paiementCompletDate);
     setAmount(formatAmountInput(props.entry.amount));
-  }, [
-    props.entry.entryDate,
-    props.entry.description,
-    props.entry.accomptePayeDate,
-    props.entry.paiementCompletDate,
-    props.entry.amount
-  ]);
+  }, [props.entry.lot, props.entry.fichierRetenu, props.entry.entryDate, props.entry.amount]);
 
   const commitAll = (e: React.FocusEvent<HTMLElement>) => {
     if (isFocusMovingWithinRow(e)) return;
     const resolvedDate = resolveEntryDate(entryDateRef.current);
-    const normalizedAccompte = normalizeOptionalDate(accomptePayeDateRef.current);
-    const normalizedPaiement = normalizeOptionalDate(paiementCompletDateRef.current);
+    const lotChanged = lotRef.current !== props.entry.lot;
+    const fichierChanged = fichierRetenuRef.current !== props.entry.fichierRetenu;
     const dateChanged = resolvedDate !== props.entry.entryDate;
-    const descChanged = descriptionRef.current !== props.entry.description;
-    const accompteChanged = normalizedAccompte !== props.entry.accomptePayeDate;
-    const paiementChanged = normalizedPaiement !== props.entry.paiementCompletDate;
     const parsed = parseAmount(amountRef.current);
     const prevParsed = props.entry.amount;
     const amountChanged = parsed !== null && parsed !== prevParsed;
-    if (dateChanged || descChanged || accompteChanged || paiementChanged || amountChanged) {
+    if (lotChanged || fichierChanged || dateChanged || amountChanged) {
       props.onCommit(
+        lotRef.current,
+        fichierRetenuRef.current,
         resolvedDate,
-        descriptionRef.current,
-        normalizedAccompte,
-        normalizedPaiement,
         amountRef.current
       );
     }
@@ -566,18 +677,32 @@ function SummaryRow(props: {
     entryDateRef.current = nextDate;
     const resolved = resolveEntryDate(nextDate);
     if (resolved !== props.entry.entryDate) {
-      props.onCommit(
-        resolved,
-        descriptionRef.current,
-        normalizeOptionalDate(accomptePayeDateRef.current),
-        normalizeOptionalDate(paiementCompletDateRef.current),
-        amountRef.current
-      );
+      props.onCommit(lotRef.current, fichierRetenuRef.current, resolved, amountRef.current);
     }
   };
 
   return (
     <tr className="summary-row">
+      <td className="summary-col-lot">
+        <input
+          type="text"
+          className="summary-input"
+          value={lot}
+          onChange={(e) => setLot(e.target.value)}
+          onBlur={commitAll}
+          onKeyDown={(e) => onSummaryCellKeyDown(e, SUMMARY_COL.LOT)}
+        />
+      </td>
+      <td className="summary-col-fichier">
+        <input
+          type="text"
+          className="summary-input"
+          value={fichierRetenu}
+          onChange={(e) => setFichierRetenu(e.target.value)}
+          onBlur={commitAll}
+          onKeyDown={(e) => onSummaryCellKeyDown(e, SUMMARY_COL.FICHIER)}
+        />
+      </td>
       <td className="summary-col-date">
         <input
           type="date"
@@ -587,39 +712,6 @@ function SummaryRow(props: {
           onChange={(e) => commitDate(e.target.value)}
           onBlur={commitAll}
           onKeyDown={(e) => onSummaryCellKeyDown(e, SUMMARY_COL.DATE)}
-          title="Optional — defaults to today"
-        />
-      </td>
-      <td>
-        <input
-          type="text"
-          className="summary-input"
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-          onBlur={commitAll}
-          onKeyDown={(e) => onSummaryCellKeyDown(e, SUMMARY_COL.DESCRIPTION)}
-        />
-      </td>
-      <td className="summary-col-pay-date">
-        <input
-          type="date"
-          className="summary-input summary-input-date"
-          value={accomptePayeDate}
-          max={props.dateMax}
-          onChange={(e) => setAccomptePayeDate(e.target.value)}
-          onBlur={commitAll}
-          onKeyDown={(e) => onSummaryCellKeyDown(e, SUMMARY_COL.ACCOMPTE)}
-        />
-      </td>
-      <td className="summary-col-pay-date">
-        <input
-          type="date"
-          className="summary-input summary-input-date"
-          value={paiementCompletDate}
-          max={props.dateMax}
-          onChange={(e) => setPaiementCompletDate(e.target.value)}
-          onBlur={commitAll}
-          onKeyDown={(e) => onSummaryCellKeyDown(e, SUMMARY_COL.PAIEMENT)}
         />
       </td>
       <td className="summary-col-amount">
