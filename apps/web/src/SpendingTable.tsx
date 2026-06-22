@@ -455,7 +455,7 @@ export function SpendingTable({ projectId, projectName, baseUrl }: SpendingTable
   };
 
   return (
-    <div className="spending-section">
+    <div id="board-spending" className="spending-section board-section">
       <input
         ref={fileInputRef}
         type="file"
@@ -562,7 +562,7 @@ export function SpendingTable({ projectId, projectName, baseUrl }: SpendingTable
                   />
                 ))}
                 <tr className="spending-row-draft">
-                  <td className="spending-col-date">
+                  <td className="spending-col-date" data-label="Payment date">
                     <input
                       type="date"
                       className="spending-input spending-input-date"
@@ -574,7 +574,7 @@ export function SpendingTable({ projectId, projectName, baseUrl }: SpendingTable
                       title={`Optional — defaults to today (up to ${formatDisplayDate(dateMax)})`}
                     />
                   </td>
-                  <td>
+                  <td data-label="Description">
                     <input
                       type="text"
                       className="spending-input"
@@ -585,7 +585,7 @@ export function SpendingTable({ projectId, projectName, baseUrl }: SpendingTable
                       onKeyDown={(e) => onSpendingCellKeyDown(e, SPENDING_COL.DESCRIPTION)}
                     />
                   </td>
-                  <td className="spending-col-bank">
+                  <td className="spending-col-bank" data-label="Bank">
                     <input
                       type="text"
                       className="spending-input"
@@ -596,7 +596,7 @@ export function SpendingTable({ projectId, projectName, baseUrl }: SpendingTable
                       onKeyDown={(e) => onSpendingCellKeyDown(e, SPENDING_COL.BANK)}
                     />
                   </td>
-                  <td className="spending-col-amount">
+                  <td className="spending-col-amount" data-label="Amount">
                     <input
                       type="text"
                       inputMode="decimal"
@@ -685,7 +685,7 @@ function SpendingRow(props: {
 
   return (
     <tr className="spending-row">
-      <td className="spending-col-date">
+      <td className="spending-col-date" data-label="Payment date">
         <input
           type="date"
           className="spending-input spending-input-date"
@@ -697,7 +697,7 @@ function SpendingRow(props: {
           title="Optional — defaults to today"
         />
       </td>
-      <td>
+      <td data-label="Description">
         <input
           type="text"
           className="spending-input"
@@ -707,7 +707,7 @@ function SpendingRow(props: {
           onKeyDown={(e) => onSpendingCellKeyDown(e, SPENDING_COL.DESCRIPTION)}
         />
       </td>
-      <td className="spending-col-bank">
+      <td className="spending-col-bank" data-label="Bank">
         <input
           type="text"
           className="spending-input"
@@ -718,7 +718,7 @@ function SpendingRow(props: {
           onKeyDown={(e) => onSpendingCellKeyDown(e, SPENDING_COL.BANK)}
         />
       </td>
-      <td className="spending-col-amount">
+      <td className="spending-col-amount" data-label="Amount">
         <input
           type="text"
           inputMode="decimal"

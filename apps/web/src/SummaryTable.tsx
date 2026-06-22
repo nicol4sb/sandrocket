@@ -460,7 +460,7 @@ export function SummaryTable({ projectId, projectName, baseUrl }: SummaryTablePr
   };
 
   return (
-    <div className="summary-section">
+    <div id="board-devis" className="summary-section board-section">
       <input
         ref={fileInputRef}
         type="file"
@@ -565,7 +565,7 @@ export function SummaryTable({ projectId, projectName, baseUrl }: SummaryTablePr
                   />
                 ))}
                 <tr className="summary-row-draft">
-                  <td className="summary-col-lot">
+                  <td className="summary-col-lot" data-label="Lot">
                     <input
                       type="text"
                       className="summary-input"
@@ -576,7 +576,7 @@ export function SummaryTable({ projectId, projectName, baseUrl }: SummaryTablePr
                       onKeyDown={(e) => onSummaryCellKeyDown(e, SUMMARY_COL.LOT)}
                     />
                   </td>
-                  <td className="summary-col-fichier">
+                  <td className="summary-col-fichier" data-label="Fichier retenu">
                     <input
                       type="text"
                       className="summary-input"
@@ -587,7 +587,7 @@ export function SummaryTable({ projectId, projectName, baseUrl }: SummaryTablePr
                       onKeyDown={(e) => onSummaryCellKeyDown(e, SUMMARY_COL.FICHIER)}
                     />
                   </td>
-                  <td className="summary-col-date">
+                  <td className="summary-col-date" data-label="Date du devis">
                     <input
                       type="date"
                       className="summary-input summary-input-date"
@@ -599,7 +599,7 @@ export function SummaryTable({ projectId, projectName, baseUrl }: SummaryTablePr
                       title={`Defaults to today (up to ${formatDisplayDate(dateMax)})`}
                     />
                   </td>
-                  <td className="summary-col-amount">
+                  <td className="summary-col-amount" data-label="TTC (€)">
                     <input
                       type="text"
                       inputMode="decimal"
@@ -683,7 +683,7 @@ function SummaryRow(props: {
 
   return (
     <tr className="summary-row">
-      <td className="summary-col-lot">
+      <td className="summary-col-lot" data-label="Lot">
         <input
           type="text"
           className="summary-input"
@@ -693,7 +693,7 @@ function SummaryRow(props: {
           onKeyDown={(e) => onSummaryCellKeyDown(e, SUMMARY_COL.LOT)}
         />
       </td>
-      <td className="summary-col-fichier">
+      <td className="summary-col-fichier" data-label="Fichier retenu">
         <input
           type="text"
           className="summary-input"
@@ -703,7 +703,7 @@ function SummaryRow(props: {
           onKeyDown={(e) => onSummaryCellKeyDown(e, SUMMARY_COL.FICHIER)}
         />
       </td>
-      <td className="summary-col-date">
+      <td className="summary-col-date" data-label="Date du devis">
         <input
           type="date"
           className="summary-input summary-input-date"
@@ -714,7 +714,7 @@ function SummaryRow(props: {
           onKeyDown={(e) => onSummaryCellKeyDown(e, SUMMARY_COL.DATE)}
         />
       </td>
-      <td className="summary-col-amount">
+      <td className="summary-col-amount" data-label="TTC (€)">
         <input
           type="text"
           inputMode="decimal"

@@ -33,6 +33,12 @@ const SELECTED_PROJECT_KEY = 'sr:selectedProjectId';
 
 type UiTask = TaskResponse;
 
+function scrollBoardSection(sectionId: string): void {
+  const section = document.getElementById(sectionId);
+  if (!section) return;
+  section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
 export default function App() {
   const baseUrl = useMemo(() => {
     const b = (import.meta as any).env?.VITE_API_BASE_URL ?? DEFAULT_BASE_URL;
@@ -894,9 +900,15 @@ export default function App() {
         ) : (
           <>
             <div className="board-layout">
+              <nav className="board-mobile-nav" aria-label="Jump to section">
+                <button type="button" onClick={() => scrollBoardSection('board-epics')}>Tasks</button>
+                <button type="button" onClick={() => scrollBoardSection('board-spending')}>Spending</button>
+                <button type="button" onClick={() => scrollBoardSection('board-devis')}>Devis</button>
+                <button type="button" onClick={() => scrollBoardSection('board-documents')}>Docs</button>
+              </nav>
               <SpendingTable projectId={current.id} projectName={current.name} baseUrl={baseUrl} />
               <SummaryTable projectId={current.id} projectName={current.name} baseUrl={baseUrl} />
-              <div className="epic-columns">
+              <div id="board-epics" className="epic-columns board-section">
                 {(epicsByProject[current.id] ?? []).map((e) => (
                   <EpicLane
                     key={e.id}
@@ -913,7 +925,7 @@ export default function App() {
                   />
                 ))}
               </div>
-              <div className="doc-dropbox-section">
+              <div id="board-documents" className="doc-dropbox-section board-section">
                 <DocumentDropbox projectId={current.id} baseUrl={baseUrl} />
               </div>
             </div>
