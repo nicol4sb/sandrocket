@@ -7,3 +7,4 @@ export * from './epics.js';
 export * from './tasks.js';
 export * from './documents.js';
 export * from './spending.js';
+export * from './summary.js';

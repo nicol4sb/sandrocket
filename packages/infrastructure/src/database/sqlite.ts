@@ -175,6 +175,20 @@ export function initializeSqliteDatabase(options: SqliteOptions): Database {
       FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
     );
     CREATE INDEX IF NOT EXISTS idx_spending_project ON project_spending_entries(project_id, entry_date ASC, id ASC);
+    CREATE TABLE IF NOT EXISTS project_summary_entries (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      project_id INTEGER NOT NULL,
+      description TEXT NOT NULL DEFAULT '',
+      amount REAL NOT NULL DEFAULT 0,
+      entry_date TEXT NOT NULL DEFAULT (date('now')),
+      accompte_paye_date TEXT NOT NULL DEFAULT '',
+      paiement_complet_date TEXT NOT NULL DEFAULT '',
+      position INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+    );
+    CREATE INDEX IF NOT EXISTS idx_summary_project ON project_summary_entries(project_id, entry_date ASC, id ASC);
   `);
 
   // Migration: Add creator_user_id column and/or remove title column if needed
@@ -316,6 +330,17 @@ export function initializeSqliteDatabase(options: SqliteOptions): Database {
   } catch (err) {
     // eslint-disable-next-line no-console
     console.error('[db] Migration error for spending bank:', err);
+  }
+
+  // Migration: Add summary_visible column to projects
+  try {
+    const projectInfo = db.prepare(`PRAGMA table_info('projects')`).all() as Array<{ name: string }>;
+    if (projectInfo.length > 0 && !projectInfo.some((col) => col.name === 'summary_visible')) {
+      db.exec(`ALTER TABLE projects ADD COLUMN summary_visible INTEGER NOT NULL DEFAULT 0`);
+    }
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.error('[db] Migration error for summary_visible:', err);
   }
 
   // Emit a single startup log with DB path to help diagnose multiple-process setups

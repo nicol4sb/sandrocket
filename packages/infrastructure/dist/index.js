@@ -11,3 +11,4 @@ export * from './tasks/sqlite-task-repository.js';
 export * from './documents/sqlite-document-repository.js';
 export * from './documents/sqlite-document-activity-repository.js';
 export * from './spending/sqlite-spending-repository.js';
+export * from './summary/sqlite-summary-repository.js';

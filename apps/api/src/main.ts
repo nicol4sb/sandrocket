@@ -15,7 +15,8 @@ import {
   AuthResult,
   PublicUser,
   createAuthService,
-  type SpendingEntry
+  type SpendingEntry,
+  type SummaryEntry
 } from '@sandrocket/core';
 import {
   AppConfig,
@@ -36,7 +37,8 @@ import {
   SqliteEpicRepository,
   SqliteDocumentRepository,
   SqliteDocumentActivityRepository,
-  SqliteSpendingRepository
+  SqliteSpendingRepository,
+  SqliteSummaryRepository
 } from '@sandrocket/infrastructure';
 import {
   CreateProjectRequest,
@@ -50,7 +52,7 @@ import {
   createInvitationRequestSchema,
   acceptInvitationRequestSchema
 } from '@sandrocket/contracts';
-import { createEpicService, createDocumentService, createSpendingService } from '@sandrocket/core';
+import { createEpicService, createDocumentService, createSpendingService, createSummaryService } from '@sandrocket/core';
 import { CreateEpicRequest, ListEpicsResponse, UpdateEpicRequest, createEpicRequestSchema, updateEpicRequestSchema } from '@sandrocket/contracts';
 import {
   createTaskService
@@ -76,11 +78,22 @@ import {
   loginRequestSchema,
   registerRequestSchema
 } from '@sandrocket/contracts';
-import type { ListDocumentsResponse, DocumentResponse, DocumentActivityResponse, ListSpendingResponse, SpendingEntryResponse } from '@sandrocket/contracts';
+import type {
+  ListDocumentsResponse,
+  DocumentResponse,
+  DocumentActivityResponse,
+  ListSpendingResponse,
+  SpendingEntryResponse,
+  ListSummaryResponse,
+  SummaryEntryResponse
+} from '@sandrocket/contracts';
 import {
   updateSpendingVisibilityRequestSchema,
   createSpendingEntryRequestSchema,
-  updateSpendingEntryRequestSchema
+  updateSpendingEntryRequestSchema,
+  updateSummaryVisibilityRequestSchema,
+  createSummaryEntryRequestSchema,
+  updateSummaryEntryRequestSchema
 } from '@sandrocket/contracts';
 import { z } from 'zod';
 
@@ -130,6 +143,8 @@ const documentService = createDocumentService({
 });
 const spendingRepository = new SqliteSpendingRepository(database);
 const spendingService = createSpendingService({ spending: spendingRepository });
+const summaryRepository = new SqliteSummaryRepository(database);
+const summaryService = createSummaryService({ summary: summaryRepository });
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: config.uploads.maxFileSizeBytes }
@@ -155,6 +170,21 @@ function toSpendingEntryResponse(entry: SpendingEntry): SpendingEntryResponse {
     amount: entry.amount,
     entryDate: entry.entryDate,
     bank: entry.bank,
+    position: entry.position,
+    createdAt: entry.createdAt.toISOString(),
+    updatedAt: entry.updatedAt.toISOString()
+  };
+}
+
+function toSummaryEntryResponse(entry: SummaryEntry): SummaryEntryResponse {
+  return {
+    id: entry.id,
+    projectId: entry.projectId,
+    description: entry.description,
+    amount: entry.amount,
+    entryDate: entry.entryDate,
+    accomptePayeDate: entry.accomptePayeDate,
+    paiementCompletDate: entry.paiementCompletDate,
     position: entry.position,
     createdAt: entry.createdAt.toISOString(),
     updatedAt: entry.updatedAt.toISOString()
@@ -944,6 +974,165 @@ app.delete(
     const deleted = await spendingService.deleteEntry(entryId);
     if (!deleted) {
       res.status(404).json({ error: 'not-found', message: 'Spending entry not found' });
+      return;
+    }
+    res.status(204).send();
+  })
+);
+
+// Summary API
+app.get(
+  '/api/projects/:projectId/summary',
+  asyncHandler(async (req, res) => {
+    const token = req.cookies[config.security.sessionCookieName];
+    if (!token) {
+      res.status(401).json({ error: 'auth/no-token', message: 'No token' });
+      return;
+    }
+    const payload = await tokenService.verifyToken(token);
+    const projectId = Number(req.params.projectId);
+
+    const member = await projectMemberRepository.findByProjectAndUser(projectId, payload.userId);
+    if (!member) {
+      res.status(403).json({ error: 'forbidden', message: 'Not a member of this project' });
+      return;
+    }
+
+    const data = await summaryService.list(projectId);
+    const body: ListSummaryResponse = {
+      visible: data.visible,
+      totalAmount: data.totalAmount,
+      entries: data.entries.map(toSummaryEntryResponse)
+    };
+    res.json(body);
+  })
+);
+
+app.patch(
+  '/api/projects/:projectId/summary/visibility',
+  asyncHandler(async (req, res) => {
+    const token = req.cookies[config.security.sessionCookieName];
+    if (!token) {
+      res.status(401).json({ error: 'auth/no-token', message: 'No token' });
+      return;
+    }
+    const payload = await tokenService.verifyToken(token);
+    const projectId = Number(req.params.projectId);
+
+    const member = await projectMemberRepository.findByProjectAndUser(projectId, payload.userId);
+    if (!member) {
+      res.status(403).json({ error: 'forbidden', message: 'Not a member of this project' });
+      return;
+    }
+
+    const body = parseBody(updateSummaryVisibilityRequestSchema, req, res);
+    if (!body) return;
+
+    await summaryService.setVisible(projectId, body.visible);
+    res.json({ visible: body.visible });
+  })
+);
+
+app.post(
+  '/api/projects/:projectId/summary',
+  asyncHandler(async (req, res) => {
+    const token = req.cookies[config.security.sessionCookieName];
+    if (!token) {
+      res.status(401).json({ error: 'auth/no-token', message: 'No token' });
+      return;
+    }
+    const payload = await tokenService.verifyToken(token);
+    const projectId = Number(req.params.projectId);
+
+    const member = await projectMemberRepository.findByProjectAndUser(projectId, payload.userId);
+    if (!member) {
+      res.status(403).json({ error: 'forbidden', message: 'Not a member of this project' });
+      return;
+    }
+
+    const body = parseBody(createSummaryEntryRequestSchema, req, res);
+    if (!body) return;
+
+    const entry = await summaryService.createEntry(
+      projectId,
+      body.description ?? '',
+      body.amount,
+      body.entryDate,
+      body.accomptePayeDate,
+      body.paiementCompletDate
+    );
+    res.status(201).json(toSummaryEntryResponse(entry));
+  })
+);
+
+app.patch(
+  '/api/summary/:entryId',
+  asyncHandler(async (req, res) => {
+    const token = req.cookies[config.security.sessionCookieName];
+    if (!token) {
+      res.status(401).json({ error: 'auth/no-token', message: 'No token' });
+      return;
+    }
+    const payload = await tokenService.verifyToken(token);
+    const entryId = Number(req.params.entryId);
+
+    const existing = await summaryRepository.findById(entryId);
+    if (!existing) {
+      res.status(404).json({ error: 'not-found', message: 'Summary entry not found' });
+      return;
+    }
+
+    const member = await projectMemberRepository.findByProjectAndUser(existing.projectId, payload.userId);
+    if (!member) {
+      res.status(403).json({ error: 'forbidden', message: 'Not a member of this project' });
+      return;
+    }
+
+    const body = parseBody(updateSummaryEntryRequestSchema, req, res);
+    if (!body) return;
+
+    const updated = await summaryService.updateEntry(
+      entryId,
+      body.description,
+      body.amount,
+      body.entryDate,
+      body.accomptePayeDate,
+      body.paiementCompletDate
+    );
+    if (!updated) {
+      res.status(404).json({ error: 'not-found', message: 'Summary entry not found' });
+      return;
+    }
+    res.json(toSummaryEntryResponse(updated));
+  })
+);
+
+app.delete(
+  '/api/summary/:entryId',
+  asyncHandler(async (req, res) => {
+    const token = req.cookies[config.security.sessionCookieName];
+    if (!token) {
+      res.status(401).json({ error: 'auth/no-token', message: 'No token' });
+      return;
+    }
+    const payload = await tokenService.verifyToken(token);
+    const entryId = Number(req.params.entryId);
+
+    const existing = await summaryRepository.findById(entryId);
+    if (!existing) {
+      res.status(404).json({ error: 'not-found', message: 'Summary entry not found' });
+      return;
+    }
+
+    const member = await projectMemberRepository.findByProjectAndUser(existing.projectId, payload.userId);
+    if (!member) {
+      res.status(403).json({ error: 'forbidden', message: 'Not a member of this project' });
+      return;
+    }
+
+    const deleted = await summaryService.deleteEntry(entryId);
+    if (!deleted) {
+      res.status(404).json({ error: 'not-found', message: 'Summary entry not found' });
       return;
     }
     res.status(204).send();

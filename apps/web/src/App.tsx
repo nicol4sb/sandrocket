@@ -25,6 +25,7 @@ import { Modal } from './components/Modal';
 import { EpicLane } from './EpicLane';
 import { DocumentDropbox } from './DocumentDropbox';
 import { SpendingTable } from './SpendingTable';
+import { SummaryTable } from './SummaryTable';
 import './styles.css';
 
 const DEFAULT_BASE_URL = '/api';
@@ -867,6 +868,7 @@ export default function App() {
           <>
             <div className="board-layout">
               <SpendingTable projectId={current.id} projectName={current.name} baseUrl={baseUrl} />
+              <SummaryTable projectId={current.id} projectName={current.name} baseUrl={baseUrl} />
               <div className="epic-columns">
                 {(epicsByProject[current.id] ?? []).map((e) => (
                   <EpicLane
