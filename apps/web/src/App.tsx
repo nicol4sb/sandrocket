@@ -901,9 +901,9 @@ export default function App() {
           <>
             <div className="board-layout">
               <nav className="board-mobile-nav" aria-label="Jump to section">
-                <button type="button" onClick={() => scrollBoardSection('board-epics')}>Tasks</button>
                 <button type="button" onClick={() => scrollBoardSection('board-spending')}>Spending</button>
                 <button type="button" onClick={() => scrollBoardSection('board-devis')}>Devis</button>
+                <button type="button" onClick={() => scrollBoardSection('board-epics')}>Tasks</button>
                 <button type="button" onClick={() => scrollBoardSection('board-documents')}>Docs</button>
               </nav>
               <SpendingTable projectId={current.id} projectName={current.name} baseUrl={baseUrl} />

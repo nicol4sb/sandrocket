@@ -5,6 +5,7 @@ import type {
   ListSpendingResponse,
   SpendingEntryResponse
 } from '@sandrocket/contracts';
+import { useIsMobile } from './hooks/useMediaQuery';
 
 interface SpendingTableProps {
   projectId: number;
@@ -112,7 +113,7 @@ function rowHasContent(description: string, amountStr: string): boolean {
 }
 
 function isFocusMovingWithinRow(e: React.FocusEvent<HTMLElement>): boolean {
-  const row = e.currentTarget.closest('tr');
+  const row = e.currentTarget.closest('tr, .finance-mobile-card');
   const next = e.relatedTarget;
   if (!row || !(next instanceof Node)) return false;
   return row.contains(next);
@@ -445,6 +446,7 @@ export function SpendingTable({ projectId, projectName, baseUrl }: SpendingTable
   };
 
   const totalAmount = entries.reduce((sum, e) => sum + e.amount, 0);
+  const isMobile = useIsMobile();
 
   if (loading) {
     return null;
@@ -537,6 +539,74 @@ export function SpendingTable({ projectId, projectName, baseUrl }: SpendingTable
         {visible && (
           <div className="spending-table-wrap">
             {importError && <p className="spending-import-error">{importError}</p>}
+            {isMobile ? (
+              <div className="finance-mobile-list">
+                {entries.map((entry) => (
+                  <SpendingRow
+                    key={entry.id}
+                    mobile
+                    entry={entry}
+                    dateMax={dateMax}
+                    onCommit={(entryDate, description, bank, amount) =>
+                      void updateEntry(entry, entryDate, description, bank, amount)
+                    }
+                    onDelete={() => void deleteEntry(entry.id)}
+                  />
+                ))}
+                <div className="finance-mobile-card finance-mobile-card-draft">
+                  <p className="finance-mobile-draft-hint">New spending line</p>
+                  <label className="finance-mobile-field">
+                    <span className="finance-mobile-label">Payment date</span>
+                    <input
+                      type="date"
+                      className="finance-mobile-input finance-mobile-input-date"
+                      value={draft.entryDate}
+                      max={dateMax}
+                      onChange={(e) => setDraft((d) => ({ ...d, entryDate: e.target.value }))}
+                      onBlur={handleDraftBlur}
+                    />
+                  </label>
+                  <label className="finance-mobile-field">
+                    <span className="finance-mobile-label">Description</span>
+                    <input
+                      type="text"
+                      className="finance-mobile-input"
+                      placeholder="Add a line…"
+                      value={draft.description}
+                      onChange={(e) => setDraft((d) => ({ ...d, description: e.target.value }))}
+                      onBlur={handleDraftBlur}
+                    />
+                  </label>
+                  <label className="finance-mobile-field">
+                    <span className="finance-mobile-label">Bank</span>
+                    <input
+                      type="text"
+                      className="finance-mobile-input"
+                      placeholder="Bank…"
+                      value={draft.bank}
+                      onChange={(e) => setDraft((d) => ({ ...d, bank: e.target.value }))}
+                      onBlur={handleDraftBlur}
+                    />
+                  </label>
+                  <label className="finance-mobile-field">
+                    <span className="finance-mobile-label">Amount</span>
+                    <input
+                      type="text"
+                      inputMode="decimal"
+                      className="finance-mobile-input finance-mobile-input-amount"
+                      placeholder="0"
+                      value={draft.amount}
+                      onChange={(e) => setDraft((d) => ({ ...d, amount: e.target.value }))}
+                      onBlur={handleDraftBlur}
+                    />
+                  </label>
+                </div>
+                <div className="finance-mobile-total finance-mobile-total-spending">
+                  <span>Total</span>
+                  <strong>{formatAmount(totalAmount)}</strong>
+                </div>
+              </div>
+            ) : (
             <table className="spending-table">
               <thead>
                 <tr>
@@ -617,6 +687,7 @@ export function SpendingTable({ projectId, projectName, baseUrl }: SpendingTable
                 </tr>
               </tbody>
             </table>
+            )}
           </div>
         )}
       </div>
@@ -625,6 +696,7 @@ export function SpendingTable({ projectId, projectName, baseUrl }: SpendingTable
 }
 
 function SpendingRow(props: {
+  mobile?: boolean;
   entry: SpendingEntryResponse;
   dateMax: string;
   onCommit: (entryDate: string, description: string, bank: string, amount: string) => void;
@@ -683,6 +755,77 @@ function SpendingRow(props: {
     }
   };
 
+  const deleteButton = (
+    <button
+      type="button"
+      className="finance-mobile-delete-btn spending-row-delete-btn"
+      onMouseDown={(e) => e.preventDefault()}
+      onClick={props.onDelete}
+      title="Delete line"
+      aria-label="Delete line"
+    >
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5">
+        <path d="M2 4h10M5 4V2.5a.5.5 0 01.5-.5h3a.5.5 0 01.5.5V4M3 4l.8 8a1 1 0 001 .9h4.4a1 1 0 001-.9L11 4" />
+      </svg>
+    </button>
+  );
+
+  if (props.mobile) {
+    return (
+      <div className="finance-mobile-card">
+        <div className="finance-mobile-card-top">
+          <span className="finance-mobile-card-title">
+            {description.trim() || 'Spending line'}
+          </span>
+          {deleteButton}
+        </div>
+        <label className="finance-mobile-field">
+          <span className="finance-mobile-label">Payment date</span>
+          <input
+            type="date"
+            className="finance-mobile-input finance-mobile-input-date"
+            value={entryDate}
+            max={props.dateMax}
+            onChange={(e) => commitDate(e.target.value)}
+            onBlur={commitAll}
+          />
+        </label>
+        <label className="finance-mobile-field">
+          <span className="finance-mobile-label">Description</span>
+          <input
+            type="text"
+            className="finance-mobile-input"
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            onBlur={commitAll}
+          />
+        </label>
+        <label className="finance-mobile-field">
+          <span className="finance-mobile-label">Bank</span>
+          <input
+            type="text"
+            className="finance-mobile-input"
+            placeholder="Bank…"
+            value={bank}
+            onChange={(e) => setBank(e.target.value)}
+            onBlur={commitAll}
+          />
+        </label>
+        <label className="finance-mobile-field">
+          <span className="finance-mobile-label">Amount</span>
+          <input
+            type="text"
+            inputMode="decimal"
+            className="finance-mobile-input finance-mobile-input-amount"
+            value={amount}
+            onChange={(e) => setAmount(e.target.value)}
+            onBlur={commitAll}
+          />
+        </label>
+      </div>
+    );
+  }
+
   return (
     <tr className="spending-row">
       <td className="spending-col-date" data-label="Payment date">
@@ -730,18 +873,7 @@ function SpendingRow(props: {
         />
       </td>
       <td className="spending-col-actions">
-        <button
-          type="button"
-          className="spending-row-delete-btn"
-          onMouseDown={(e) => e.preventDefault()}
-          onClick={props.onDelete}
-          title="Delete line"
-          aria-label="Delete line"
-        >
-          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5">
-            <path d="M2 4h10M5 4V2.5a.5.5 0 01.5-.5h3a.5.5 0 01.5.5V4M3 4l.8 8a1 1 0 001 .9h4.4a1 1 0 001-.9L11 4" />
-          </svg>
-        </button>
+        {deleteButton}
       </td>
     </tr>
   );
