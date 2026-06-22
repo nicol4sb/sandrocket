@@ -44,6 +44,32 @@ class SpendingServiceImpl {
     async deleteEntry(id) {
         return this.deps.spending.delete(id);
     }
+    async importEntries(projectId, entries, replace = true) {
+        const normalized = entries.map((entry, index) => ({
+            description: entry.description.trim(),
+            bank: (entry.bank ?? '').trim(),
+            amount: entry.amount,
+            entryDate: resolveEntryDate(entry.entryDate),
+            position: index + 1
+        }));
+        let created;
+        if (replace) {
+            created = await this.deps.spending.replaceAll(projectId, normalized);
+        }
+        else {
+            const maxPos = await this.deps.spending.getMaxPosition(projectId);
+            created = [];
+            for (let i = 0; i < normalized.length; i++) {
+                created.push(await this.deps.spending.create({
+                    projectId,
+                    ...normalized[i],
+                    position: maxPos + i + 1
+                }));
+            }
+        }
+        const totalAmount = created.reduce((sum, e) => sum + e.amount, 0);
+        return { entries: created, totalAmount };
+    }
 }
 export function createSpendingService(deps) {
     return new SpendingServiceImpl(deps);

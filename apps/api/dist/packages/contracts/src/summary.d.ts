@@ -11,21 +11,21 @@ export declare const summaryEntryResponseSchema: z.ZodObject<{
     updatedAt: z.ZodString;
 }, "strip", z.ZodTypeAny, {
     projectId: number;
-    lot: string;
-    fichierRetenu: string;
     amount: number;
     entryDate: string;
     position: number;
+    lot: string;
+    fichierRetenu: string;
     id: number;
     createdAt: string;
     updatedAt: string;
 }, {
     projectId: number;
-    lot: string;
-    fichierRetenu: string;
     amount: number;
     entryDate: string;
     position: number;
+    lot: string;
+    fichierRetenu: string;
     id: number;
     createdAt: string;
     updatedAt: string;
@@ -50,15 +50,15 @@ export declare const createSummaryEntryRequestSchema: z.ZodObject<{
     amount: z.ZodNumber;
     entryDate: z.ZodOptional<z.ZodString>;
 }, "strip", z.ZodTypeAny, {
+    amount: number;
     lot: string;
     fichierRetenu: string;
-    amount: number;
     entryDate?: string | undefined;
 }, {
     amount: number;
+    entryDate?: string | undefined;
     lot?: string | undefined;
     fichierRetenu?: string | undefined;
-    entryDate?: string | undefined;
 }>;
 export type CreateSummaryEntryRequest = z.infer<typeof createSummaryEntryRequestSchema>;
 export declare const updateSummaryEntryRequestSchema: z.ZodObject<{
@@ -67,15 +67,15 @@ export declare const updateSummaryEntryRequestSchema: z.ZodObject<{
     amount: z.ZodOptional<z.ZodNumber>;
     entryDate: z.ZodOptional<z.ZodString>;
 }, "strip", z.ZodTypeAny, {
-    lot?: string | undefined;
-    fichierRetenu?: string | undefined;
     amount?: number | undefined;
     entryDate?: string | undefined;
+    lot?: string | undefined;
+    fichierRetenu?: string | undefined;
 }, {
-    lot?: string | undefined;
-    fichierRetenu?: string | undefined;
     amount?: number | undefined;
     entryDate?: string | undefined;
+    lot?: string | undefined;
+    fichierRetenu?: string | undefined;
 }>;
 export type UpdateSummaryEntryRequest = z.infer<typeof updateSummaryEntryRequestSchema>;
 export declare const importSummaryEntriesRequestSchema: z.ZodObject<{
@@ -86,30 +86,30 @@ export declare const importSummaryEntriesRequestSchema: z.ZodObject<{
         amount: z.ZodNumber;
         entryDate: z.ZodOptional<z.ZodString>;
     }, "strip", z.ZodTypeAny, {
+        amount: number;
         lot: string;
         fichierRetenu: string;
-        amount: number;
         entryDate?: string | undefined;
     }, {
         amount: number;
+        entryDate?: string | undefined;
         lot?: string | undefined;
         fichierRetenu?: string | undefined;
-        entryDate?: string | undefined;
     }>, "many">;
 }, "strip", z.ZodTypeAny, {
     entries: {
+        amount: number;
         lot: string;
         fichierRetenu: string;
-        amount: number;
         entryDate?: string | undefined;
     }[];
     replace: boolean;
 }, {
     entries: {
         amount: number;
+        entryDate?: string | undefined;
         lot?: string | undefined;
         fichierRetenu?: string | undefined;
-        entryDate?: string | undefined;
     }[];
     replace?: boolean | undefined;
 }>;

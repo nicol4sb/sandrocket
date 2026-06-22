@@ -11,22 +11,22 @@ export declare const spendingEntryResponseSchema: z.ZodObject<{
     updatedAt: z.ZodString;
 }, "strip", z.ZodTypeAny, {
     projectId: number;
+    description: string;
     amount: number;
     entryDate: string;
+    bank: string;
     position: number;
     id: number;
-    description: string;
-    bank: string;
     createdAt: string;
     updatedAt: string;
 }, {
     projectId: number;
+    description: string;
     amount: number;
     entryDate: string;
+    bank: string;
     position: number;
     id: number;
-    description: string;
-    bank: string;
     createdAt: string;
     updatedAt: string;
 }>;
@@ -50,14 +50,14 @@ export declare const createSpendingEntryRequestSchema: z.ZodObject<{
     entryDate: z.ZodOptional<z.ZodString>;
     bank: z.ZodDefault<z.ZodOptional<z.ZodString>>;
 }, "strip", z.ZodTypeAny, {
-    amount: number;
     description: string;
+    amount: number;
     bank: string;
     entryDate?: string | undefined;
 }, {
     amount: number;
-    entryDate?: string | undefined;
     description?: string | undefined;
+    entryDate?: string | undefined;
     bank?: string | undefined;
 }>;
 export type CreateSpendingEntryRequest = z.infer<typeof createSpendingEntryRequestSchema>;
@@ -67,14 +67,54 @@ export declare const updateSpendingEntryRequestSchema: z.ZodObject<{
     entryDate: z.ZodOptional<z.ZodString>;
     bank: z.ZodOptional<z.ZodString>;
 }, "strip", z.ZodTypeAny, {
+    description?: string | undefined;
     amount?: number | undefined;
     entryDate?: string | undefined;
-    description?: string | undefined;
     bank?: string | undefined;
 }, {
+    description?: string | undefined;
     amount?: number | undefined;
     entryDate?: string | undefined;
-    description?: string | undefined;
     bank?: string | undefined;
 }>;
 export type UpdateSpendingEntryRequest = z.infer<typeof updateSpendingEntryRequestSchema>;
+export declare const importSpendingEntriesRequestSchema: z.ZodObject<{
+    replace: z.ZodDefault<z.ZodBoolean>;
+    entries: z.ZodArray<z.ZodObject<{
+        description: z.ZodDefault<z.ZodString>;
+        amount: z.ZodNumber;
+        entryDate: z.ZodOptional<z.ZodString>;
+        bank: z.ZodDefault<z.ZodOptional<z.ZodString>>;
+    }, "strip", z.ZodTypeAny, {
+        description: string;
+        amount: number;
+        bank: string;
+        entryDate?: string | undefined;
+    }, {
+        amount: number;
+        description?: string | undefined;
+        entryDate?: string | undefined;
+        bank?: string | undefined;
+    }>, "many">;
+}, "strip", z.ZodTypeAny, {
+    entries: {
+        description: string;
+        amount: number;
+        bank: string;
+        entryDate?: string | undefined;
+    }[];
+    replace: boolean;
+}, {
+    entries: {
+        amount: number;
+        description?: string | undefined;
+        entryDate?: string | undefined;
+        bank?: string | undefined;
+    }[];
+    replace?: boolean | undefined;
+}>;
+export type ImportSpendingEntriesRequest = z.infer<typeof importSpendingEntriesRequestSchema>;
+export interface ImportSpendingResponse {
+    entries: SpendingEntryResponse[];
+    totalAmount: number;
+}

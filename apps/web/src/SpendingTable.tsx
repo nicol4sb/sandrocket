@@ -1,6 +1,10 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import * as XLSX from 'xlsx';
-import type { ListSpendingResponse, SpendingEntryResponse } from '@sandrocket/contracts';
+import type {
+  ImportSpendingResponse,
+  ListSpendingResponse,
+  SpendingEntryResponse
+} from '@sandrocket/contracts';
 
 interface SpendingTableProps {
   projectId: number;
@@ -15,9 +19,24 @@ interface DraftRow {
   amount: string;
 }
 
+interface ParsedSpendingRow {
+  entryDate: string;
+  description: string;
+  bank: string;
+  amount: number;
+}
+
+const SPENDING_HEADERS = ['Payment date', 'Description', 'Bank', 'Amount'] as const;
+
+const SPENDING_COL = {
+  DATE: 0,
+  DESCRIPTION: 1,
+  BANK: 2,
+  AMOUNT: 3
+} as const;
+
 function todayIso(): string {
-  const d = new Date();
-  return toIsoDate(d);
+  return toIsoDate(new Date());
 }
 
 function resolveEntryDate(value: string): string {
@@ -43,6 +62,33 @@ function parseAmount(value: string): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
+function parseExcelAmount(value: unknown): number | null {
+  if (value == null || value === '') return 0;
+  if (typeof value === 'number') return Number.isFinite(value) ? value : null;
+  return parseAmount(String(value));
+}
+
+function parseExcelDate(value: unknown): string {
+  if (value == null || value === '') return todayIso();
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return toIsoDate(value);
+  }
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    const parsed = XLSX.SSF.parse_date_code(value);
+    if (parsed) {
+      return `${parsed.y}-${String(parsed.m).padStart(2, '0')}-${String(parsed.d).padStart(2, '0')}`;
+    }
+  }
+  const str = String(value).trim();
+  const frMatch = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (frMatch) {
+    const [, d, m, y] = frMatch;
+    return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
+  }
+  if (/^\d{4}-\d{2}-\d{2}$/.test(str)) return str;
+  return todayIso();
+}
+
 function formatAmount(amount: number): string {
   return amount.toLocaleString('fr-FR', {
     minimumFractionDigits: 0,
@@ -65,7 +111,6 @@ function rowHasContent(description: string, amountStr: string): boolean {
   return description.trim().length > 0 || (parseAmount(amountStr) ?? 0) !== 0;
 }
 
-/** Skip save when tabbing between fields in the same row */
 function isFocusMovingWithinRow(e: React.FocusEvent<HTMLElement>): boolean {
   const row = e.currentTarget.closest('tr');
   const next = e.relatedTarget;
@@ -73,12 +118,54 @@ function isFocusMovingWithinRow(e: React.FocusEvent<HTMLElement>): boolean {
   return row.contains(next);
 }
 
-const SPENDING_COL = {
-  DATE: 0,
-  DESCRIPTION: 1,
-  BANK: 2,
-  AMOUNT: 3
-} as const;
+function isTotalRow(description: string, bank: unknown, amountCell: unknown): boolean {
+  const desc = description.trim().toLowerCase();
+  const bankStr = String(bank ?? '').trim().toLowerCase();
+  return /total/.test(desc) || /total/.test(bankStr) || /total/.test(String(amountCell ?? ''));
+}
+
+function findHeaderRowIndex(rows: unknown[][]): number {
+  for (let i = 0; i < Math.min(rows.length, 5); i++) {
+    const first = String(rows[i]?.[0] ?? '').trim().toLowerCase();
+    if (first.includes('payment') || first.includes('date')) return i;
+  }
+  return -1;
+}
+
+function parseSpendingExcel(buffer: ArrayBuffer): ParsedSpendingRow[] {
+  const workbook = XLSX.read(buffer, { type: 'array', cellDates: true });
+  const sheetName = workbook.SheetNames[0];
+  if (!sheetName) return [];
+  const sheet = workbook.Sheets[sheetName];
+  const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' }) as unknown[][];
+  const headerIdx = findHeaderRowIndex(rows);
+  const startIdx = headerIdx >= 0 ? headerIdx + 1 : 0;
+  const parsed: ParsedSpendingRow[] = [];
+
+  for (let i = startIdx; i < rows.length; i++) {
+    const row = rows[i] ?? [];
+    const dateRaw = row[0];
+    const description = String(row[1] ?? '').trim();
+    const bank = String(row[2] ?? '').trim();
+    const amountRaw = row[3];
+
+    if (isTotalRow(description, bank, amountRaw)) continue;
+    if (!description && !bank && (amountRaw === '' || amountRaw == null)) continue;
+
+    const amount = parseExcelAmount(amountRaw);
+    if (amount === null) continue;
+    if (!description && amount === 0) continue;
+
+    parsed.push({
+      entryDate: parseExcelDate(dateRaw),
+      description,
+      bank,
+      amount
+    });
+  }
+
+  return parsed;
+}
 
 function navigateSpendingCellVertically(
   e: React.KeyboardEvent<HTMLInputElement>,
@@ -132,7 +219,7 @@ function exportSpendingToExcel(
   projectName: string
 ) {
   const rows: (string | number)[][] = [
-    ['Payment date', 'Description', 'Bank', 'Amount'],
+    [...SPENDING_HEADERS],
     ...entries.map((e) => [e.entryDate, e.description, e.bank, e.amount]),
     ['', '', 'Total', totalAmount]
   ];
@@ -168,7 +255,9 @@ export function SpendingTable({ projectId, projectName, baseUrl }: SpendingTable
   const [draft, setDraft] = useState<DraftRow>(newDraftRow);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [importError, setImportError] = useState<string | null>(null);
   const draftRef = useRef(draft);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   draftRef.current = draft;
   const dateMax = todayIso();
 
@@ -181,9 +270,7 @@ export function SpendingTable({ projectId, projectName, baseUrl }: SpendingTable
       const data = (await res.json()) as ListSpendingResponse;
       setVisible(data.visible);
       setEntries(
-        [...data.entries].sort(
-          (a, b) => a.entryDate.localeCompare(b.entryDate) || a.id - b.id
-        )
+        [...data.entries].sort((a, b) => a.position - b.position || a.id - b.id)
       );
     } catch {
       // ignore
@@ -244,6 +331,62 @@ export function SpendingTable({ projectId, projectName, baseUrl }: SpendingTable
       }
     } finally {
       setSaving(false);
+    }
+  };
+
+  const importEntries = async (parsed: ParsedSpendingRow[]) => {
+    if (parsed.length === 0) {
+      setImportError('No data rows found in the Excel file.');
+      return;
+    }
+
+    if (entries.length > 0) {
+      const ok = window.confirm(
+        'Import will replace all existing spending lines with the Excel file. Continue?'
+      );
+      if (!ok) return;
+    }
+
+    setSaving(true);
+    setImportError(null);
+    try {
+      const res = await fetch(`${baseUrl}/projects/${projectId}/spending/import`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          replace: true,
+          entries: parsed.map((row) => ({
+            description: row.description,
+            bank: row.bank,
+            amount: row.amount,
+            entryDate: row.entryDate
+          }))
+        })
+      });
+      if (!res.ok) {
+        setImportError('Import failed. Check the file format.');
+        return;
+      }
+      const data = (await res.json()) as ImportSpendingResponse;
+      setEntries([...data.entries].sort((a, b) => a.position - b.position || a.id - b.id));
+      setVisible(true);
+      setDraft(newDraftRow());
+    } catch {
+      setImportError('Import failed. Check the file format.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleImportFile = async (file: File) => {
+    setImportError(null);
+    try {
+      const buffer = await file.arrayBuffer();
+      const parsed = parseSpendingExcel(buffer);
+      await importEntries(parsed);
+    } catch {
+      setImportError('Could not read the Excel file.');
     }
   };
 
@@ -313,6 +456,17 @@ export function SpendingTable({ projectId, projectName, baseUrl }: SpendingTable
 
   return (
     <div className="spending-section">
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
+        hidden
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          if (file) void handleImportFile(file);
+          e.target.value = '';
+        }}
+      />
       <div className={`spending-accordion${visible ? ' spending-accordion-open' : ''}`}>
         <div className="spending-accordion-header">
           <button
@@ -331,22 +485,40 @@ export function SpendingTable({ projectId, projectName, baseUrl }: SpendingTable
           </button>
           <div className="spending-header-actions">
             {visible && (
-              <button
-                type="button"
-                className="spending-export-btn"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  exportSpendingToExcel(entries, totalAmount, projectName);
-                }}
-                disabled={entries.length === 0}
-                title="Export spending to Excel"
-              >
-                <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
-                  <path d="M2 10v3a1 1 0 001 1h10a1 1 0 001-1v-3" />
-                  <path d="M8 2v8M4.5 7.5 8 11l3.5-3.5M2 13h10" />
-                </svg>
-                <span>Excel</span>
-              </button>
+              <>
+                <button
+                  type="button"
+                  className="spending-import-btn"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    fileInputRef.current?.click();
+                  }}
+                  disabled={saving}
+                  title="Import spending from Excel"
+                >
+                  <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+                    <path d="M2 6v3a1 1 0 001 1h10a1 1 0 001-1V6" />
+                    <path d="M8 10V2M4.5 5.5 8 2l3.5 3.5M2 13h10" />
+                  </svg>
+                  <span>Import</span>
+                </button>
+                <button
+                  type="button"
+                  className="spending-export-btn"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    exportSpendingToExcel(entries, totalAmount, projectName);
+                  }}
+                  disabled={entries.length === 0}
+                  title="Export spending to Excel"
+                >
+                  <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+                    <path d="M2 10v3a1 1 0 001 1h10a1 1 0 001-1v-3" />
+                    <path d="M8 2v8M4.5 7.5 8 11l3.5-3.5M2 13h10" />
+                  </svg>
+                  <span>Excel</span>
+                </button>
+              </>
             )}
             <button
               type="button"
@@ -364,10 +536,13 @@ export function SpendingTable({ projectId, projectName, baseUrl }: SpendingTable
 
         {visible && (
           <div className="spending-table-wrap">
+            {importError && <p className="spending-import-error">{importError}</p>}
             <table className="spending-table">
               <thead>
                 <tr>
-                  <th className="spending-col-date">Payment date <span className="spending-col-optional">(optional)</span></th>
+                  <th className="spending-col-date">
+                    Payment date <span className="spending-col-optional">(optional)</span>
+                  </th>
                   <th>Description</th>
                   <th className="spending-col-bank">Bank</th>
                   <th className="spending-col-amount">Amount</th>

@@ -10,6 +10,13 @@ function resolveEntryDate(entryDate?: string): string {
   return trimmed && /^\d{4}-\d{2}-\d{2}$/.test(trimmed) ? trimmed : todayIsoDate();
 }
 
+export interface SpendingImportEntryInput {
+  description: string;
+  amount: number;
+  entryDate?: string;
+  bank?: string;
+}
+
 export interface SpendingService {
   list(projectId: number): Promise<{ visible: boolean; entries: SpendingEntry[]; totalAmount: number }>;
   setVisible(projectId: number, visible: boolean): Promise<boolean>;
@@ -28,6 +35,11 @@ export interface SpendingService {
     bank?: string
   ): Promise<SpendingEntry | null>;
   deleteEntry(id: number): Promise<boolean>;
+  importEntries(
+    projectId: number,
+    entries: SpendingImportEntryInput[],
+    replace?: boolean
+  ): Promise<{ entries: SpendingEntry[]; totalAmount: number }>;
 }
 
 export interface SpendingServiceDependencies {
@@ -87,6 +99,40 @@ class SpendingServiceImpl implements SpendingService {
 
   async deleteEntry(id: number): Promise<boolean> {
     return this.deps.spending.delete(id);
+  }
+
+  async importEntries(
+    projectId: number,
+    entries: SpendingImportEntryInput[],
+    replace = true
+  ): Promise<{ entries: SpendingEntry[]; totalAmount: number }> {
+    const normalized = entries.map((entry, index) => ({
+      description: entry.description.trim(),
+      bank: (entry.bank ?? '').trim(),
+      amount: entry.amount,
+      entryDate: resolveEntryDate(entry.entryDate),
+      position: index + 1
+    }));
+
+    let created: SpendingEntry[];
+    if (replace) {
+      created = await this.deps.spending.replaceAll(projectId, normalized);
+    } else {
+      const maxPos = await this.deps.spending.getMaxPosition(projectId);
+      created = [];
+      for (let i = 0; i < normalized.length; i++) {
+        created.push(
+          await this.deps.spending.create({
+            projectId,
+            ...normalized[i],
+            position: maxPos + i + 1
+          })
+        );
+      }
+    }
+
+    const totalAmount = created.reduce((sum, e) => sum + e.amount, 0);
+    return { entries: created, totalAmount };
   }
 }
 

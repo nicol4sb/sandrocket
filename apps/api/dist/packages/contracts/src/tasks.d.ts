@@ -18,12 +18,12 @@ export declare const updateTaskRequestSchema: z.ZodObject<{
     position: z.ZodOptional<z.ZodNumber>;
 }, "strip", z.ZodTypeAny, {
     status?: "backlog" | "in_progress" | "done" | undefined;
-    position?: number | undefined;
     description?: string | undefined;
+    position?: number | undefined;
 }, {
     status?: "backlog" | "in_progress" | "done" | undefined;
-    position?: number | undefined;
     description?: string | undefined;
+    position?: number | undefined;
 }>;
 export type UpdateTaskRequest = z.infer<typeof updateTaskRequestSchema>;
 export declare const taskSchema: z.ZodObject<{
@@ -38,9 +38,9 @@ export declare const taskSchema: z.ZodObject<{
     lastEditedByUserId: z.ZodNullable<z.ZodNumber>;
 }, "strip", z.ZodTypeAny, {
     status: "backlog" | "in_progress" | "done";
+    description: string;
     position: number;
     id: number;
-    description: string;
     createdAt: string;
     updatedAt: string;
     epicId: number;
@@ -48,9 +48,9 @@ export declare const taskSchema: z.ZodObject<{
     lastEditedByUserId: number | null;
 }, {
     status: "backlog" | "in_progress" | "done";
+    description: string;
     position: number;
     id: number;
-    description: string;
     createdAt: string;
     updatedAt: string;
     epicId: number;

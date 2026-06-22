@@ -1,5 +1,11 @@
 import { SpendingRepository } from './ports.js';
 import { SpendingEntry } from './types.js';
+export interface SpendingImportEntryInput {
+    description: string;
+    amount: number;
+    entryDate?: string;
+    bank?: string;
+}
 export interface SpendingService {
     list(projectId: number): Promise<{
         visible: boolean;
@@ -10,6 +16,10 @@ export interface SpendingService {
     createEntry(projectId: number, description: string, amount: number, entryDate?: string, bank?: string): Promise<SpendingEntry>;
     updateEntry(id: number, description?: string, amount?: number, entryDate?: string, bank?: string): Promise<SpendingEntry | null>;
     deleteEntry(id: number): Promise<boolean>;
+    importEntries(projectId: number, entries: SpendingImportEntryInput[], replace?: boolean): Promise<{
+        entries: SpendingEntry[];
+        totalAmount: number;
+    }>;
 }
 export interface SpendingServiceDependencies {
     spending: SpendingRepository;

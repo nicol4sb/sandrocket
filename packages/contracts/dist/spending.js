@@ -26,3 +26,7 @@ export const updateSpendingEntryRequestSchema = z.object({
     entryDate: isoDateSchema.optional(),
     bank: z.string().max(100).optional()
 });
+export const importSpendingEntriesRequestSchema = z.object({
+    replace: z.boolean().default(true),
+    entries: z.array(createSpendingEntryRequestSchema).min(1).max(500)
+});

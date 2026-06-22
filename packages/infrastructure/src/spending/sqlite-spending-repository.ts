@@ -38,6 +38,7 @@ export class SqliteSpendingRepository implements SpendingRepository {
   private readonly listByProjectStmt: Statement;
   private readonly updateStmt: Statement;
   private readonly deleteStmt: Statement;
+  private readonly deleteByProjectStmt: Statement;
   private readonly maxPositionStmt: Statement;
   private readonly getVisibleStmt: Statement;
   private readonly setVisibleStmt: Statement;
@@ -49,7 +50,7 @@ export class SqliteSpendingRepository implements SpendingRepository {
     );
     this.findByIdStmt = db.prepare('SELECT * FROM project_spending_entries WHERE id = ?');
     this.listByProjectStmt = db.prepare(
-      'SELECT * FROM project_spending_entries WHERE project_id = ? ORDER BY entry_date ASC, id ASC'
+      'SELECT * FROM project_spending_entries WHERE project_id = ? ORDER BY position ASC, id ASC'
     );
     this.updateStmt = db.prepare(
       `UPDATE project_spending_entries SET
@@ -61,6 +62,9 @@ export class SqliteSpendingRepository implements SpendingRepository {
        WHERE id = @id`
     );
     this.deleteStmt = db.prepare('DELETE FROM project_spending_entries WHERE id = ?');
+    this.deleteByProjectStmt = db.prepare(
+      'DELETE FROM project_spending_entries WHERE project_id = ?'
+    );
     this.maxPositionStmt = db.prepare(
       'SELECT COALESCE(MAX(position), 0) as maxPos FROM project_spending_entries WHERE project_id = ?'
     );
@@ -117,6 +121,38 @@ export class SqliteSpendingRepository implements SpendingRepository {
   async delete(id: number): Promise<boolean> {
     const result = this.deleteStmt.run(id);
     return result.changes > 0;
+  }
+
+  async deleteByProject(projectId: number): Promise<void> {
+    this.deleteByProjectStmt.run(projectId);
+  }
+
+  async replaceAll(
+    projectId: number,
+    inputs: Omit<CreateSpendingEntryInput, 'projectId'>[]
+  ): Promise<SpendingEntry[]> {
+    const run = this.db.transaction(() => {
+      this.deleteByProjectStmt.run(projectId);
+      const now = new Date().toISOString();
+      const created: SpendingEntry[] = [];
+      for (const input of inputs) {
+        const info = this.insertStmt.run({
+          project_id: projectId,
+          description: input.description,
+          amount: input.amount,
+          entry_date: input.entryDate,
+          bank: input.bank,
+          position: input.position,
+          created_at: now,
+          updated_at: now
+        });
+        const row = this.findByIdStmt.get(info.lastInsertRowid) as SpendingRow | undefined;
+        if (!row) throw new Error('Failed to fetch imported spending entry');
+        created.push(mapRow(row));
+      }
+      return created;
+    });
+    return run();
   }
 
   async getMaxPosition(projectId: number): Promise<number> {

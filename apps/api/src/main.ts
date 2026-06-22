@@ -84,6 +84,7 @@ import type {
   DocumentActivityResponse,
   ListSpendingResponse,
   SpendingEntryResponse,
+  ImportSpendingResponse,
   ListSummaryResponse,
   SummaryEntryResponse,
   ImportSummaryResponse
@@ -92,6 +93,7 @@ import {
   updateSpendingVisibilityRequestSchema,
   createSpendingEntryRequestSchema,
   updateSpendingEntryRequestSchema,
+  importSpendingEntriesRequestSchema,
   updateSummaryVisibilityRequestSchema,
   createSummaryEntryRequestSchema,
   updateSummaryEntryRequestSchema,
@@ -905,6 +907,44 @@ app.post(
       body.bank ?? ''
     );
     res.status(201).json(toSpendingEntryResponse(entry));
+  })
+);
+
+app.post(
+  '/api/projects/:projectId/spending/import',
+  asyncHandler(async (req, res) => {
+    const token = req.cookies[config.security.sessionCookieName];
+    if (!token) {
+      res.status(401).json({ error: 'auth/no-token', message: 'No token' });
+      return;
+    }
+    const payload = await tokenService.verifyToken(token);
+    const projectId = Number(req.params.projectId);
+
+    const member = await projectMemberRepository.findByProjectAndUser(projectId, payload.userId);
+    if (!member) {
+      res.status(403).json({ error: 'forbidden', message: 'Not a member of this project' });
+      return;
+    }
+
+    const body = parseBody(importSpendingEntriesRequestSchema, req, res);
+    if (!body) return;
+
+    const data = await spendingService.importEntries(
+      projectId,
+      body.entries.map((entry) => ({
+        description: entry.description ?? '',
+        bank: entry.bank ?? '',
+        amount: entry.amount,
+        entryDate: entry.entryDate
+      })),
+      body.replace
+    );
+    const response: ImportSpendingResponse = {
+      totalAmount: data.totalAmount,
+      entries: data.entries.map(toSpendingEntryResponse)
+    };
+    res.json(response);
   })
 );
 

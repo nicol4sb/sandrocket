@@ -29,15 +29,15 @@ export declare const projectSchema: z.ZodObject<{
     updatedAt: z.ZodString;
     role: z.ZodOptional<z.ZodEnum<["owner", "contributor"]>>;
 }, "strip", z.ZodTypeAny, {
-    id: number;
     description: string | null;
+    id: number;
     name: string;
     createdAt: string;
     updatedAt: string;
     role?: "owner" | "contributor" | undefined;
 }, {
-    id: number;
     description: string | null;
+    id: number;
     name: string;
     createdAt: string;
     updatedAt: string;

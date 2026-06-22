@@ -21,7 +21,7 @@ import { createTaskService } from '@sandrocket/core';
 import { SqliteTaskRepository } from '@sandrocket/infrastructure';
 import { createTaskRequestSchema, reorderTaskRequestSchema, updateTaskRequestSchema } from '@sandrocket/contracts';
 import { loginRequestSchema, registerRequestSchema } from '@sandrocket/contracts';
-import { updateSpendingVisibilityRequestSchema, createSpendingEntryRequestSchema, updateSpendingEntryRequestSchema, updateSummaryVisibilityRequestSchema, createSummaryEntryRequestSchema, updateSummaryEntryRequestSchema, importSummaryEntriesRequestSchema } from '@sandrocket/contracts';
+import { updateSpendingVisibilityRequestSchema, createSpendingEntryRequestSchema, updateSpendingEntryRequestSchema, importSpendingEntriesRequestSchema, updateSummaryVisibilityRequestSchema, createSummaryEntryRequestSchema, updateSummaryEntryRequestSchema, importSummaryEntriesRequestSchema } from '@sandrocket/contracts';
 const config = loadConfig();
 const database = initializeSqliteDatabase({
     filename: config.database.filename
@@ -715,6 +715,34 @@ app.post('/api/projects/:projectId/spending', asyncHandler(async (req, res) => {
         return;
     const entry = await spendingService.createEntry(projectId, body.description ?? '', body.amount, body.entryDate, body.bank ?? '');
     res.status(201).json(toSpendingEntryResponse(entry));
+}));
+app.post('/api/projects/:projectId/spending/import', asyncHandler(async (req, res) => {
+    const token = req.cookies[config.security.sessionCookieName];
+    if (!token) {
+        res.status(401).json({ error: 'auth/no-token', message: 'No token' });
+        return;
+    }
+    const payload = await tokenService.verifyToken(token);
+    const projectId = Number(req.params.projectId);
+    const member = await projectMemberRepository.findByProjectAndUser(projectId, payload.userId);
+    if (!member) {
+        res.status(403).json({ error: 'forbidden', message: 'Not a member of this project' });
+        return;
+    }
+    const body = parseBody(importSpendingEntriesRequestSchema, req, res);
+    if (!body)
+        return;
+    const data = await spendingService.importEntries(projectId, body.entries.map((entry) => ({
+        description: entry.description ?? '',
+        bank: entry.bank ?? '',
+        amount: entry.amount,
+        entryDate: entry.entryDate
+    })), body.replace);
+    const response = {
+        totalAmount: data.totalAmount,
+        entries: data.entries.map(toSpendingEntryResponse)
+    };
+    res.json(response);
 }));
 app.patch('/api/spending/:entryId', asyncHandler(async (req, res) => {
     const token = req.cookies[config.security.sessionCookieName];

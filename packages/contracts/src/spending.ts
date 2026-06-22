@@ -41,3 +41,14 @@ export const updateSpendingEntryRequestSchema = z.object({
   bank: z.string().max(100).optional()
 });
 export type UpdateSpendingEntryRequest = z.infer<typeof updateSpendingEntryRequestSchema>;
+
+export const importSpendingEntriesRequestSchema = z.object({
+  replace: z.boolean().default(true),
+  entries: z.array(createSpendingEntryRequestSchema).min(1).max(500)
+});
+export type ImportSpendingEntriesRequest = z.infer<typeof importSpendingEntriesRequestSchema>;
+
+export interface ImportSpendingResponse {
+  entries: SpendingEntryResponse[];
+  totalAmount: number;
+}

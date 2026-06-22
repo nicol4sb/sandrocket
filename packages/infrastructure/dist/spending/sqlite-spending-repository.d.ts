@@ -7,6 +7,7 @@ export declare class SqliteSpendingRepository implements SpendingRepository {
     private readonly listByProjectStmt;
     private readonly updateStmt;
     private readonly deleteStmt;
+    private readonly deleteByProjectStmt;
     private readonly maxPositionStmt;
     private readonly getVisibleStmt;
     private readonly setVisibleStmt;
@@ -16,6 +17,8 @@ export declare class SqliteSpendingRepository implements SpendingRepository {
     create(input: CreateSpendingEntryInput): Promise<SpendingEntry>;
     update(input: UpdateSpendingEntryInput): Promise<SpendingEntry | null>;
     delete(id: number): Promise<boolean>;
+    deleteByProject(projectId: number): Promise<void>;
+    replaceAll(projectId: number, inputs: Omit<CreateSpendingEntryInput, 'projectId'>[]): Promise<SpendingEntry[]>;
     getMaxPosition(projectId: number): Promise<number>;
     isVisible(projectId: number): Promise<boolean>;
     setVisible(projectId: number, visible: boolean): Promise<void>;

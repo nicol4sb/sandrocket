@@ -19,15 +19,15 @@ export declare const epicSchema: z.ZodObject<{
     updatedAt: z.ZodString;
 }, "strip", z.ZodTypeAny, {
     projectId: number;
-    id: number;
     description: string | null;
+    id: number;
     name: string;
     createdAt: string;
     updatedAt: string;
 }, {
     projectId: number;
-    id: number;
     description: string | null;
+    id: number;
     name: string;
     createdAt: string;
     updatedAt: string;

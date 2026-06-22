@@ -199,7 +199,7 @@ export function initializeSqliteDatabase(options) {
                 // Build the SELECT statement based on what columns exist
                 let selectClause = 'SELECT id, epic_id';
                 if (hasCreatorColumn) {
-                    selectClause += ', cre9000ator_user_id';
+                    selectClause += ', creator_user_id';
                 }
                 else {
                     selectClause += `, ${defaultCreatorId} as creator_user_id`;

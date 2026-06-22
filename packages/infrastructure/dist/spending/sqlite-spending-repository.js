@@ -17,7 +17,7 @@ export class SqliteSpendingRepository {
         this.insertStmt = db.prepare(`INSERT INTO project_spending_entries (project_id, description, amount, entry_date, bank, position, created_at, updated_at)
        VALUES (@project_id, @description, @amount, @entry_date, @bank, @position, @created_at, @updated_at)`);
         this.findByIdStmt = db.prepare('SELECT * FROM project_spending_entries WHERE id = ?');
-        this.listByProjectStmt = db.prepare('SELECT * FROM project_spending_entries WHERE project_id = ? ORDER BY entry_date ASC, id ASC');
+        this.listByProjectStmt = db.prepare('SELECT * FROM project_spending_entries WHERE project_id = ? ORDER BY position ASC, id ASC');
         this.updateStmt = db.prepare(`UPDATE project_spending_entries SET
          description = COALESCE(@description, description),
          amount = COALESCE(@amount, amount),
@@ -26,6 +26,7 @@ export class SqliteSpendingRepository {
          updated_at = @updated_at
        WHERE id = @id`);
         this.deleteStmt = db.prepare('DELETE FROM project_spending_entries WHERE id = ?');
+        this.deleteByProjectStmt = db.prepare('DELETE FROM project_spending_entries WHERE project_id = ?');
         this.maxPositionStmt = db.prepare('SELECT COALESCE(MAX(position), 0) as maxPos FROM project_spending_entries WHERE project_id = ?');
         this.getVisibleStmt = db.prepare('SELECT spending_visible FROM projects WHERE id = ?');
         this.setVisibleStmt = db.prepare('UPDATE projects SET spending_visible = @visible, updated_at = @updated_at WHERE id = @id');
@@ -74,6 +75,34 @@ export class SqliteSpendingRepository {
     async delete(id) {
         const result = this.deleteStmt.run(id);
         return result.changes > 0;
+    }
+    async deleteByProject(projectId) {
+        this.deleteByProjectStmt.run(projectId);
+    }
+    async replaceAll(projectId, inputs) {
+        const run = this.db.transaction(() => {
+            this.deleteByProjectStmt.run(projectId);
+            const now = new Date().toISOString();
+            const created = [];
+            for (const input of inputs) {
+                const info = this.insertStmt.run({
+                    project_id: projectId,
+                    description: input.description,
+                    amount: input.amount,
+                    entry_date: input.entryDate,
+                    bank: input.bank,
+                    position: input.position,
+                    created_at: now,
+                    updated_at: now
+                });
+                const row = this.findByIdStmt.get(info.lastInsertRowid);
+                if (!row)
+                    throw new Error('Failed to fetch imported spending entry');
+                created.push(mapRow(row));
+            }
+            return created;
+        });
+        return run();
     }
     async getMaxPosition(projectId) {
         const row = this.maxPositionStmt.get(projectId);
