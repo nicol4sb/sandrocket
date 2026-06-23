@@ -71,7 +71,7 @@ class SpendingServiceImpl implements SpendingService {
     bank?: string
   ): Promise<SpendingEntry> {
     const maxPos = await this.deps.spending.getMaxPosition(projectId);
-    return this.deps.spending.create({
+    const created = await this.deps.spending.create({
       projectId,
       description: description.trim(),
       amount,
@@ -79,6 +79,8 @@ class SpendingServiceImpl implements SpendingService {
       bank: (bank ?? '').trim(),
       position: maxPos + 1
     });
+    await this.deps.spending.reorderPositionsByDate(projectId);
+    return (await this.deps.spending.findById(created.id)) ?? created;
   }
 
   async updateEntry(
@@ -88,17 +90,26 @@ class SpendingServiceImpl implements SpendingService {
     entryDate?: string,
     bank?: string
   ): Promise<SpendingEntry | null> {
-    return this.deps.spending.update({
+    const updated = await this.deps.spending.update({
       id,
       description,
       amount,
       entryDate: entryDate === undefined ? undefined : resolveEntryDate(entryDate),
       bank: bank === undefined ? undefined : bank.trim()
     });
+    if (!updated) return null;
+    await this.deps.spending.reorderPositionsByDate(updated.projectId);
+    return this.deps.spending.findById(updated.id);
   }
 
   async deleteEntry(id: number): Promise<boolean> {
-    return this.deps.spending.delete(id);
+    const existing = await this.deps.spending.findById(id);
+    if (!existing) return false;
+    const deleted = await this.deps.spending.delete(id);
+    if (deleted) {
+      await this.deps.spending.reorderPositionsByDate(existing.projectId);
+    }
+    return deleted;
   }
 
   async importEntries(
@@ -106,33 +117,43 @@ class SpendingServiceImpl implements SpendingService {
     entries: SpendingImportEntryInput[],
     replace = true
   ): Promise<{ entries: SpendingEntry[]; totalAmount: number }> {
-    const normalized = entries.map((entry, index) => ({
-      description: entry.description.trim(),
-      bank: (entry.bank ?? '').trim(),
-      amount: entry.amount,
-      entryDate: resolveEntryDate(entry.entryDate),
-      position: index + 1
-    }));
+    const normalized = entries
+      .map((entry, sourceIndex) => ({
+        description: entry.description.trim(),
+        bank: (entry.bank ?? '').trim(),
+        amount: entry.amount,
+        entryDate: resolveEntryDate(entry.entryDate),
+        sourceIndex
+      }))
+      .sort((a, b) => {
+        const dateCmp = a.entryDate.localeCompare(b.entryDate);
+        return dateCmp !== 0 ? dateCmp : a.sourceIndex - b.sourceIndex;
+      })
+      .map((entry, index) => ({
+        description: entry.description,
+        bank: entry.bank,
+        amount: entry.amount,
+        entryDate: entry.entryDate,
+        position: index + 1
+      }));
 
-    let created: SpendingEntry[];
     if (replace) {
-      created = await this.deps.spending.replaceAll(projectId, normalized);
+      await this.deps.spending.replaceAll(projectId, normalized);
     } else {
       const maxPos = await this.deps.spending.getMaxPosition(projectId);
-      created = [];
       for (let i = 0; i < normalized.length; i++) {
-        created.push(
-          await this.deps.spending.create({
-            projectId,
-            ...normalized[i],
-            position: maxPos + i + 1
-          })
-        );
+        await this.deps.spending.create({
+          projectId,
+          ...normalized[i],
+          position: maxPos + i + 1
+        });
       }
+      await this.deps.spending.reorderPositionsByDate(projectId);
     }
 
-    const totalAmount = created.reduce((sum, e) => sum + e.amount, 0);
-    return { entries: created, totalAmount };
+    const listed = await this.deps.spending.listByProject(projectId);
+    const totalAmount = listed.reduce((sum, e) => sum + e.amount, 0);
+    return { entries: listed, totalAmount };
   }
 }
 

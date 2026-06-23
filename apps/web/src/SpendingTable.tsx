@@ -6,6 +6,7 @@ import type {
   SpendingEntryResponse
 } from '@sandrocket/contracts';
 import { useIsMobile } from './hooks/useMediaQuery';
+import { sortEntriesByDate } from './financeSort';
 
 interface SpendingTableProps {
   projectId: number;
@@ -219,9 +220,10 @@ function exportSpendingToExcel(
   totalAmount: number,
   projectName: string
 ) {
+  const sortedEntries = sortEntriesByDate(entries);
   const rows: (string | number)[][] = [
     [...SPENDING_HEADERS],
-    ...entries.map((e) => [e.entryDate, e.description, e.bank, e.amount]),
+    ...sortedEntries.map((e) => [e.entryDate, e.description, e.bank, e.amount]),
     ['', '', 'Total', totalAmount]
   ];
   const worksheet = XLSX.utils.aoa_to_sheet(rows);
@@ -270,9 +272,7 @@ export function SpendingTable({ projectId, projectName, baseUrl }: SpendingTable
       if (!res.ok) return;
       const data = (await res.json()) as ListSpendingResponse;
       setVisible(data.visible);
-      setEntries(
-        [...data.entries].sort((a, b) => a.position - b.position || a.id - b.id)
-      );
+      setEntries(sortEntriesByDate(data.entries));
     } catch {
       // ignore
     } finally {
@@ -370,7 +370,7 @@ export function SpendingTable({ projectId, projectName, baseUrl }: SpendingTable
         return;
       }
       const data = (await res.json()) as ImportSpendingResponse;
-      setEntries([...data.entries].sort((a, b) => a.position - b.position || a.id - b.id));
+      setEntries(sortEntriesByDate(data.entries));
       setVisible(true);
       setDraft(newDraftRow());
     } catch {

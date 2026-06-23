@@ -23,7 +23,7 @@ class SummaryServiceImpl {
     }
     async createEntry(projectId, lot, amount, entryDate, fichierRetenu) {
         const maxPos = await this.deps.summary.getMaxPosition(projectId);
-        return this.deps.summary.create({
+        const created = await this.deps.summary.create({
             projectId,
             lot: lot.trim(),
             fichierRetenu: (fichierRetenu ?? '').trim(),
@@ -31,44 +31,69 @@ class SummaryServiceImpl {
             entryDate: resolveEntryDate(entryDate),
             position: maxPos + 1
         });
+        await this.deps.summary.reorderPositionsByDate(projectId);
+        return (await this.deps.summary.findById(created.id)) ?? created;
     }
     async updateEntry(id, lot, amount, entryDate, fichierRetenu) {
-        return this.deps.summary.update({
+        const updated = await this.deps.summary.update({
             id,
             lot: lot === undefined ? undefined : lot.trim(),
             amount,
             entryDate: entryDate === undefined ? undefined : resolveEntryDate(entryDate),
             fichierRetenu: fichierRetenu === undefined ? undefined : fichierRetenu.trim()
         });
+        if (!updated)
+            return null;
+        await this.deps.summary.reorderPositionsByDate(updated.projectId);
+        return this.deps.summary.findById(updated.id);
     }
     async deleteEntry(id) {
-        return this.deps.summary.delete(id);
+        const existing = await this.deps.summary.findById(id);
+        if (!existing)
+            return false;
+        const deleted = await this.deps.summary.delete(id);
+        if (deleted) {
+            await this.deps.summary.reorderPositionsByDate(existing.projectId);
+        }
+        return deleted;
     }
     async importEntries(projectId, entries, replace = true) {
-        const normalized = entries.map((entry, index) => ({
+        const normalized = entries
+            .map((entry, sourceIndex) => ({
             lot: entry.lot.trim(),
             fichierRetenu: (entry.fichierRetenu ?? '').trim(),
             amount: entry.amount,
             entryDate: resolveEntryDate(entry.entryDate),
+            sourceIndex
+        }))
+            .sort((a, b) => {
+            const dateCmp = a.entryDate.localeCompare(b.entryDate);
+            return dateCmp !== 0 ? dateCmp : a.sourceIndex - b.sourceIndex;
+        })
+            .map((entry, index) => ({
+            lot: entry.lot,
+            fichierRetenu: entry.fichierRetenu,
+            amount: entry.amount,
+            entryDate: entry.entryDate,
             position: index + 1
         }));
-        let created;
         if (replace) {
-            created = await this.deps.summary.replaceAll(projectId, normalized);
+            await this.deps.summary.replaceAll(projectId, normalized);
         }
         else {
             const maxPos = await this.deps.summary.getMaxPosition(projectId);
-            created = [];
             for (let i = 0; i < normalized.length; i++) {
-                created.push(await this.deps.summary.create({
+                await this.deps.summary.create({
                     projectId,
                     ...normalized[i],
                     position: maxPos + i + 1
-                }));
+                });
             }
+            await this.deps.summary.reorderPositionsByDate(projectId);
         }
-        const totalAmount = created.reduce((sum, e) => sum + e.amount, 0);
-        return { entries: created, totalAmount };
+        const listed = await this.deps.summary.listByProject(projectId);
+        const totalAmount = listed.reduce((sum, e) => sum + e.amount, 0);
+        return { entries: listed, totalAmount };
     }
 }
 export function createSummaryService(deps) {

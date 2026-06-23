@@ -20,7 +20,7 @@ export class SqliteSummaryRepository {
          @project_id, @lot, @fichier_retenu, @amount, @entry_date, @position, @created_at, @updated_at
        )`);
         this.findByIdStmt = db.prepare('SELECT * FROM project_summary_entries WHERE id = ?');
-        this.listByProjectStmt = db.prepare('SELECT * FROM project_summary_entries WHERE project_id = ? ORDER BY position ASC, id ASC');
+        this.listByProjectStmt = db.prepare('SELECT * FROM project_summary_entries WHERE project_id = ? ORDER BY entry_date ASC, id ASC');
         this.updateStmt = db.prepare(`UPDATE project_summary_entries SET
          lot = COALESCE(@lot, lot),
          fichier_retenu = COALESCE(@fichier_retenu, fichier_retenu),
@@ -31,6 +31,8 @@ export class SqliteSummaryRepository {
         this.deleteStmt = db.prepare('DELETE FROM project_summary_entries WHERE id = ?');
         this.deleteByProjectStmt = db.prepare('DELETE FROM project_summary_entries WHERE project_id = ?');
         this.maxPositionStmt = db.prepare('SELECT COALESCE(MAX(position), 0) as maxPos FROM project_summary_entries WHERE project_id = ?');
+        this.reorderByDateListStmt = db.prepare('SELECT id FROM project_summary_entries WHERE project_id = ? ORDER BY entry_date ASC, id ASC');
+        this.reorderByDateUpdateStmt = db.prepare('UPDATE project_summary_entries SET position = @position, updated_at = @updated_at WHERE id = @id');
         this.getVisibleStmt = db.prepare('SELECT summary_visible FROM projects WHERE id = ?');
         this.setVisibleStmt = db.prepare('UPDATE projects SET summary_visible = @visible, updated_at = @updated_at WHERE id = @id');
     }
@@ -110,6 +112,20 @@ export class SqliteSummaryRepository {
     async getMaxPosition(projectId) {
         const row = this.maxPositionStmt.get(projectId);
         return row?.maxPos ?? 0;
+    }
+    async reorderPositionsByDate(projectId) {
+        const run = this.db.transaction(() => {
+            const rows = this.reorderByDateListStmt.all(projectId);
+            const now = new Date().toISOString();
+            rows.forEach((row, index) => {
+                this.reorderByDateUpdateStmt.run({
+                    id: row.id,
+                    position: index + 1,
+                    updated_at: now
+                });
+            });
+        });
+        run();
     }
     async isVisible(projectId) {
         const row = this.getVisibleStmt.get(projectId);

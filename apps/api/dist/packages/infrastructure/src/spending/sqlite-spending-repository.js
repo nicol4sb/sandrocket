@@ -17,7 +17,7 @@ export class SqliteSpendingRepository {
         this.insertStmt = db.prepare(`INSERT INTO project_spending_entries (project_id, description, amount, entry_date, bank, position, created_at, updated_at)
        VALUES (@project_id, @description, @amount, @entry_date, @bank, @position, @created_at, @updated_at)`);
         this.findByIdStmt = db.prepare('SELECT * FROM project_spending_entries WHERE id = ?');
-        this.listByProjectStmt = db.prepare('SELECT * FROM project_spending_entries WHERE project_id = ? ORDER BY position ASC, id ASC');
+        this.listByProjectStmt = db.prepare('SELECT * FROM project_spending_entries WHERE project_id = ? ORDER BY entry_date ASC, id ASC');
         this.updateStmt = db.prepare(`UPDATE project_spending_entries SET
          description = COALESCE(@description, description),
          amount = COALESCE(@amount, amount),
@@ -28,6 +28,8 @@ export class SqliteSpendingRepository {
         this.deleteStmt = db.prepare('DELETE FROM project_spending_entries WHERE id = ?');
         this.deleteByProjectStmt = db.prepare('DELETE FROM project_spending_entries WHERE project_id = ?');
         this.maxPositionStmt = db.prepare('SELECT COALESCE(MAX(position), 0) as maxPos FROM project_spending_entries WHERE project_id = ?');
+        this.reorderByDateListStmt = db.prepare('SELECT id FROM project_spending_entries WHERE project_id = ? ORDER BY entry_date ASC, id ASC');
+        this.reorderByDateUpdateStmt = db.prepare('UPDATE project_spending_entries SET position = @position, updated_at = @updated_at WHERE id = @id');
         this.getVisibleStmt = db.prepare('SELECT spending_visible FROM projects WHERE id = ?');
         this.setVisibleStmt = db.prepare('UPDATE projects SET spending_visible = @visible, updated_at = @updated_at WHERE id = @id');
     }
@@ -107,6 +109,20 @@ export class SqliteSpendingRepository {
     async getMaxPosition(projectId) {
         const row = this.maxPositionStmt.get(projectId);
         return row?.maxPos ?? 0;
+    }
+    async reorderPositionsByDate(projectId) {
+        const run = this.db.transaction(() => {
+            const rows = this.reorderByDateListStmt.all(projectId);
+            const now = new Date().toISOString();
+            rows.forEach((row, index) => {
+                this.reorderByDateUpdateStmt.run({
+                    id: row.id,
+                    position: index + 1,
+                    updated_at: now
+                });
+            });
+        });
+        run();
     }
     async isVisible(projectId) {
         const row = this.getVisibleStmt.get(projectId);

@@ -7,6 +7,7 @@ export interface SpendingRepository {
     delete(id: number): Promise<boolean>;
     deleteByProject(projectId: number): Promise<void>;
     replaceAll(projectId: number, inputs: Omit<CreateSpendingEntryInput, 'projectId'>[]): Promise<SpendingEntry[]>;
+    reorderPositionsByDate(projectId: number): Promise<void>;
     getMaxPosition(projectId: number): Promise<number>;
     isVisible(projectId: number): Promise<boolean>;
     setVisible(projectId: number, visible: boolean): Promise<void>;

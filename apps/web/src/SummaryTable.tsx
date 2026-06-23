@@ -6,6 +6,7 @@ import type {
   SummaryEntryResponse
 } from '@sandrocket/contracts';
 import { useIsMobile } from './hooks/useMediaQuery';
+import { sortEntriesByDate } from './financeSort';
 
 interface SummaryTableProps {
   projectId: number;
@@ -219,9 +220,10 @@ function exportSummaryToExcel(
   totalAmount: number,
   projectName: string
 ) {
+  const sortedEntries = sortEntriesByDate(entries);
   const rows: (string | number)[][] = [
     [...DEVIS_HEADERS],
-    ...entries.map((e) => [
+    ...sortedEntries.map((e) => [
       e.lot,
       e.fichierRetenu,
       formatDisplayDate(e.entryDate),
@@ -275,9 +277,7 @@ export function SummaryTable({ projectId, projectName, baseUrl }: SummaryTablePr
       if (!res.ok) return;
       const data = (await res.json()) as ListSummaryResponse;
       setVisible(data.visible);
-      setEntries(
-        [...data.entries].sort((a, b) => a.position - b.position || a.id - b.id)
-      );
+      setEntries(sortEntriesByDate(data.entries));
     } catch {
       // ignore
     } finally {
@@ -375,7 +375,7 @@ export function SummaryTable({ projectId, projectName, baseUrl }: SummaryTablePr
         return;
       }
       const data = (await res.json()) as ImportSummaryResponse;
-      setEntries([...data.entries].sort((a, b) => a.position - b.position || a.id - b.id));
+      setEntries(sortEntriesByDate(data.entries));
       setVisible(true);
       setDraft(newDraftRow());
     } catch {

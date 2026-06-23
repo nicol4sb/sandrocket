@@ -9,6 +9,8 @@ export declare class SqliteSummaryRepository implements SummaryRepository {
     private readonly deleteStmt;
     private readonly deleteByProjectStmt;
     private readonly maxPositionStmt;
+    private readonly reorderByDateListStmt;
+    private readonly reorderByDateUpdateStmt;
     private readonly getVisibleStmt;
     private readonly setVisibleStmt;
     constructor(db: Database);
@@ -20,6 +22,7 @@ export declare class SqliteSummaryRepository implements SummaryRepository {
     deleteByProject(projectId: number): Promise<void>;
     replaceAll(projectId: number, inputs: Omit<CreateSummaryEntryInput, 'projectId'>[]): Promise<SummaryEntry[]>;
     getMaxPosition(projectId: number): Promise<number>;
+    reorderPositionsByDate(projectId: number): Promise<void>;
     isVisible(projectId: number): Promise<boolean>;
     setVisible(projectId: number, visible: boolean): Promise<void>;
 }
