@@ -3153,34 +3153,109 @@ footer {
 }
 
 .spending-row-unpaid td {
-  background: #141416;
-  border-color: #35353a;
+  background: linear-gradient(
+    90deg,
+    rgba(255, 148, 62, 0.16) 0%,
+    rgba(255, 107, 74, 0.07) 38%,
+    #1c1916 100%
+  );
+  border-color: rgba(255, 168, 76, 0.38);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 210, 130, 0.1),
+    0 2px 14px rgba(255, 120, 50, 0.18);
+}
+
+.spending-row-unpaid td:first-child {
+  border-left: 3px solid #ff9f43;
+  box-shadow:
+    inset 4px 0 16px rgba(255, 159, 67, 0.22),
+    0 2px 14px rgba(255, 120, 50, 0.18);
+}
+
+.spending-row-unpaid:hover td {
+  background: linear-gradient(
+    90deg,
+    rgba(255, 148, 62, 0.22) 0%,
+    rgba(255, 107, 74, 0.1) 38%,
+    #221e1a 100%
+  );
+  border-color: rgba(255, 180, 90, 0.52);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 210, 130, 0.14),
+    0 3px 20px rgba(255, 130, 55, 0.28);
 }
 
 .spending-row-unpaid .spending-input {
-  color: #9a9a9a;
+  color: #f8ead8;
 }
 
 .spending-row-unpaid .spending-col-amount .spending-input {
-  text-decoration: line-through;
-  text-decoration-color: rgba(154, 154, 154, 0.55);
+  color: #ffc978;
+  font-weight: 600;
+  text-shadow: 0 0 12px rgba(255, 180, 80, 0.35);
+}
+
+.spending-row-unpaid .spending-paid-checkbox {
+  accent-color: #ff9f43;
 }
 
 .finance-mobile-card-unpaid {
-  border-style: dashed;
-  border-color: #4a4a4e;
-  background: #141416;
-  opacity: 0.92;
+  border: 1px solid rgba(255, 168, 76, 0.55);
+  background: linear-gradient(
+    145deg,
+    rgba(255, 148, 62, 0.18) 0%,
+    rgba(255, 90, 60, 0.06) 42%,
+    #1a1814 100%
+  );
+  box-shadow:
+    0 0 0 1px rgba(255, 180, 80, 0.14),
+    0 4px 22px rgba(255, 130, 50, 0.32),
+    0 10px 36px rgba(255, 85, 55, 0.14),
+    inset 0 1px 0 rgba(255, 210, 130, 0.16);
+  animation: unpaid-card-glow 3.5s ease-in-out infinite;
 }
 
-.finance-mobile-card-unpaid .finance-mobile-card-title,
+@keyframes unpaid-card-glow {
+  0%,
+  100% {
+    box-shadow:
+      0 0 0 1px rgba(255, 180, 80, 0.14),
+      0 4px 22px rgba(255, 130, 50, 0.32),
+      0 10px 36px rgba(255, 85, 55, 0.14),
+      inset 0 1px 0 rgba(255, 210, 130, 0.16);
+  }
+
+  50% {
+    box-shadow:
+      0 0 0 1px rgba(255, 200, 100, 0.22),
+      0 6px 28px rgba(255, 150, 60, 0.42),
+      0 14px 44px rgba(255, 95, 55, 0.2),
+      inset 0 1px 0 rgba(255, 220, 150, 0.22);
+  }
+}
+
+.finance-mobile-card-unpaid .finance-mobile-card-title {
+  color: #f8ead8;
+}
+
 .finance-mobile-card-unpaid .finance-mobile-input {
-  color: #9a9a9a;
+  color: #f0dcc4;
 }
 
 .finance-mobile-card-unpaid .finance-mobile-input-amount {
-  text-decoration: line-through;
-  text-decoration-color: rgba(154, 154, 154, 0.55);
+  color: #ffc978;
+  font-weight: 700;
+  text-shadow: 0 0 10px rgba(255, 180, 80, 0.3);
+}
+
+.finance-mobile-card-unpaid .spending-paid-checkbox {
+  accent-color: #ff9f43;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .finance-mobile-card-unpaid {
+    animation: none;
+  }
 }
 
 .finance-mobile-field-inline {
