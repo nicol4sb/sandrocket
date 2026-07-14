@@ -2955,8 +2955,7 @@ footer {
     overflow-y: visible;
   }
 
-  .finance-mobile-list,
-  .finance-mobile-card {
+  .finance-compact-list {
     max-width: 100%;
     min-width: 0;
   }
@@ -2996,7 +2995,306 @@ footer {
   }
 }
 
-/* ── Mobile finance cards (Spending + Devis on phone) ── */
+/* ── Finance tables (mobile scroll hint) ── */
+
+.finance-table-scroll-hint {
+  display: none;
+  margin: 0 0 0.45rem;
+  font-size: 0.72rem;
+  color: #777;
+  text-align: center;
+}
+
+/* ── Compact finance list (phone) ── */
+
+.finance-compact-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.finance-compact-row {
+  border: 1px solid #4a4a4e;
+  border-radius: 0.625rem;
+  background: #1a1a1c;
+  overflow: hidden;
+}
+
+.finance-compact-row-expanded {
+  border-color: #5a5a5e;
+}
+
+.finance-compact-row-draft {
+  border-style: dashed;
+  border-color: #555;
+  background: #18181a;
+}
+
+.finance-compact-draft-collapsed {
+  padding: 0.5rem 0.65rem;
+}
+
+.finance-compact-draft-trigger {
+  border-style: dashed;
+  background: transparent;
+  color: #aaa;
+}
+
+.finance-compact-draft-trigger::placeholder {
+  color: #666;
+  font-style: italic;
+}
+
+.finance-compact-draft-trigger:focus {
+  color: #f0f0f0;
+  background: #252528;
+  border-style: solid;
+}
+
+.finance-compact-draft-label {
+  margin: 0;
+  padding: 0.65rem 0.75rem 0;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #888;
+}
+
+.finance-compact-header {
+  display: flex;
+  align-items: stretch;
+  gap: 0.35rem;
+  padding: 0.55rem 0.5rem 0.55rem 0.65rem;
+}
+
+.finance-compact-toggle {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  padding: 0.15rem 0;
+  cursor: pointer;
+}
+
+.finance-compact-primary {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.65rem;
+}
+
+.finance-compact-title {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #e8e8e8;
+  line-height: 1.35;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.finance-compact-amount {
+  flex-shrink: 0;
+  font-size: 0.95rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: #4ec9b0;
+}
+
+.finance-compact-devis .finance-compact-amount {
+  color: #569cd6;
+}
+
+.finance-compact-meta {
+  font-size: 0.72rem;
+  color: #888;
+  line-height: 1.3;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.finance-compact-check-row {
+  display: flex;
+  gap: 1.25rem;
+  padding-bottom: 0.15rem;
+}
+
+.finance-compact-check-field {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #aaa;
+  cursor: pointer;
+}
+
+.finance-compact-check-field > span {
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-size: 0.68rem;
+  color: #888;
+}
+
+.finance-compact-details {
+  padding: 0 0.75rem 0.75rem;
+  border-top: 1px solid #333;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.finance-compact-details-open {
+  padding-top: 0.25rem;
+  border-top: none;
+}
+
+.finance-compact-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.finance-compact-field > span {
+  font-size: 0.68rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #888;
+}
+
+.finance-compact-field-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.55rem;
+}
+
+.finance-compact-input {
+  width: 100%;
+  box-sizing: border-box;
+  background: #252528;
+  border: 1px solid #464649;
+  border-radius: 0.45rem;
+  color: #f0f0f0;
+  font-size: 16px;
+  line-height: 1.35;
+  padding: 0.55rem 0.65rem;
+  font-family: inherit;
+  min-height: 2.5rem;
+}
+
+.finance-compact-input:focus {
+  outline: none;
+  border-color: #4ec9b0;
+  box-shadow: 0 0 0 2px rgba(78, 201, 176, 0.18);
+}
+
+.finance-compact-devis .finance-compact-input:focus {
+  border-color: #569cd6;
+  box-shadow: 0 0 0 2px rgba(86, 156, 214, 0.18);
+}
+
+.finance-compact-input-amount {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.finance-compact-details-actions {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: 0.15rem;
+}
+
+.finance-compact-details-actions .spending-row-delete-btn,
+.finance-compact-details-actions .summary-row-delete-btn {
+  opacity: 1;
+  pointer-events: auto;
+  position: static;
+  min-width: 2.5rem;
+  min-height: 2.5rem;
+}
+
+.finance-compact-spending.finance-compact-unpaid {
+  border-color: rgba(255, 168, 76, 0.55);
+  background: linear-gradient(
+    145deg,
+    rgba(255, 148, 62, 0.14) 0%,
+    #1a1814 55%,
+    #1a1a1c 100%
+  );
+  box-shadow:
+    0 0 0 1px rgba(255, 180, 80, 0.1),
+    0 3px 14px rgba(255, 130, 50, 0.2);
+}
+
+.finance-compact-spending.finance-compact-unpaid .finance-compact-title {
+  color: #f8ead8;
+}
+
+.finance-compact-spending.finance-compact-unpaid .finance-compact-amount {
+  color: #ffc978;
+}
+
+.finance-compact-totals {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-top: 0.25rem;
+}
+
+.finance-compact-total {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.75rem 0.85rem;
+  border-radius: 0.625rem;
+  background: #222224;
+  font-size: 0.9rem;
+  color: #aaa;
+}
+
+.finance-compact-total strong {
+  font-size: 1rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.finance-compact-total-spending {
+  border: 1px solid #4ec9b0;
+}
+
+.finance-compact-total-spending strong {
+  color: #4ec9b0;
+}
+
+.finance-compact-total-debt {
+  border: 1px solid #569cd6;
+}
+
+.finance-compact-total-debt strong {
+  color: #569cd6;
+}
+
+.finance-compact-total-devis {
+  border: 1px solid #569cd6;
+}
+
+.finance-compact-total-devis strong {
+  color: #569cd6;
+}
+
+/* Legacy mobile card styles (unused) */
 
 .finance-mobile-list {
   display: flex;

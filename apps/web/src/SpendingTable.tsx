@@ -136,7 +136,7 @@ function rowHasContent(description: string, amountStr: string): boolean {
 }
 
 function isFocusMovingWithinRow(e: React.FocusEvent<HTMLElement>): boolean {
-  const row = e.currentTarget.closest('tr, .finance-mobile-card');
+  const row = e.currentTarget.closest('tr, .finance-compact-row');
   const next = e.relatedTarget;
   if (!row || !(next instanceof Node)) return false;
   return row.contains(next);
@@ -245,7 +245,7 @@ function navigateSpendingCellVertically(
   const dataRows = Array.from(
     tbody.querySelectorAll<HTMLTableRowElement>('tr.spending-row, tr.spending-row-draft')
   );
-  const rowIndex = dataRows.indexOf(row);
+  const rowIndex = dataRows.indexOf(row as HTMLTableRowElement);
   if (rowIndex === -1) return;
 
   const nextRowIndex = e.key === 'ArrowUp' ? rowIndex - 1 : rowIndex + 1;
@@ -329,6 +329,11 @@ export function SpendingTable({ projectId, projectName, baseUrl }: SpendingTable
   const [visible, setVisible] = useState(false);
   const [entries, setEntries] = useState<SpendingEntryResponse[]>([]);
   const [draft, setDraft] = useState<DraftRow>(newDraftRow);
+  const [draftExpanded, setDraftExpanded] = useState(false);
+  const draftBlurSkipRef = useRef(false);
+  const draftPrimaryRef = useRef<HTMLInputElement>(null);
+  const draftRowRef = useRef<HTMLDivElement>(null);
+  const [expandedEntryId, setExpandedEntryId] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [importError, setImportError] = useState<string | null>(null);
@@ -542,12 +547,38 @@ export function SpendingTable({ projectId, projectName, baseUrl }: SpendingTable
     await patchEntry(entry, { debtPaid }, { skipRefetch: true });
   };
 
-  const handleDraftBlur = (e: React.FocusEvent<HTMLElement>) => {
-    if (isFocusMovingWithinRow(e)) return;
+  const expandDraft = () => {
+    setExpandedEntryId(null);
+    draftBlurSkipRef.current = true;
+    setDraftExpanded(true);
+    requestAnimationFrame(() => draftPrimaryRef.current?.focus());
+  };
+
+  const collapseDraft = useCallback(() => {
     const { entryDate, description, bank, amount } = draftRef.current;
     if (rowHasContent(description, amount)) {
       void createEntry(entryDate, description, bank, amount);
     }
+    setDraftExpanded(false);
+  }, [createEntry]);
+
+  useEffect(() => {
+    if (!draftExpanded) return;
+    const onPointerDown = (e: PointerEvent) => {
+      if (draftRowRef.current?.contains(e.target as Node)) return;
+      collapseDraft();
+    };
+    document.addEventListener('pointerdown', onPointerDown, true);
+    return () => document.removeEventListener('pointerdown', onPointerDown, true);
+  }, [draftExpanded, collapseDraft]);
+
+  const handleDraftBlur = (e: React.FocusEvent<HTMLElement>) => {
+    if (isFocusMovingWithinRow(e)) return;
+    if (draftBlurSkipRef.current) {
+      draftBlurSkipRef.current = false;
+      return;
+    }
+    collapseDraft();
   };
 
   const totalAmount = paidTotal(entries);
@@ -646,77 +677,112 @@ export function SpendingTable({ projectId, projectName, baseUrl }: SpendingTable
           <div className="spending-table-wrap">
             {importError && <p className="spending-import-error">{importError}</p>}
             {isMobile ? (
-              <div className="finance-mobile-list">
+              <div className="finance-compact-list">
                 {entries.map((entry) => (
                   <SpendingRow
                     key={entry.id}
-                    mobile
+                    compact
                     entry={entry}
                     dateMax={dateMax}
+                    expanded={expandedEntryId === entry.id}
+                    onExpandedChange={(open) => {
+                      setExpandedEntryId(open ? entry.id : null);
+                      if (open) setDraftExpanded(false);
+                    }}
                     onCommit={(patch) => void patchEntry(entry, patch)}
                     onPaidChange={(paid) => void setEntryPaid(entry, paid)}
                     onDebtPaidChange={(debtPaid) => void setEntryDebtPaid(entry, debtPaid)}
                     onDelete={() => void deleteEntry(entry.id)}
                   />
                 ))}
-                <div className="finance-mobile-card finance-mobile-card-draft">
-                  <p className="finance-mobile-draft-hint">New spending line</p>
-                  <label className="finance-mobile-field">
-                    <span className="finance-mobile-label">Payment date</span>
-                    <input
-                      type="date"
-                      className="finance-mobile-input finance-mobile-input-date"
-                      value={draft.entryDate}
-                      max={dateMax}
-                      onChange={(e) => setDraft((d) => ({ ...d, entryDate: e.target.value }))}
-                      onBlur={handleDraftBlur}
-                    />
-                  </label>
-                  <label className="finance-mobile-field">
-                    <span className="finance-mobile-label">Description</span>
-                    <input
-                      type="text"
-                      className="finance-mobile-input"
-                      placeholder="Add a line…"
-                      value={draft.description}
-                      onChange={(e) => setDraft((d) => ({ ...d, description: e.target.value }))}
-                      onBlur={handleDraftBlur}
-                    />
-                  </label>
-                  <label className="finance-mobile-field">
-                    <span className="finance-mobile-label">Bank</span>
-                    <input
-                      type="text"
-                      className="finance-mobile-input"
-                      placeholder="Bank…"
-                      value={draft.bank}
-                      onChange={(e) => setDraft((d) => ({ ...d, bank: e.target.value }))}
-                      onBlur={handleDraftBlur}
-                    />
-                  </label>
-                  <label className="finance-mobile-field">
-                    <span className="finance-mobile-label">Amount</span>
-                    <input
-                      type="text"
-                      inputMode="decimal"
-                      className="finance-mobile-input finance-mobile-input-amount"
-                      placeholder="0"
-                      value={draft.amount}
-                      onChange={(e) => setDraft((d) => ({ ...d, amount: e.target.value }))}
-                      onBlur={handleDraftBlur}
-                    />
-                  </label>
+                <div
+                  ref={draftRowRef}
+                  className={`finance-compact-row finance-compact-row-draft${
+                    draftExpanded ? ' finance-compact-row-expanded' : ''
+                  }`}
+                >
+                  {!draftExpanded ? (
+                    <div className="finance-compact-draft-collapsed">
+                      <input
+                        type="text"
+                        className="finance-compact-input finance-compact-draft-trigger"
+                        placeholder="Add a line…"
+                        value={draft.description}
+                        onFocus={expandDraft}
+                        onChange={(e) => {
+                          const next = e.target.value;
+                          setDraft((d) => ({ ...d, description: next }));
+                          if (next.trim() && !draftExpanded) expandDraft();
+                        }}
+                        onBlur={handleDraftBlur}
+                      />
+                    </div>
+                  ) : (
+                    <div className="finance-compact-details finance-compact-details-open">
+                      <label className="finance-compact-field">
+                        <span>Description</span>
+                        <input
+                          ref={draftPrimaryRef}
+                          type="text"
+                          className="finance-compact-input"
+                          placeholder="Add a line…"
+                          value={draft.description}
+                          onChange={(e) => setDraft((d) => ({ ...d, description: e.target.value }))}
+                          onBlur={handleDraftBlur}
+                        />
+                      </label>
+                      <div className="finance-compact-field-row">
+                        <label className="finance-compact-field">
+                          <span>Amount</span>
+                          <input
+                            type="text"
+                            inputMode="decimal"
+                            className="finance-compact-input finance-compact-input-amount"
+                            placeholder="0"
+                            value={draft.amount}
+                            onChange={(e) => setDraft((d) => ({ ...d, amount: e.target.value }))}
+                            onBlur={handleDraftBlur}
+                          />
+                        </label>
+                        <label className="finance-compact-field">
+                          <span>Date</span>
+                          <input
+                            type="date"
+                            className="finance-compact-input"
+                            value={draft.entryDate}
+                            max={dateMax}
+                            onChange={(e) => setDraft((d) => ({ ...d, entryDate: e.target.value }))}
+                            onBlur={handleDraftBlur}
+                          />
+                        </label>
+                      </div>
+                      <label className="finance-compact-field">
+                        <span>Bank</span>
+                        <input
+                          type="text"
+                          className="finance-compact-input"
+                          placeholder="Bank…"
+                          value={draft.bank}
+                          onChange={(e) => setDraft((d) => ({ ...d, bank: e.target.value }))}
+                          onBlur={handleDraftBlur}
+                        />
+                      </label>
+                    </div>
+                  )}
                 </div>
-                <div className="finance-mobile-total finance-mobile-total-spending">
-                  <span>Total spent</span>
-                  <strong>{formatAmount(totalAmount)}</strong>
-                </div>
-                <div className="finance-mobile-total finance-mobile-total-spending-debt">
-                  <span>Debt spent</span>
-                  <strong>{formatAmount(debtTotalAmount)}</strong>
+                <div className="finance-compact-totals">
+                  <div className="finance-compact-total finance-compact-total-spending">
+                    <span>Total spent</span>
+                    <strong>{formatAmount(totalAmount)}</strong>
+                  </div>
+                  <div className="finance-compact-total finance-compact-total-debt">
+                    <span>Debt spent</span>
+                    <strong>{formatAmount(debtTotalAmount)}</strong>
+                  </div>
                 </div>
               </div>
             ) : (
+            <>
             <table className="spending-table">
               <thead>
                 <tr>
@@ -806,6 +872,7 @@ export function SpendingTable({ projectId, projectName, baseUrl }: SpendingTable
                 </tr>
               </tbody>
             </table>
+            </>
             )}
           </div>
         )}
@@ -815,7 +882,9 @@ export function SpendingTable({ projectId, projectName, baseUrl }: SpendingTable
 }
 
 function SpendingRow(props: {
-  mobile?: boolean;
+  compact?: boolean;
+  expanded?: boolean;
+  onExpandedChange?: (expanded: boolean) => void;
   entry: SpendingEntryResponse;
   dateMax: string;
   onCommit: (patch: {
@@ -834,6 +903,7 @@ function SpendingRow(props: {
   const [amount, setAmount] = useState(formatAmountInput(props.entry.amount));
   const [paid, setPaid] = useState(props.entry.paid);
   const [debtPaid, setDebtPaid] = useState(props.entry.debtPaid);
+  const rowRef = useRef<HTMLDivElement>(null);
   const entryDateRef = useRef(entryDate);
   const descriptionRef = useRef(description);
   const bankRef = useRef(bank);
@@ -859,7 +929,8 @@ function SpendingRow(props: {
     props.entry.debtPaid
   ]);
 
-  const unpaidClass = paid ? '' : ' spending-row-unpaid';
+  const unpaidClass = paid ? '' : ' finance-compact-unpaid';
+  const tableUnpaidClass = paid ? '' : ' spending-row-unpaid';
 
   const commitAll = () => {
     const resolvedDate = resolveEntryDate(entryDateRef.current);
@@ -887,6 +958,26 @@ function SpendingRow(props: {
     }
   };
 
+  const collapseCompact = useCallback(() => {
+    commitAll();
+    props.onExpandedChange?.(false);
+  }, [props]);
+
+  const handleCompactBlur = (e: React.FocusEvent<HTMLElement>) => {
+    if (isFocusMovingWithinRow(e)) return;
+    collapseCompact();
+  };
+
+  useEffect(() => {
+    if (!props.compact || !props.expanded) return;
+    const onPointerDown = (e: PointerEvent) => {
+      if (rowRef.current?.contains(e.target as Node)) return;
+      collapseCompact();
+    };
+    document.addEventListener('pointerdown', onPointerDown, true);
+    return () => document.removeEventListener('pointerdown', onPointerDown, true);
+  }, [props.compact, props.expanded, collapseCompact]);
+
   const commitDate = (nextDate: string) => {
     setEntryDate(nextDate);
     entryDateRef.current = nextDate;
@@ -899,7 +990,7 @@ function SpendingRow(props: {
   const deleteButton = (
     <button
       type="button"
-      className="finance-mobile-delete-btn spending-row-delete-btn"
+      className="spending-row-delete-btn"
       onMouseDown={(e) => e.preventDefault()}
       onClick={props.onDelete}
       title="Delete line"
@@ -943,84 +1034,115 @@ function SpendingRow(props: {
     />
   );
 
-  if (props.mobile) {
+  if (props.compact) {
+    const summaryAmount =
+      amount.trim() || (props.entry.amount === 0 ? '' : formatAmount(props.entry.amount));
+    const metaParts = [
+      formatDisplayDate(entryDate),
+      bank.trim() || null
+    ].filter(Boolean);
+
     return (
-      <div className={`finance-mobile-card${unpaidClass ? ' finance-mobile-card-unpaid' : ''}`}>
-        <div className="finance-mobile-card-top">
-          <span className="finance-mobile-card-title">
-            {description.trim() || 'Spending line'}
-          </span>
-          {deleteButton}
+      <div
+        ref={rowRef}
+        className={`finance-compact-row finance-compact-spending${unpaidClass}${
+          props.expanded ? ' finance-compact-row-expanded' : ''
+        }`}
+      >
+        <div className="finance-compact-header">
+          <button
+            type="button"
+            className="finance-compact-toggle"
+            onClick={() => props.onExpandedChange?.(!props.expanded)}
+            aria-expanded={props.expanded}
+          >
+            <span className="finance-compact-primary">
+              <span className="finance-compact-title">
+                {description.trim() || 'Spending line'}
+              </span>
+              <span className="finance-compact-amount">{summaryAmount || '—'}</span>
+            </span>
+            <span className="finance-compact-meta">{metaParts.join(' · ')}</span>
+          </button>
         </div>
-        <label className="finance-mobile-field finance-mobile-field-inline">
-          <span className="finance-mobile-label">Paid</span>
-          {paidCheckbox}
-        </label>
-        <label className="finance-mobile-field finance-mobile-field-inline">
-          <span className="finance-mobile-label">Debt</span>
-          {debtPaidCheckbox}
-        </label>
-        <label className="finance-mobile-field">
-          <span className="finance-mobile-label">Payment date</span>
-          <input
-            type="date"
-            className="finance-mobile-input finance-mobile-input-date"
-            value={entryDate}
-            max={props.dateMax}
-            onChange={(e) => commitDate(e.target.value)}
-            onBlur={commitAll}
-          />
-        </label>
-        <label className="finance-mobile-field">
-          <span className="finance-mobile-label">Description</span>
-          <input
-            type="text"
-            className="finance-mobile-input"
-            value={description}
-            onChange={(e) => {
-              const next = e.target.value;
-              setDescription(next);
-              descriptionRef.current = next;
-            }}
-            onBlur={commitAll}
-          />
-        </label>
-        <label className="finance-mobile-field">
-          <span className="finance-mobile-label">Bank</span>
-          <input
-            type="text"
-            className="finance-mobile-input"
-            placeholder="Bank…"
-            value={bank}
-            onChange={(e) => {
-              const next = e.target.value;
-              setBank(next);
-              bankRef.current = next;
-            }}
-            onBlur={commitAll}
-          />
-        </label>
-        <label className="finance-mobile-field">
-          <span className="finance-mobile-label">Amount</span>
-          <input
-            type="text"
-            inputMode="decimal"
-            className="finance-mobile-input finance-mobile-input-amount"
-            value={amount}
-            onChange={(e) => {
-              const next = e.target.value;
-              setAmount(next);
-              amountRef.current = next;
-            }}
-            onBlur={commitAll}
-          />
-        </label>
+        {props.expanded && (
+          <div className="finance-compact-details">
+            <div className="finance-compact-check-row">
+              <label className="finance-compact-check-field">
+                <span>Paid</span>
+                {paidCheckbox}
+              </label>
+              <label className="finance-compact-check-field">
+                <span>Debt</span>
+                {debtPaidCheckbox}
+              </label>
+            </div>
+            <label className="finance-compact-field">
+              <span>Description</span>
+              <input
+                type="text"
+                className="finance-compact-input"
+                value={description}
+                onChange={(e) => {
+                  const next = e.target.value;
+                  setDescription(next);
+                  descriptionRef.current = next;
+                }}
+                onBlur={handleCompactBlur}
+              />
+            </label>
+            <div className="finance-compact-field-row">
+              <label className="finance-compact-field">
+                <span>Amount</span>
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  className="finance-compact-input finance-compact-input-amount"
+                  value={amount}
+                  onChange={(e) => {
+                    const next = e.target.value;
+                    setAmount(next);
+                    amountRef.current = next;
+                  }}
+                  onBlur={handleCompactBlur}
+                />
+              </label>
+              <label className="finance-compact-field">
+                <span>Date</span>
+                <input
+                  type="date"
+                  className="finance-compact-input"
+                  value={entryDate}
+                  max={props.dateMax}
+                  onChange={(e) => commitDate(e.target.value)}
+                  onBlur={handleCompactBlur}
+                />
+              </label>
+            </div>
+            <label className="finance-compact-field">
+              <span>Bank</span>
+              <input
+                type="text"
+                className="finance-compact-input"
+                placeholder="Bank…"
+                value={bank}
+                onChange={(e) => {
+                  const next = e.target.value;
+                  setBank(next);
+                  bankRef.current = next;
+                }}
+                onBlur={handleCompactBlur}
+              />
+            </label>
+            <div className="finance-compact-details-actions">{deleteButton}</div>
+          </div>
+        )}
       </div>
     );
   }
 
   return (
-    <tr className={`spending-row${unpaidClass}`}>
+    <tr className={`spending-row${tableUnpaidClass}`}>
       <td className="spending-col-date" data-label="Payment date">
         <input
           type="date"

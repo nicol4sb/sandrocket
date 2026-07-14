@@ -114,7 +114,7 @@ function rowHasContent(lot: string, amountStr: string): boolean {
 }
 
 function isFocusMovingWithinRow(e: React.FocusEvent<HTMLElement>): boolean {
-  const row = e.currentTarget.closest('tr, .finance-mobile-card');
+  const row = e.currentTarget.closest('tr, .finance-compact-row');
   const next = e.relatedTarget;
   if (!row || !(next instanceof Node)) return false;
   return row.contains(next);
@@ -182,7 +182,7 @@ function navigateSummaryCellVertically(
   const dataRows = Array.from(
     tbody.querySelectorAll<HTMLTableRowElement>('tr.summary-row, tr.summary-row-draft')
   );
-  const rowIndex = dataRows.indexOf(row);
+  const rowIndex = dataRows.indexOf(row as HTMLTableRowElement);
   if (rowIndex === -1) return;
 
   const nextRowIndex = e.key === 'ArrowUp' ? rowIndex - 1 : rowIndex + 1;
@@ -261,6 +261,11 @@ export function SummaryTable({ projectId, projectName, baseUrl }: SummaryTablePr
   const [visible, setVisible] = useState(false);
   const [entries, setEntries] = useState<SummaryEntryResponse[]>([]);
   const [draft, setDraft] = useState<DraftRow>(newDraftRow);
+  const [draftExpanded, setDraftExpanded] = useState(false);
+  const draftBlurSkipRef = useRef(false);
+  const draftPrimaryRef = useRef<HTMLInputElement>(null);
+  const draftRowRef = useRef<HTMLDivElement>(null);
+  const [expandedEntryId, setExpandedEntryId] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [importError, setImportError] = useState<string | null>(null);
@@ -442,12 +447,38 @@ export function SummaryTable({ projectId, projectName, baseUrl }: SummaryTablePr
     }
   };
 
-  const handleDraftBlur = (e: React.FocusEvent<HTMLElement>) => {
-    if (isFocusMovingWithinRow(e)) return;
+  const expandDraft = () => {
+    setExpandedEntryId(null);
+    draftBlurSkipRef.current = true;
+    setDraftExpanded(true);
+    requestAnimationFrame(() => draftPrimaryRef.current?.focus());
+  };
+
+  const collapseDraft = useCallback(() => {
     const { lot, fichierRetenu, entryDate, amount } = draftRef.current;
     if (rowHasContent(lot, amount)) {
       void createEntry(lot, fichierRetenu, entryDate, amount);
     }
+    setDraftExpanded(false);
+  }, [createEntry]);
+
+  useEffect(() => {
+    if (!draftExpanded) return;
+    const onPointerDown = (e: PointerEvent) => {
+      if (draftRowRef.current?.contains(e.target as Node)) return;
+      collapseDraft();
+    };
+    document.addEventListener('pointerdown', onPointerDown, true);
+    return () => document.removeEventListener('pointerdown', onPointerDown, true);
+  }, [draftExpanded, collapseDraft]);
+
+  const handleDraftBlur = (e: React.FocusEvent<HTMLElement>) => {
+    if (isFocusMovingWithinRow(e)) return;
+    if (draftBlurSkipRef.current) {
+      draftBlurSkipRef.current = false;
+      return;
+    }
+    collapseDraft();
   };
 
   const totalAmount = entries.reduce((sum, e) => sum + e.amount, 0);
@@ -545,73 +576,108 @@ export function SummaryTable({ projectId, projectName, baseUrl }: SummaryTablePr
           <div className="summary-table-wrap">
             {importError && <p className="summary-import-error">{importError}</p>}
             {isMobile ? (
-              <div className="finance-mobile-list">
+              <div className="finance-compact-list">
                 {entries.map((entry) => (
                   <SummaryRow
                     key={entry.id}
-                    mobile
+                    compact
                     entry={entry}
                     dateMax={dateMax}
+                    expanded={expandedEntryId === entry.id}
+                    onExpandedChange={(open) => {
+                      setExpandedEntryId(open ? entry.id : null);
+                      if (open) setDraftExpanded(false);
+                    }}
                     onCommit={(lot, fichierRetenu, entryDate, amount) =>
                       void updateEntry(entry, lot, fichierRetenu, entryDate, amount)
                     }
                     onDelete={() => void deleteEntry(entry.id)}
                   />
                 ))}
-                <div className="finance-mobile-card finance-mobile-card-draft">
-                  <p className="finance-mobile-draft-hint">New devis line</p>
-                  <label className="finance-mobile-field">
-                    <span className="finance-mobile-label">Lot</span>
-                    <input
-                      type="text"
-                      className="finance-mobile-input"
-                      placeholder="Add a line…"
-                      value={draft.lot}
-                      onChange={(e) => setDraft((d) => ({ ...d, lot: e.target.value }))}
-                      onBlur={handleDraftBlur}
-                    />
-                  </label>
-                  <label className="finance-mobile-field">
-                    <span className="finance-mobile-label">Fichier retenu</span>
-                    <input
-                      type="text"
-                      className="finance-mobile-input"
-                      placeholder="Fichier…"
-                      value={draft.fichierRetenu}
-                      onChange={(e) => setDraft((d) => ({ ...d, fichierRetenu: e.target.value }))}
-                      onBlur={handleDraftBlur}
-                    />
-                  </label>
-                  <label className="finance-mobile-field">
-                    <span className="finance-mobile-label">Date du devis</span>
-                    <input
-                      type="date"
-                      className="finance-mobile-input finance-mobile-input-date"
-                      value={draft.entryDate}
-                      max={dateMax}
-                      onChange={(e) => setDraft((d) => ({ ...d, entryDate: e.target.value }))}
-                      onBlur={handleDraftBlur}
-                    />
-                  </label>
-                  <label className="finance-mobile-field">
-                    <span className="finance-mobile-label">TTC (€)</span>
-                    <input
-                      type="text"
-                      inputMode="decimal"
-                      className="finance-mobile-input finance-mobile-input-amount"
-                      placeholder="0"
-                      value={draft.amount}
-                      onChange={(e) => setDraft((d) => ({ ...d, amount: e.target.value }))}
-                      onBlur={handleDraftBlur}
-                    />
-                  </label>
+                <div
+                  ref={draftRowRef}
+                  className={`finance-compact-row finance-compact-row-draft${
+                    draftExpanded ? ' finance-compact-row-expanded' : ''
+                  }`}
+                >
+                  {!draftExpanded ? (
+                    <div className="finance-compact-draft-collapsed">
+                      <input
+                        type="text"
+                        className="finance-compact-input finance-compact-draft-trigger"
+                        placeholder="Add a line…"
+                        value={draft.lot}
+                        onFocus={expandDraft}
+                        onChange={(e) => {
+                          const next = e.target.value;
+                          setDraft((d) => ({ ...d, lot: next }));
+                          if (next.trim() && !draftExpanded) expandDraft();
+                        }}
+                        onBlur={handleDraftBlur}
+                      />
+                    </div>
+                  ) : (
+                    <div className="finance-compact-details finance-compact-details-open">
+                      <label className="finance-compact-field">
+                        <span>Lot</span>
+                        <input
+                          ref={draftPrimaryRef}
+                          type="text"
+                          className="finance-compact-input"
+                          placeholder="Add a line…"
+                          value={draft.lot}
+                          onChange={(e) => setDraft((d) => ({ ...d, lot: e.target.value }))}
+                          onBlur={handleDraftBlur}
+                        />
+                      </label>
+                      <div className="finance-compact-field-row">
+                        <label className="finance-compact-field">
+                          <span>TTC (€)</span>
+                          <input
+                            type="text"
+                            inputMode="decimal"
+                            className="finance-compact-input finance-compact-input-amount"
+                            placeholder="0"
+                            value={draft.amount}
+                            onChange={(e) => setDraft((d) => ({ ...d, amount: e.target.value }))}
+                            onBlur={handleDraftBlur}
+                          />
+                        </label>
+                        <label className="finance-compact-field">
+                          <span>Date</span>
+                          <input
+                            type="date"
+                            className="finance-compact-input"
+                            value={draft.entryDate}
+                            max={dateMax}
+                            onChange={(e) => setDraft((d) => ({ ...d, entryDate: e.target.value }))}
+                            onBlur={handleDraftBlur}
+                          />
+                        </label>
+                      </div>
+                      <label className="finance-compact-field">
+                        <span>Fichier retenu</span>
+                        <input
+                          type="text"
+                          className="finance-compact-input"
+                          placeholder="Fichier…"
+                          value={draft.fichierRetenu}
+                          onChange={(e) => setDraft((d) => ({ ...d, fichierRetenu: e.target.value }))}
+                          onBlur={handleDraftBlur}
+                        />
+                      </label>
+                    </div>
+                  )}
                 </div>
-                <div className="finance-mobile-total finance-mobile-total-devis">
-                  <span>Total TTC</span>
-                  <strong>{formatAmount(totalAmount)}</strong>
+                <div className="finance-compact-totals">
+                  <div className="finance-compact-total finance-compact-total-devis">
+                    <span>Total TTC</span>
+                    <strong>{formatAmount(totalAmount)}</strong>
+                  </div>
                 </div>
               </div>
             ) : (
+            <>
             <table className="summary-table">
               <thead>
                 <tr>
@@ -690,6 +756,7 @@ export function SummaryTable({ projectId, projectName, baseUrl }: SummaryTablePr
                 </tr>
               </tbody>
             </table>
+            </>
             )}
           </div>
         )}
@@ -699,7 +766,9 @@ export function SummaryTable({ projectId, projectName, baseUrl }: SummaryTablePr
 }
 
 function SummaryRow(props: {
-  mobile?: boolean;
+  compact?: boolean;
+  expanded?: boolean;
+  onExpandedChange?: (expanded: boolean) => void;
   entry: SummaryEntryResponse;
   dateMax: string;
   onCommit: (lot: string, fichierRetenu: string, entryDate: string, amount: string) => void;
@@ -709,6 +778,7 @@ function SummaryRow(props: {
   const [fichierRetenu, setFichierRetenu] = useState(props.entry.fichierRetenu);
   const [entryDate, setEntryDate] = useState(props.entry.entryDate);
   const [amount, setAmount] = useState(formatAmountInput(props.entry.amount));
+  const rowRef = useRef<HTMLDivElement>(null);
   const lotRef = useRef(lot);
   const fichierRetenuRef = useRef(fichierRetenu);
   const entryDateRef = useRef(entryDate);
@@ -725,8 +795,8 @@ function SummaryRow(props: {
     setAmount(formatAmountInput(props.entry.amount));
   }, [props.entry.lot, props.entry.fichierRetenu, props.entry.entryDate, props.entry.amount]);
 
-  const commitAll = (e: React.FocusEvent<HTMLElement>) => {
-    if (isFocusMovingWithinRow(e)) return;
+  const commitAll = (e?: React.FocusEvent<HTMLElement>) => {
+    if (e && isFocusMovingWithinRow(e)) return;
     const resolvedDate = resolveEntryDate(entryDateRef.current);
     const lotChanged = lotRef.current !== props.entry.lot;
     const fichierChanged = fichierRetenuRef.current !== props.entry.fichierRetenu;
@@ -744,6 +814,26 @@ function SummaryRow(props: {
     }
   };
 
+  const collapseCompact = useCallback(() => {
+    commitAll();
+    props.onExpandedChange?.(false);
+  }, [props]);
+
+  const handleCompactBlur = (e: React.FocusEvent<HTMLElement>) => {
+    if (isFocusMovingWithinRow(e)) return;
+    collapseCompact();
+  };
+
+  useEffect(() => {
+    if (!props.compact || !props.expanded) return;
+    const onPointerDown = (e: PointerEvent) => {
+      if (rowRef.current?.contains(e.target as Node)) return;
+      collapseCompact();
+    };
+    document.addEventListener('pointerdown', onPointerDown, true);
+    return () => document.removeEventListener('pointerdown', onPointerDown, true);
+  }, [props.compact, props.expanded, collapseCompact]);
+
   const commitDate = (nextDate: string) => {
     setEntryDate(nextDate);
     entryDateRef.current = nextDate;
@@ -756,7 +846,7 @@ function SummaryRow(props: {
   const deleteButton = (
     <button
       type="button"
-      className="finance-mobile-delete-btn summary-row-delete-btn"
+      className="summary-row-delete-btn"
       onMouseDown={(e) => e.preventDefault()}
       onClick={props.onDelete}
       title="Delete line"
@@ -768,55 +858,86 @@ function SummaryRow(props: {
     </button>
   );
 
-  if (props.mobile) {
+  if (props.compact) {
+    const summaryAmount =
+      amount.trim() || (props.entry.amount === 0 ? '' : formatAmount(props.entry.amount));
+    const metaParts = [
+      fichierRetenu.trim() || null,
+      formatDisplayDate(entryDate)
+    ].filter(Boolean);
+
     return (
-      <div className="finance-mobile-card">
-        <div className="finance-mobile-card-top">
-          <span className="finance-mobile-card-title">{lot.trim() || 'Devis line'}</span>
-          {deleteButton}
+      <div
+        ref={rowRef}
+        className={`finance-compact-row finance-compact-devis${
+          props.expanded ? ' finance-compact-row-expanded' : ''
+        }`}
+      >
+        <div className="finance-compact-header">
+          <button
+            type="button"
+            className="finance-compact-toggle"
+            onClick={() => props.onExpandedChange?.(!props.expanded)}
+            aria-expanded={props.expanded}
+          >
+            <span className="finance-compact-primary">
+              <span className="finance-compact-title">{lot.trim() || 'Devis line'}</span>
+              <span className="finance-compact-amount">{summaryAmount || '—'}</span>
+            </span>
+            {metaParts.length > 0 && (
+              <span className="finance-compact-meta">{metaParts.join(' · ')}</span>
+            )}
+          </button>
         </div>
-        <label className="finance-mobile-field">
-          <span className="finance-mobile-label">Lot</span>
-          <input
-            type="text"
-            className="finance-mobile-input"
-            value={lot}
-            onChange={(e) => setLot(e.target.value)}
-            onBlur={commitAll}
-          />
-        </label>
-        <label className="finance-mobile-field">
-          <span className="finance-mobile-label">Fichier retenu</span>
-          <input
-            type="text"
-            className="finance-mobile-input"
-            value={fichierRetenu}
-            onChange={(e) => setFichierRetenu(e.target.value)}
-            onBlur={commitAll}
-          />
-        </label>
-        <label className="finance-mobile-field">
-          <span className="finance-mobile-label">Date du devis</span>
-          <input
-            type="date"
-            className="finance-mobile-input finance-mobile-input-date"
-            value={entryDate}
-            max={props.dateMax}
-            onChange={(e) => commitDate(e.target.value)}
-            onBlur={commitAll}
-          />
-        </label>
-        <label className="finance-mobile-field">
-          <span className="finance-mobile-label">TTC (€)</span>
-          <input
-            type="text"
-            inputMode="decimal"
-            className="finance-mobile-input finance-mobile-input-amount"
-            value={amount}
-            onChange={(e) => setAmount(e.target.value)}
-            onBlur={commitAll}
-          />
-        </label>
+        {props.expanded && (
+          <div className="finance-compact-details">
+            <label className="finance-compact-field">
+              <span>Lot</span>
+              <input
+                type="text"
+                className="finance-compact-input"
+                value={lot}
+                onChange={(e) => setLot(e.target.value)}
+                onBlur={handleCompactBlur}
+              />
+            </label>
+            <div className="finance-compact-field-row">
+              <label className="finance-compact-field">
+                <span>TTC (€)</span>
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  className="finance-compact-input finance-compact-input-amount"
+                  value={amount}
+                  onChange={(e) => setAmount(e.target.value)}
+                  onBlur={handleCompactBlur}
+                />
+              </label>
+              <label className="finance-compact-field">
+                <span>Date</span>
+                <input
+                  type="date"
+                  className="finance-compact-input"
+                  value={entryDate}
+                  max={props.dateMax}
+                  onChange={(e) => commitDate(e.target.value)}
+                  onBlur={handleCompactBlur}
+                />
+              </label>
+            </div>
+            <label className="finance-compact-field">
+              <span>Fichier retenu</span>
+              <input
+                type="text"
+                className="finance-compact-input"
+                value={fichierRetenu}
+                onChange={(e) => setFichierRetenu(e.target.value)}
+                onBlur={handleCompactBlur}
+              />
+            </label>
+            <div className="finance-compact-details-actions">{deleteButton}</div>
+          </div>
+        )}
       </div>
     );
   }
