@@ -28,7 +28,9 @@ export declare const updateTaskRequestSchema: z.ZodObject<{
 export type UpdateTaskRequest = z.infer<typeof updateTaskRequestSchema>;
 export declare const taskSchema: z.ZodObject<{
     id: z.ZodNumber;
-    epicId: z.ZodNumber;
+    epicId: z.ZodNullable<z.ZodNumber>;
+    projectId: z.ZodNumber;
+    epicName: z.ZodNullable<z.ZodString>;
     creatorUserId: z.ZodNumber;
     description: z.ZodString;
     status: z.ZodEnum<["backlog", "in_progress", "done"]>;
@@ -39,26 +41,33 @@ export declare const taskSchema: z.ZodObject<{
 }, "strip", z.ZodTypeAny, {
     status: "backlog" | "in_progress" | "done";
     id: number;
+    projectId: number;
     description: string;
     position: number;
     createdAt: string;
     updatedAt: string;
-    epicId: number;
+    epicId: number | null;
+    epicName: string | null;
     creatorUserId: number;
     lastEditedByUserId: number | null;
 }, {
     status: "backlog" | "in_progress" | "done";
     id: number;
+    projectId: number;
     description: string;
     position: number;
     createdAt: string;
     updatedAt: string;
-    epicId: number;
+    epicId: number | null;
+    epicName: string | null;
     creatorUserId: number;
     lastEditedByUserId: number | null;
 }>;
 export type TaskResponse = z.infer<typeof taskSchema>;
 export interface ListTasksResponse {
+    tasks: TaskResponse[];
+}
+export interface ListOrphanedDoneTasksResponse {
     tasks: TaskResponse[];
 }
 export declare const reorderTaskRequestSchema: z.ZodObject<{

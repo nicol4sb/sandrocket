@@ -12,7 +12,9 @@ export const updateTaskRequestSchema = z.object({
 });
 export const taskSchema = z.object({
     id: z.number().int(),
-    epicId: z.number().int(),
+    epicId: z.number().int().nullable(),
+    projectId: z.number().int(),
+    epicName: z.string().nullable(),
     creatorUserId: z.number().int(),
     description: z.string(),
     status: taskStatusSchema,

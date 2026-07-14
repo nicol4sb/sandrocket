@@ -63,6 +63,7 @@ export default function App() {
   const [showMobileMenu, setShowMobileMenu] = useState(false);
   const [epicsByProject, setEpicsByProject] = useState<Record<number, { id: number; name: string; description: string | null }[]>>({});
   const [tasksByEpic, setTasksByEpic] = useState<Record<number, UiTask[]>>({});
+  const [orphanedDoneTasks, setOrphanedDoneTasks] = useState<UiTask[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [editingProjectId, setEditingProjectId] = useState<number | null>(null);
   const [editingProjectName, setEditingProjectName] = useState<string>('');
@@ -207,6 +208,13 @@ export default function App() {
           [e.id]: td.tasks
         }));
       }
+      const dr = await fetch(`${baseUrl}/projects/${selectedProjectId}/done-tasks`, { credentials: 'include' });
+      if (dr.ok) {
+        const dd = (await dr.json()) as { tasks: TaskResponse[] };
+        setOrphanedDoneTasks(dd.tasks);
+      } else {
+        setOrphanedDoneTasks([]);
+      }
     };
     run();
   }, [auth, baseUrl, selectedProjectId]);
@@ -237,6 +245,7 @@ export default function App() {
     setSelectedProjectId(null);
     setEpicsByProject({});
     setTasksByEpic({});
+    setOrphanedDoneTasks([]);
   };
 
   const createTask = async (epicId: number, description: string) => {
@@ -272,20 +281,36 @@ export default function App() {
     });
     if (!res.ok) return;
     const updated = (await res.json()) as TaskResponse;
+    const epicId = updated.epicId;
+    if (epicId == null) {
+      setOrphanedDoneTasks((prev) => {
+        const exists = prev.some((t) => t.id === id);
+        const nextList = exists
+          ? prev.map((t) => (t.id === id ? updated : t))
+          : [...prev, updated];
+        return nextList.filter((t) => t.status === 'done');
+      });
+      return;
+    }
     setTasksByEpic((prev) => {
-      const list = prev[updated.epicId] ?? [];
+      const list = prev[epicId] ?? [];
       const exists = list.some((t) => t.id === id);
       const nextList = exists
         ? list.map((t) => (t.id === id ? updated : t))
         : [...list, updated];
-      return { ...prev, [updated.epicId]: nextList };
+      return { ...prev, [epicId]: nextList };
     });
   };
 
   const toggleTaskDone = async (id: number, done: boolean) => {
-    const task = Object.values(tasksByEpic).flat().find((t) => t.id === id);
+    const task =
+      Object.values(tasksByEpic).flat().find((t) => t.id === id) ??
+      orphanedDoneTasks.find((t) => t.id === id);
     if (!task) return;
-    const activeCount = (tasksByEpic[task.epicId] ?? []).filter((t) => t.status !== 'done').length;
+    if (!done && task.epicId == null) return;
+    const activeCount = task.epicId != null
+      ? (tasksByEpic[task.epicId] ?? []).filter((t) => t.status !== 'done').length
+      : 0;
     if (done) {
       await updateTask(id, { status: 'done' });
     } else {
@@ -300,11 +325,14 @@ export default function App() {
     });
     if (!res.ok) return;
     const epicId = Object.values(tasksByEpic).flat().find(t => t.id === id)?.epicId;
-    if (!epicId) return;
-    setTasksByEpic(prev => {
-      const list = prev[epicId] ?? [];
-      return { ...prev, [epicId]: list.filter(t => t.id !== id) };
-    });
+    if (epicId != null) {
+      setTasksByEpic(prev => {
+        const list = prev[epicId] ?? [];
+        return { ...prev, [epicId]: list.filter(t => t.id !== id) };
+      });
+      return;
+    }
+    setOrphanedDoneTasks((prev) => prev.filter((t) => t.id !== id));
   };
 
   const reorderTask = async (taskId: number, epicId: number, position: number) => {
@@ -424,12 +452,16 @@ export default function App() {
       const list = prev[selectedProjectId] ?? [];
       return { ...prev, [selectedProjectId]: list.filter(e => e.id !== id) };
     });
-    // Also remove tasks for this epic
     setTasksByEpic(prev => {
       const updated = { ...prev };
       delete updated[id];
       return updated;
     });
+    const dr = await fetch(`${baseUrl}/projects/${selectedProjectId}/done-tasks`, { credentials: 'include' });
+    if (dr.ok) {
+      const dd = (await dr.json()) as { tasks: TaskResponse[] };
+      setOrphanedDoneTasks(dd.tasks);
+    }
   };
 
   const deleteProject = async (id: number) => {
@@ -942,6 +974,7 @@ export default function App() {
               <DoneArchive
                 epics={epicsByProject[current.id] ?? []}
                 tasksByEpic={tasksByEpic}
+                orphanedDoneTasks={orphanedDoneTasks}
                 onRestore={(taskId) => void toggleTaskDone(taskId, false)}
                 onDelete={(id) => deleteTask(id)}
                 onGoToEpic={scrollToEpic}

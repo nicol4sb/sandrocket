@@ -19,7 +19,9 @@ export type UpdateTaskRequest = z.infer<typeof updateTaskRequestSchema>;
 
 export const taskSchema = z.object({
   id: z.number().int(),
-  epicId: z.number().int(),
+  epicId: z.number().int().nullable(),
+  projectId: z.number().int(),
+  epicName: z.string().nullable(),
   creatorUserId: z.number().int(),
   description: z.string(),
   status: taskStatusSchema,
@@ -31,6 +33,10 @@ export const taskSchema = z.object({
 export type TaskResponse = z.infer<typeof taskSchema>;
 
 export interface ListTasksResponse {
+  tasks: TaskResponse[];
+}
+
+export interface ListOrphanedDoneTasksResponse {
   tasks: TaskResponse[];
 }
 

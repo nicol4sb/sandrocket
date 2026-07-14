@@ -1,4 +1,5 @@
 import { EpicRepository } from './ports.js';
+import { TaskRepository } from '../tasks/ports.js';
 import { CreateEpicInput, PublicEpic, UpdateEpicInput } from './types.js';
 export interface EpicService {
     createEpic(input: CreateEpicInput): Promise<PublicEpic>;
@@ -8,5 +9,6 @@ export interface EpicService {
 }
 export interface EpicServiceDependencies {
     epics: EpicRepository;
+    tasks: TaskRepository;
 }
 export declare function createEpicService(deps: EpicServiceDependencies): EpicService;

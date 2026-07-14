@@ -152,6 +152,17 @@ function SortableTask(props: {
       {...attributes}
       {...dragListeners}
     >
+      {!isTaskEditing && (
+        <input
+          type="checkbox"
+          className="task-done-checkbox"
+          checked={false}
+          aria-label="Mark task as done"
+          title="Mark as done"
+          onMouseDown={(e) => e.preventDefault()}
+          onChange={() => props.onToggleDone(props.task.id, true)}
+        />
+      )}
       <InlineText
         value={props.task.description}
         onChange={(v) => {
@@ -172,17 +183,6 @@ function SortableTask(props: {
         activeId={props.activeId}
         taskId={props.task.id}
       />
-      {!isTaskEditing && (
-        <input
-          type="checkbox"
-          className="task-done-checkbox"
-          checked={false}
-          aria-label="Mark task as done"
-          title="Mark as done"
-          onMouseDown={(e) => e.preventDefault()}
-          onChange={() => props.onToggleDone(props.task.id, true)}
-        />
-      )}
       {!isTaskEditing && (
         <button
           className="delete-btn"

@@ -4,6 +4,7 @@ import type { TaskResponse } from '@sandrocket/contracts';
 interface DoneArchiveProps {
   epics: Array<{ id: number; name: string }>;
   tasksByEpic: Record<number, TaskResponse[]>;
+  orphanedDoneTasks: TaskResponse[];
   onRestore: (taskId: number) => void;
   onDelete: (taskId: number) => void;
   onGoToEpic: (epicId: number) => void;
@@ -23,16 +24,31 @@ export function DoneArchive(props: DoneArchiveProps) {
   const [query, setQuery] = useState('');
 
   const doneItems = useMemo(() => {
-    const items: Array<{ task: TaskResponse; epicName: string; epicId: number }> = [];
+    const items: Array<{
+      task: TaskResponse;
+      epicName: string;
+      epicId: number | null;
+      epicExists: boolean;
+    }> = [];
     for (const epic of props.epics) {
       for (const task of props.tasksByEpic[epic.id] ?? []) {
         if (task.status === 'done') {
-          items.push({ task, epicName: epic.name, epicId: epic.id });
+          items.push({ task, epicName: epic.name, epicId: epic.id, epicExists: true });
         }
       }
     }
+    for (const task of props.orphanedDoneTasks) {
+      if (task.status === 'done') {
+        items.push({
+          task,
+          epicName: task.epicName ?? 'Deleted epic',
+          epicId: null,
+          epicExists: false
+        });
+      }
+    }
     return items.sort((a, b) => b.task.updatedAt.localeCompare(a.task.updatedAt));
-  }, [props.epics, props.tasksByEpic]);
+  }, [props.epics, props.tasksByEpic, props.orphanedDoneTasks]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -96,7 +112,7 @@ export function DoneArchive(props: DoneArchiveProps) {
               </p>
             ) : (
               <ul className="done-archive-list">
-                {filtered.map(({ task, epicName, epicId }) => (
+                {filtered.map(({ task, epicName, epicId, epicExists }) => (
                   <li key={task.id} className="done-archive-item">
                     <div className="done-archive-item-main">
                       <span className="done-archive-epic">{epicName}</span>
@@ -104,20 +120,23 @@ export function DoneArchive(props: DoneArchiveProps) {
                       <span className="done-archive-time">{formatDoneTime(task.updatedAt)}</span>
                     </div>
                     <div className="done-archive-item-actions">
-                      <button
-                        type="button"
-                        className="done-archive-action-btn"
-                        onClick={() => props.onGoToEpic(epicId)}
-                        title="Go to epic"
-                        aria-label={`Go to epic ${epicName}`}
-                      >
-                        ↗
-                      </button>
+                      {epicExists && epicId != null && (
+                        <button
+                          type="button"
+                          className="done-archive-action-btn"
+                          onClick={() => props.onGoToEpic(epicId)}
+                          title="Go to epic"
+                          aria-label={`Go to epic ${epicName}`}
+                        >
+                          ↗
+                        </button>
+                      )}
                       <button
                         type="button"
                         className="done-archive-action-btn"
                         onClick={() => props.onRestore(task.id)}
-                        title="Restore to active tasks"
+                        disabled={!epicExists}
+                        title={epicExists ? 'Restore to active tasks' : 'Epic was deleted — cannot restore'}
                         aria-label="Restore task"
                       >
                         ↩

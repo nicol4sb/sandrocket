@@ -14,6 +14,7 @@ export class SqliteEpicRepository {
         this.insertStmt = this.db.prepare(`INSERT INTO epics (project_id, name, description, created_at, updated_at)
        VALUES (@project_id, @name, @description, @created_at, @updated_at)`);
         this.listByProjectStmt = this.db.prepare('SELECT * FROM epics WHERE project_id = ? ORDER BY created_at ASC');
+        this.getByIdStmt = this.db.prepare('SELECT * FROM epics WHERE id = ?');
         this.updateStmt = this.db.prepare(`UPDATE epics SET
          name = COALESCE(@name, name),
          description = COALESCE(@description, description),
@@ -39,6 +40,10 @@ export class SqliteEpicRepository {
     async listByProject(projectId) {
         const rows = this.listByProjectStmt.all(projectId);
         return rows.map(mapRowToEpic);
+    }
+    async getById(id) {
+        const row = this.getByIdStmt.get(id);
+        return row ? mapRowToEpic(row) : null;
     }
     async update(input) {
         const now = new Date().toISOString();

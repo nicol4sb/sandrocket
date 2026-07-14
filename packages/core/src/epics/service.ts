@@ -1,4 +1,5 @@
 import { EpicRepository } from './ports.js';
+import { TaskRepository } from '../tasks/ports.js';
 import { CreateEpicInput, PublicEpic, Epic, UpdateEpicInput } from './types.js';
 
 export interface EpicService {
@@ -10,6 +11,7 @@ export interface EpicService {
 
 export interface EpicServiceDependencies {
   epics: EpicRepository;
+  tasks: TaskRepository;
 }
 
 function toPublicEpic(epic: Epic): PublicEpic {
@@ -50,6 +52,10 @@ class EpicServiceImpl implements EpicService {
   }
 
   async deleteEpic(id: number): Promise<boolean> {
+    const epic = await this.deps.epics.getById(id);
+    if (!epic) return false;
+    await this.deps.tasks.detachDoneTasks(id, epic.name, epic.projectId);
+    await this.deps.tasks.deleteActiveByEpic(id);
     return await this.deps.epics.delete(id);
   }
 }

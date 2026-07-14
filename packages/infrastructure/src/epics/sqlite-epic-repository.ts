@@ -25,6 +25,7 @@ export class SqliteEpicRepository implements EpicRepository {
   private readonly db: Database;
   private readonly insertStmt: Statement;
   private readonly listByProjectStmt: Statement;
+  private readonly getByIdStmt: Statement;
   private readonly updateStmt: Statement;
   private readonly deleteStmt: Statement;
 
@@ -37,6 +38,7 @@ export class SqliteEpicRepository implements EpicRepository {
     this.listByProjectStmt = this.db.prepare(
       'SELECT * FROM epics WHERE project_id = ? ORDER BY created_at ASC'
     );
+    this.getByIdStmt = this.db.prepare('SELECT * FROM epics WHERE id = ?');
     this.updateStmt = this.db.prepare(
       `UPDATE epics SET
          name = COALESCE(@name, name),
@@ -65,6 +67,11 @@ export class SqliteEpicRepository implements EpicRepository {
   async listByProject(projectId: number): Promise<Epic[]> {
     const rows = this.listByProjectStmt.all(projectId) as EpicRow[];
     return rows.map(mapRowToEpic);
+  }
+
+  async getById(id: number): Promise<Epic | null> {
+    const row = this.getByIdStmt.get(id) as EpicRow | undefined;
+    return row ? mapRowToEpic(row) : null;
   }
 
   async update(input: UpdateEpicInput): Promise<Epic | null> {

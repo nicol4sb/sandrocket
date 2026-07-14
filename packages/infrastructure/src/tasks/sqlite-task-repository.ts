@@ -3,7 +3,9 @@ import { CreateTaskInput, Task, TaskRepository, UpdateTaskInput } from '@sandroc
 
 interface TaskRow {
   id: number;
-  epic_id: number;
+  epic_id: number | null;
+  project_id: number;
+  epic_name: string | null;
   creator_user_id: number;
   description: string;
   status: string;
@@ -17,6 +19,8 @@ function mapRowToTask(row: TaskRow): Task {
   return {
     id: row.id,
     epicId: row.epic_id,
+    projectId: row.project_id,
+    epicName: row.epic_name,
     creatorUserId: row.creator_user_id,
     description: row.description,
     status: row.status as Task['status'],
@@ -31,19 +35,28 @@ export class SqliteTaskRepository implements TaskRepository {
   private readonly db: Database;
   private readonly insertStmt: Statement;
   private readonly listByEpicStmt: Statement;
+  private readonly listOrphanedDoneStmt: Statement;
   private readonly getMaxPosStmt: Statement;
   private readonly getByIdStmt: Statement;
   private readonly updateStmt: Statement;
   private readonly deleteStmt: Statement;
+  private readonly detachDoneStmt: Statement;
+  private readonly deleteActiveStmt: Statement;
 
   constructor(db: Database) {
     this.db = db;
     this.insertStmt = this.db.prepare(
-      `INSERT INTO tasks (epic_id, creator_user_id, description, status, position, created_at, updated_at)
-       VALUES (@epic_id, @creator_user_id, @description, @status, @position, @created_at, @updated_at)`
+      `INSERT INTO tasks (epic_id, project_id, creator_user_id, description, status, position, created_at, updated_at)
+       SELECT @epic_id, e.project_id, @creator_user_id, @description, @status, @position, @created_at, @updated_at
+       FROM epics e WHERE e.id = @epic_id`
     );
     this.listByEpicStmt = this.db.prepare(
       'SELECT * FROM tasks WHERE epic_id = ? ORDER BY status ASC, position ASC, created_at ASC'
+    );
+    this.listOrphanedDoneStmt = this.db.prepare(
+      `SELECT * FROM tasks
+       WHERE project_id = ? AND epic_id IS NULL AND status = 'done'
+       ORDER BY updated_at DESC, id DESC`
     );
     this.getMaxPosStmt = this.db.prepare(
       'SELECT MAX(position) as maxPos FROM tasks WHERE epic_id = ? AND status = ?'
@@ -59,6 +72,17 @@ export class SqliteTaskRepository implements TaskRepository {
        WHERE id = @id`
     );
     this.deleteStmt = this.db.prepare('DELETE FROM tasks WHERE id = ?');
+    this.detachDoneStmt = this.db.prepare(
+      `UPDATE tasks SET
+         epic_id = NULL,
+         epic_name = @epic_name,
+         project_id = @project_id,
+         updated_at = @updated_at
+       WHERE epic_id = @epic_id AND status = 'done'`
+    );
+    this.deleteActiveStmt = this.db.prepare(
+      `DELETE FROM tasks WHERE epic_id = ? AND status != 'done'`
+    );
   }
 
   async create(input: CreateTaskInput, initialPosition: number): Promise<Task> {
@@ -83,9 +107,27 @@ export class SqliteTaskRepository implements TaskRepository {
     return rows.map(mapRowToTask);
   }
 
+  async listOrphanedDoneByProject(projectId: number): Promise<Task[]> {
+    const rows = this.listOrphanedDoneStmt.all(projectId) as TaskRow[];
+    return rows.map(mapRowToTask);
+  }
+
   async getMaxPosition(epicId: number, status: Task['status']): Promise<number> {
     const row = this.getMaxPosStmt.get(epicId, status) as { maxPos: number | null } | undefined;
     return row?.maxPos ?? 0;
+  }
+
+  async detachDoneTasks(epicId: number, epicName: string, projectId: number): Promise<void> {
+    this.detachDoneStmt.run({
+      epic_id: epicId,
+      epic_name: epicName,
+      project_id: projectId,
+      updated_at: new Date().toISOString()
+    });
+  }
+
+  async deleteActiveByEpic(epicId: number): Promise<void> {
+    this.deleteActiveStmt.run(epicId);
   }
 
   async update(input: UpdateTaskInput): Promise<Task | null> {
@@ -111,5 +153,3 @@ export class SqliteTaskRepository implements TaskRepository {
     return result.changes > 0;
   }
 }
-
-

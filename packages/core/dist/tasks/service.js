@@ -2,6 +2,8 @@ function toPublicTask(task) {
     return {
         id: task.id,
         epicId: task.epicId,
+        projectId: task.projectId,
+        epicName: task.epicName,
         creatorUserId: task.creatorUserId,
         description: task.description,
         status: task.status,
@@ -29,6 +31,10 @@ class TaskServiceImpl {
     }
     async listTasks(epicId) {
         const tasks = await this.deps.tasks.listByEpic(epicId);
+        return tasks.map(toPublicTask);
+    }
+    async listOrphanedDoneTasks(projectId) {
+        const tasks = await this.deps.tasks.listOrphanedDoneByProject(projectId);
         return tasks.map(toPublicTask);
     }
     async updateTask(input) {

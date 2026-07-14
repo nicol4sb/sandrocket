@@ -33,6 +33,11 @@ class EpicServiceImpl {
         return updated ? toPublicEpic(updated) : null;
     }
     async deleteEpic(id) {
+        const epic = await this.deps.epics.getById(id);
+        if (!epic)
+            return false;
+        await this.deps.tasks.detachDoneTasks(id, epic.name, epic.projectId);
+        await this.deps.tasks.deleteActiveByEpic(id);
         return await this.deps.epics.delete(id);
     }
 }

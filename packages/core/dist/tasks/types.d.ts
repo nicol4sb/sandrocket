@@ -1,7 +1,9 @@
 export type TaskStatus = 'backlog' | 'in_progress' | 'done';
 export interface Task {
     id: number;
-    epicId: number;
+    epicId: number | null;
+    projectId: number;
+    epicName: string | null;
     creatorUserId: number;
     description: string;
     status: TaskStatus;
@@ -24,7 +26,9 @@ export interface UpdateTaskInput {
 }
 export interface PublicTask {
     id: number;
-    epicId: number;
+    epicId: number | null;
+    projectId: number;
+    epicName: string | null;
     creatorUserId: number;
     description: string;
     status: TaskStatus;

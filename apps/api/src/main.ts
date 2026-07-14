@@ -14,6 +14,7 @@ import {
   AuthResult,
   PublicUser,
   createAuthService,
+  type PublicTask,
   type SpendingEntry,
   type SummaryEntry
 } from '@sandrocket/core';
@@ -62,6 +63,7 @@ import {
 import {
   CreateTaskRequest,
   ListTasksResponse,
+  ListOrphanedDoneTasksResponse,
   ReorderTaskRequest,
   TaskResponse,
   UpdateTaskRequest,
@@ -105,6 +107,22 @@ import {
   buildTasksExcelBuffer
 } from './project-export.js';
 
+function toTaskResponse(task: PublicTask): TaskResponse {
+  return {
+    id: task.id,
+    epicId: task.epicId,
+    projectId: task.projectId,
+    epicName: task.epicName,
+    creatorUserId: task.creatorUserId,
+    description: task.description,
+    status: task.status,
+    position: task.position,
+    createdAt: task.createdAt.toISOString(),
+    updatedAt: task.updatedAt.toISOString(),
+    lastEditedByUserId: task.lastEditedByUserId
+  };
+}
+
 const config = loadConfig();
 const database = initializeSqliteDatabase({
   filename: config.database.filename
@@ -132,11 +150,13 @@ const invitationService = createInvitationService({
   members: projectMemberRepository,
   projects: projectRepository
 });
+const taskRepository = new SqliteTaskRepository(database);
 const epicService = createEpicService({
-  epics: new SqliteEpicRepository(database)
+  epics: new SqliteEpicRepository(database),
+  tasks: taskRepository
 });
 const taskService = createTaskService({
-  tasks: new SqliteTaskRepository(database)
+  tasks: taskRepository
 });
 const documentRepository = new SqliteDocumentRepository(database);
 const documentActivityRepository = new SqliteDocumentActivityRepository(database);
@@ -275,17 +295,7 @@ app.get(
     const epicIdNum = Number(epicId);
     const tasks = await taskService.listTasks(epicIdNum);
     const body: ListTasksResponse = {
-      tasks: tasks.map((t) => ({
-        id: t.id,
-        epicId: t.epicId,
-        creatorUserId: t.creatorUserId,
-        description: t.description,
-        status: t.status,
-        position: t.position,
-        createdAt: t.createdAt.toISOString(),
-        updatedAt: t.updatedAt.toISOString(),
-        lastEditedByUserId: t.lastEditedByUserId
-      }))
+      tasks: tasks.map(toTaskResponse)
     };
     res.json(body);
   })
@@ -311,17 +321,7 @@ app.post(
       creatorUserId: payload.userId,
       description: body.description
     });
-    const response: TaskResponse = {
-      id: created.id,
-      epicId: created.epicId,
-      creatorUserId: created.creatorUserId,
-      description: created.description,
-      status: created.status,
-      position: created.position,
-      createdAt: created.createdAt.toISOString(),
-      updatedAt: created.updatedAt.toISOString(),
-      lastEditedByUserId: created.lastEditedByUserId
-    };
+    const response: TaskResponse = toTaskResponse(created);
     res.status(201).json(response);
   })
 );
@@ -350,18 +350,7 @@ app.patch(
       res.status(404).json({ error: 'not-found', message: 'Task not found' });
       return;
     }
-    const response: TaskResponse = {
-      id: updated.id,
-      epicId: updated.epicId,
-      creatorUserId: updated.creatorUserId,
-      description: updated.description,
-      status: updated.status,
-      position: updated.position,
-      createdAt: updated.createdAt.toISOString(),
-      updatedAt: updated.updatedAt.toISOString(),
-      lastEditedByUserId: updated.lastEditedByUserId
-    };
-    res.json(response);
+    res.json(toTaskResponse(updated));
   })
 );
 
@@ -386,18 +375,7 @@ app.patch(
       res.status(404).json({ error: 'not-found', message: 'Task not found' });
       return;
     }
-    const response: TaskResponse = {
-      id: updated.id,
-      epicId: updated.epicId,
-      creatorUserId: updated.creatorUserId,
-      description: updated.description,
-      status: updated.status,
-      position: updated.position,
-      createdAt: updated.createdAt.toISOString(),
-      updatedAt: updated.updatedAt.toISOString(),
-      lastEditedByUserId: updated.lastEditedByUserId
-    };
-    res.json(response);
+    res.json(toTaskResponse(updated));
   })
 );
 
@@ -424,6 +402,25 @@ app.get(
         createdAt: e.createdAt.toISOString(),
         updatedAt: e.updatedAt.toISOString()
       }))
+    };
+    res.json(body);
+  })
+);
+
+app.get(
+  '/api/projects/:projectId/done-tasks',
+  asyncHandler(async (req, res) => {
+    const token = req.cookies[config.security.sessionCookieName];
+    if (!token) {
+      res.status(401).json({ error: 'auth/no-token', message: 'No token' });
+      return;
+    }
+    await tokenService.verifyToken(token);
+    const { projectId } = req.params as { projectId: string };
+    const projectIdNum = Number(projectId);
+    const tasks = await taskService.listOrphanedDoneTasks(projectIdNum);
+    const body: ListOrphanedDoneTasksResponse = {
+      tasks: tasks.map(toTaskResponse)
     };
     res.json(body);
   })

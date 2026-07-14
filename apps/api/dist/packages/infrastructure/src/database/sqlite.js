@@ -88,7 +88,9 @@ export function initializeSqliteDatabase(options) {
     );
     CREATE TABLE IF NOT EXISTS tasks (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
-      epic_id INTEGER NOT NULL,
+      epic_id INTEGER,
+      project_id INTEGER NOT NULL,
+      epic_name TEXT,
       creator_user_id INTEGER NOT NULL,
       description TEXT NOT NULL,
       status TEXT NOT NULL, -- 'backlog' | 'in_progress' | 'done'
@@ -96,7 +98,8 @@ export function initializeSqliteDatabase(options) {
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL,
       last_edited_by_user_id INTEGER,
-      FOREIGN KEY (epic_id) REFERENCES epics(id) ON DELETE CASCADE,
+      FOREIGN KEY (epic_id) REFERENCES epics(id) ON DELETE SET NULL,
+      FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
       FOREIGN KEY (creator_user_id) REFERENCES users(id) ON DELETE CASCADE,
       FOREIGN KEY (last_edited_by_user_id) REFERENCES users(id) ON DELETE SET NULL
     );
@@ -373,6 +376,64 @@ export function initializeSqliteDatabase(options) {
     catch (err) {
         // eslint-disable-next-line no-console
         console.error('[db] Migration error for summary lot/fichier_retenu:', err);
+    }
+    // Migration: preserve done tasks when epic deleted (project_id, epic_name, nullable epic_id)
+    try {
+        const taskInfo = db.prepare(`PRAGMA table_info('tasks')`).all();
+        if (taskInfo.length > 0 && !taskInfo.some((col) => col.name === 'project_id')) {
+            db.exec(`
+        PRAGMA foreign_keys = OFF;
+        ALTER TABLE tasks ADD COLUMN project_id INTEGER;
+        ALTER TABLE tasks ADD COLUMN epic_name TEXT;
+        UPDATE tasks SET project_id = (SELECT project_id FROM epics WHERE epics.id = tasks.epic_id);
+        UPDATE tasks SET project_id = COALESCE(project_id, 0) WHERE project_id IS NULL;
+        CREATE TABLE tasks_new (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          epic_id INTEGER,
+          project_id INTEGER NOT NULL,
+          epic_name TEXT,
+          creator_user_id INTEGER NOT NULL,
+          description TEXT NOT NULL,
+          status TEXT NOT NULL,
+          position INTEGER NOT NULL,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL,
+          last_edited_by_user_id INTEGER,
+          FOREIGN KEY (epic_id) REFERENCES epics(id) ON DELETE SET NULL,
+          FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+          FOREIGN KEY (creator_user_id) REFERENCES users(id) ON DELETE CASCADE,
+          FOREIGN KEY (last_edited_by_user_id) REFERENCES users(id) ON DELETE SET NULL
+        );
+        INSERT INTO tasks_new (
+          id, epic_id, project_id, epic_name, creator_user_id, description, status, position,
+          created_at, updated_at, last_edited_by_user_id
+        )
+        SELECT
+          id, epic_id, project_id, epic_name, creator_user_id, description, status, position,
+          created_at, updated_at, last_edited_by_user_id
+        FROM tasks;
+        DROP TABLE tasks;
+        ALTER TABLE tasks_new RENAME TO tasks;
+        CREATE INDEX IF NOT EXISTS idx_tasks_epic_status_pos ON tasks(epic_id, status, position);
+        CREATE INDEX IF NOT EXISTS idx_tasks_orphaned_done ON tasks(project_id, status) WHERE epic_id IS NULL;
+        PRAGMA foreign_keys = ON;
+      `);
+        }
+    }
+    catch (err) {
+        // eslint-disable-next-line no-console
+        console.error('[db] Migration error for task epic preservation:', err);
+    }
+    // Create orphaned-done index only after project_id column exists (new DBs + migrated DBs)
+    try {
+        const taskInfo = db.prepare(`PRAGMA table_info('tasks')`).all();
+        if (taskInfo.some((col) => col.name === 'project_id')) {
+            db.exec(`CREATE INDEX IF NOT EXISTS idx_tasks_orphaned_done ON tasks(project_id, status) WHERE epic_id IS NULL`);
+        }
+    }
+    catch (err) {
+        // eslint-disable-next-line no-console
+        console.error('[db] Migration error for orphaned done index:', err);
     }
     // Emit a single startup log with DB path to help diagnose multiple-process setups
     try {

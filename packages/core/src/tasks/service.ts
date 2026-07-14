@@ -4,6 +4,7 @@ import { CreateTaskInput, PublicTask, TaskStatus, UpdateTaskInput, Task } from '
 export interface TaskService {
   createTask(input: CreateTaskInput): Promise<PublicTask>;
   listTasks(epicId: number): Promise<PublicTask[]>;
+  listOrphanedDoneTasks(projectId: number): Promise<PublicTask[]>;
   updateTask(input: UpdateTaskInput): Promise<PublicTask | null>;
   moveTask(id: number, status: TaskStatus, position?: number): Promise<PublicTask | null>;
   deleteTask(id: number): Promise<boolean>;
@@ -17,6 +18,8 @@ function toPublicTask(task: Task): PublicTask {
   return {
     id: task.id,
     epicId: task.epicId,
+    projectId: task.projectId,
+    epicName: task.epicName,
     creatorUserId: task.creatorUserId,
     description: task.description,
     status: task.status,
@@ -48,6 +51,11 @@ class TaskServiceImpl implements TaskService {
 
   async listTasks(epicId: number): Promise<PublicTask[]> {
     const tasks = await this.deps.tasks.listByEpic(epicId);
+    return tasks.map(toPublicTask);
+  }
+
+  async listOrphanedDoneTasks(projectId: number): Promise<PublicTask[]> {
+    const tasks = await this.deps.tasks.listOrphanedDoneByProject(projectId);
     return tasks.map(toPublicTask);
   }
 
