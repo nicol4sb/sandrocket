@@ -1,6 +1,6 @@
 import * as XLSX from 'xlsx';
 import type { Epic, SpendingEntry, SummaryEntry, Task } from '@sandrocket/core';
-import { sortByEntryDate, spendingPaidTotal } from '@sandrocket/core';
+import { sortByEntryDate, spendingDebtPaidTotal, spendingPaidTotal } from '@sandrocket/core';
 
 function formatDisplayDate(iso: string): string {
   const [y, m, d] = iso.split('-');
@@ -26,12 +26,28 @@ function workbookToBuffer(
 export function buildSpendingExcelBuffer(entries: SpendingEntry[]): Buffer {
   const sorted = sortByEntryDate(entries);
   const totalAmount = spendingPaidTotal(sorted);
+  const debtTotalAmount = spendingDebtPaidTotal(sorted);
   const rows: (string | number)[][] = [
-    ['Payment date', 'Description', 'Bank', 'Paid', 'Amount'],
-    ...sorted.map((e) => [e.entryDate, e.description, e.bank, e.paid ? 'Yes' : 'No', e.amount]),
-    ['', '', '', 'Total', totalAmount]
+    ['Payment date', 'Description', 'Bank', 'Paid', 'Debt paid', 'Amount'],
+    ...sorted.map((e) => [
+      e.entryDate,
+      e.description,
+      e.bank,
+      e.paid ? 'Yes' : 'No',
+      e.debtPaid ? 'Yes' : 'No',
+      e.amount
+    ]),
+    ['', '', '', 'Total (paid)', '', totalAmount],
+    ['', '', '', '', 'Total (debt)', debtTotalAmount]
   ];
-  return workbookToBuffer(rows, 'Spending', [{ wch: 12 }, { wch: 32 }, { wch: 16 }, { wch: 8 }, { wch: 14 }]);
+  return workbookToBuffer(rows, 'Spending', [
+    { wch: 12 },
+    { wch: 32 },
+    { wch: 16 },
+    { wch: 8 },
+    { wch: 10 },
+    { wch: 14 }
+  ]);
 }
 
 /** Matches SummaryTable (Devis) export / import format */

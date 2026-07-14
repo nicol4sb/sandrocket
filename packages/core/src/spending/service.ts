@@ -16,6 +16,7 @@ export interface SpendingImportEntryInput {
   entryDate?: string;
   bank?: string;
   paid?: boolean;
+  debtPaid?: boolean;
 }
 
 export interface SpendingService {
@@ -35,7 +36,8 @@ export interface SpendingService {
     amount?: number,
     entryDate?: string,
     bank?: string,
-    paid?: boolean
+    paid?: boolean,
+    debtPaid?: boolean
   ): Promise<SpendingEntry | null>;
   deleteEntry(id: number): Promise<boolean>;
   importEntries(
@@ -82,6 +84,7 @@ class SpendingServiceImpl implements SpendingService {
       entryDate: resolveEntryDate(entryDate),
       bank: (bank ?? '').trim(),
       paid,
+      debtPaid: false,
       position: maxPos + 1
     });
     await this.deps.spending.reorderPositionsByDate(projectId);
@@ -94,7 +97,8 @@ class SpendingServiceImpl implements SpendingService {
     amount?: number,
     entryDate?: string,
     bank?: string,
-    paid?: boolean
+    paid?: boolean,
+    debtPaid?: boolean
   ): Promise<SpendingEntry | null> {
     const updated = await this.deps.spending.update({
       id,
@@ -102,7 +106,8 @@ class SpendingServiceImpl implements SpendingService {
       amount,
       entryDate: entryDate === undefined ? undefined : resolveEntryDate(entryDate),
       bank: bank === undefined ? undefined : bank.trim(),
-      paid
+      paid,
+      debtPaid
     });
     if (!updated) return null;
     await this.deps.spending.reorderPositionsByDate(updated.projectId);
@@ -131,6 +136,7 @@ class SpendingServiceImpl implements SpendingService {
         amount: entry.amount,
         entryDate: resolveEntryDate(entry.entryDate),
         paid: entry.paid ?? true,
+        debtPaid: entry.debtPaid ?? false,
         sourceIndex
       }))
       .sort((a, b) => {
@@ -143,6 +149,7 @@ class SpendingServiceImpl implements SpendingService {
         amount: entry.amount,
         entryDate: entry.entryDate,
         paid: entry.paid,
+        debtPaid: entry.debtPaid,
         position: index + 1
       }));
 

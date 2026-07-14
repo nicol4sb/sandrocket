@@ -6,6 +6,7 @@ export interface SpendingImportEntryInput {
     entryDate?: string;
     bank?: string;
     paid?: boolean;
+    debtPaid?: boolean;
 }
 export interface SpendingService {
     list(projectId: number): Promise<{
@@ -15,7 +16,7 @@ export interface SpendingService {
     }>;
     setVisible(projectId: number, visible: boolean): Promise<boolean>;
     createEntry(projectId: number, description: string, amount: number, entryDate?: string, bank?: string, paid?: boolean): Promise<SpendingEntry>;
-    updateEntry(id: number, description?: string, amount?: number, entryDate?: string, bank?: string, paid?: boolean): Promise<SpendingEntry | null>;
+    updateEntry(id: number, description?: string, amount?: number, entryDate?: string, bank?: string, paid?: boolean, debtPaid?: boolean): Promise<SpendingEntry | null>;
     deleteEntry(id: number): Promise<boolean>;
     importEntries(projectId: number, entries: SpendingImportEntryInput[], replace?: boolean): Promise<{
         entries: SpendingEntry[];

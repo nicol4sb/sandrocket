@@ -8,6 +8,7 @@ export const spendingEntryResponseSchema = z.object({
     entryDate: isoDateSchema,
     bank: z.string(),
     paid: z.boolean(),
+    debtPaid: z.boolean(),
     position: z.number().int(),
     createdAt: z.string(),
     updatedAt: z.string()
@@ -20,14 +21,16 @@ export const createSpendingEntryRequestSchema = z.object({
     amount: z.number().finite(),
     entryDate: isoDateSchema.optional(),
     bank: z.string().max(100).optional().default(''),
-    paid: z.boolean().optional().default(false)
+    paid: z.boolean().optional().default(false),
+    debtPaid: z.boolean().optional().default(false)
 });
 export const updateSpendingEntryRequestSchema = z.object({
     description: z.string().max(500).optional(),
     amount: z.number().finite().optional(),
     entryDate: isoDateSchema.optional(),
     bank: z.string().max(100).optional(),
-    paid: z.boolean().optional()
+    paid: z.boolean().optional(),
+    debtPaid: z.boolean().optional()
 });
 export const importSpendingEntriesRequestSchema = z.object({
     replace: z.boolean().default(true),

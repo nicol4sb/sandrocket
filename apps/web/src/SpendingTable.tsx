@@ -27,16 +27,18 @@ interface ParsedSpendingRow {
   bank: string;
   amount: number;
   paid: boolean;
+  debtPaid: boolean;
 }
 
-const SPENDING_HEADERS = ['Payment date', 'Description', 'Bank', 'Paid', 'Amount'] as const;
+const SPENDING_HEADERS = ['Payment date', 'Description', 'Bank', 'Paid', 'Debt paid', 'Amount'] as const;
 
 const SPENDING_COL = {
   DATE: 0,
   DESCRIPTION: 1,
   BANK: 2,
   PAID: 3,
-  AMOUNT: 4
+  DEBT_PAID: 4,
+  AMOUNT: 5
 } as const;
 
 function parsePaidValue(value: unknown): boolean {
@@ -51,6 +53,10 @@ function parsePaidValue(value: unknown): boolean {
 
 function paidTotal(entries: SpendingEntryResponse[]): number {
   return entries.filter((e) => e.paid).reduce((sum, e) => sum + e.amount, 0);
+}
+
+function debtPaidTotal(entries: SpendingEntryResponse[]): number {
+  return entries.filter((e) => e.debtPaid).reduce((sum, e) => sum + e.amount, 0);
 }
 
 function todayIso(): string {
@@ -153,7 +159,35 @@ function findHeaderRowIndex(rows: unknown[][]): number {
 function spendingHeaderHasPaid(rows: unknown[][], headerIdx: number): boolean {
   if (headerIdx < 0) return false;
   const header = rows[headerIdx] ?? [];
-  return header.some((cell) => String(cell ?? '').trim().toLowerCase().includes('paid'));
+  return header.some((cell) => {
+    const value = String(cell ?? '').trim().toLowerCase();
+    return value.includes('paid') && !value.includes('debt');
+  });
+}
+
+function spendingHeaderHasDebtPaid(rows: unknown[][], headerIdx: number): boolean {
+  if (headerIdx < 0) return false;
+  const header = rows[headerIdx] ?? [];
+  return header.some((cell) => String(cell ?? '').trim().toLowerCase().includes('debt'));
+}
+
+function resolveSpendingAmountIndex(
+  rows: unknown[][],
+  headerIdx: number,
+  hasPaidColumn: boolean,
+  hasDebtColumn: boolean
+): number {
+  if (headerIdx >= 0) {
+    const header = rows[headerIdx] ?? [];
+    const amountIdx = header.findIndex((cell) => {
+      const value = String(cell ?? '').trim().toLowerCase();
+      return value.includes('amount') || value.includes('montant');
+    });
+    if (amountIdx >= 0) return amountIdx;
+  }
+  if (hasDebtColumn) return 5;
+  if (hasPaidColumn) return 4;
+  return 3;
 }
 
 function parseSpendingExcel(buffer: ArrayBuffer): ParsedSpendingRow[] {
@@ -165,6 +199,8 @@ function parseSpendingExcel(buffer: ArrayBuffer): ParsedSpendingRow[] {
   const headerIdx = findHeaderRowIndex(rows);
   const startIdx = headerIdx >= 0 ? headerIdx + 1 : 0;
   const hasPaidColumn = spendingHeaderHasPaid(rows, headerIdx);
+  const hasDebtColumn = spendingHeaderHasDebtPaid(rows, headerIdx);
+  const amountIdx = resolveSpendingAmountIndex(rows, headerIdx, hasPaidColumn, hasDebtColumn);
   const parsed: ParsedSpendingRow[] = [];
 
   for (let i = startIdx; i < rows.length; i++) {
@@ -173,7 +209,8 @@ function parseSpendingExcel(buffer: ArrayBuffer): ParsedSpendingRow[] {
     const description = String(row[1] ?? '').trim();
     const bank = String(row[2] ?? '').trim();
     const paidRaw = hasPaidColumn ? row[3] : undefined;
-    const amountRaw = hasPaidColumn ? row[4] : row[3];
+    const debtPaidRaw = hasDebtColumn ? row[4] : undefined;
+    const amountRaw = row[amountIdx];
 
     if (isTotalRow(description, bank, amountRaw)) continue;
     if (!description && !bank && (amountRaw === '' || amountRaw == null)) continue;
@@ -187,7 +224,8 @@ function parseSpendingExcel(buffer: ArrayBuffer): ParsedSpendingRow[] {
       description,
       bank,
       amount,
-      paid: hasPaidColumn ? parsePaidValue(paidRaw) : true
+      paid: hasPaidColumn ? parsePaidValue(paidRaw) : true,
+      debtPaid: hasDebtColumn ? parsePaidValue(debtPaidRaw) : false
     });
   }
 
@@ -214,7 +252,7 @@ function navigateSpendingCellVertically(
   if (nextRowIndex < 0 || nextRowIndex >= dataRows.length) return;
 
   const nextInput = dataRows[nextRowIndex]?.cells[colIndex]?.querySelector<HTMLInputElement>(
-    '.spending-input, .spending-paid-checkbox'
+    '.spending-input, .spending-paid-checkbox, .spending-debt-paid-checkbox'
   );
   if (!nextInput) return;
 
@@ -247,13 +285,22 @@ function exportSpendingToExcel(
 ) {
   const sortedEntries = sortEntriesByDate(entries);
   const total = paidTotal(sortedEntries);
+  const debtTotal = debtPaidTotal(sortedEntries);
   const rows: (string | number)[][] = [
     [...SPENDING_HEADERS],
-    ...sortedEntries.map((e) => [e.entryDate, e.description, e.bank, e.paid ? 'Yes' : 'No', e.amount]),
-    ['', '', '', 'Total', total]
+    ...sortedEntries.map((e) => [
+      e.entryDate,
+      e.description,
+      e.bank,
+      e.paid ? 'Yes' : 'No',
+      e.debtPaid ? 'Yes' : 'No',
+      e.amount
+    ]),
+    ['', '', '', 'Total (paid)', '', total],
+    ['', '', '', '', 'Total (debt)', debtTotal]
   ];
   const worksheet = XLSX.utils.aoa_to_sheet(rows);
-  worksheet['!cols'] = [{ wch: 12 }, { wch: 32 }, { wch: 16 }, { wch: 8 }, { wch: 14 }];
+  worksheet['!cols'] = [{ wch: 12 }, { wch: 32 }, { wch: 16 }, { wch: 8 }, { wch: 10 }, { wch: 14 }];
   const workbook = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(workbook, worksheet, 'Spending');
   XLSX.writeFile(workbook, `${safeFilename(projectName)}-spending.xlsx`);
@@ -388,7 +435,8 @@ export function SpendingTable({ projectId, projectName, baseUrl }: SpendingTable
             bank: row.bank,
             amount: row.amount,
             entryDate: row.entryDate,
-            paid: row.paid
+            paid: row.paid,
+            debtPaid: row.debtPaid
           }))
         })
       });
@@ -441,6 +489,7 @@ export function SpendingTable({ projectId, projectName, baseUrl }: SpendingTable
       bank?: string;
       amount?: number;
       paid?: boolean;
+      debtPaid?: boolean;
     },
     options?: { skipRefetch?: boolean }
   ) => {
@@ -454,6 +503,7 @@ export function SpendingTable({ projectId, projectName, baseUrl }: SpendingTable
       if (patch.bank !== undefined) body.bank = patch.bank.trim();
       if (patch.entryDate !== undefined) body.entryDate = resolveEntryDate(patch.entryDate);
       if (patch.paid !== undefined) body.paid = patch.paid;
+      if (patch.debtPaid !== undefined) body.debtPaid = patch.debtPaid;
 
       const res = await fetch(`${baseUrl}/spending/${entry.id}`, {
         method: 'PATCH',
@@ -485,6 +535,13 @@ export function SpendingTable({ projectId, projectName, baseUrl }: SpendingTable
     await patchEntry(entry, { paid }, { skipRefetch: true });
   };
 
+  const setEntryDebtPaid = async (entry: SpendingEntryResponse, debtPaid: boolean) => {
+    setEntries((prev) =>
+      sortEntriesByDate(prev.map((e) => (e.id === entry.id ? { ...e, debtPaid } : e)))
+    );
+    await patchEntry(entry, { debtPaid }, { skipRefetch: true });
+  };
+
   const handleDraftBlur = (e: React.FocusEvent<HTMLElement>) => {
     if (isFocusMovingWithinRow(e)) return;
     const { entryDate, description, bank, amount } = draftRef.current;
@@ -494,6 +551,7 @@ export function SpendingTable({ projectId, projectName, baseUrl }: SpendingTable
   };
 
   const totalAmount = paidTotal(entries);
+  const debtTotalAmount = debtPaidTotal(entries);
   const isMobile = useIsMobile();
 
   if (loading) {
@@ -597,6 +655,7 @@ export function SpendingTable({ projectId, projectName, baseUrl }: SpendingTable
                     dateMax={dateMax}
                     onCommit={(patch) => void patchEntry(entry, patch)}
                     onPaidChange={(paid) => void setEntryPaid(entry, paid)}
+                    onDebtPaidChange={(debtPaid) => void setEntryDebtPaid(entry, debtPaid)}
                     onDelete={() => void deleteEntry(entry.id)}
                   />
                 ))}
@@ -652,6 +711,10 @@ export function SpendingTable({ projectId, projectName, baseUrl }: SpendingTable
                   <span>Total (paid)</span>
                   <strong>{formatAmount(totalAmount)}</strong>
                 </div>
+                <div className="finance-mobile-total finance-mobile-total-spending-debt">
+                  <span>Total (debt)</span>
+                  <strong>{formatAmount(debtTotalAmount)}</strong>
+                </div>
               </div>
             ) : (
             <table className="spending-table">
@@ -663,6 +726,7 @@ export function SpendingTable({ projectId, projectName, baseUrl }: SpendingTable
                   <th>Description</th>
                   <th className="spending-col-bank">Bank</th>
                   <th className="spending-col-paid">Paid</th>
+                  <th className="spending-col-debt-paid">Debt paid</th>
                   <th className="spending-col-amount">Amount</th>
                   <th className="spending-col-actions" aria-label="Actions" />
                 </tr>
@@ -675,6 +739,7 @@ export function SpendingTable({ projectId, projectName, baseUrl }: SpendingTable
                     dateMax={dateMax}
                     onCommit={(patch) => void patchEntry(entry, patch)}
                     onPaidChange={(paid) => void setEntryPaid(entry, paid)}
+                    onDebtPaidChange={(debtPaid) => void setEntryDebtPaid(entry, debtPaid)}
                     onDelete={() => void deleteEntry(entry.id)}
                   />
                 ))}
@@ -714,6 +779,7 @@ export function SpendingTable({ projectId, projectName, baseUrl }: SpendingTable
                     />
                   </td>
                   <td className="spending-col-paid" data-label="Paid" />
+                  <td className="spending-col-debt-paid" data-label="Debt paid" />
                   <td className="spending-col-amount" data-label="Amount">
                     <input
                       type="text"
@@ -729,8 +795,13 @@ export function SpendingTable({ projectId, projectName, baseUrl }: SpendingTable
                   <td className="spending-col-actions" />
                 </tr>
                 <tr className="spending-row-total">
-                  <td colSpan={4}>Total (paid)</td>
+                  <td colSpan={5}>Total (paid)</td>
                   <td className="spending-col-amount">{formatAmount(totalAmount)}</td>
+                  <td className="spending-col-actions" />
+                </tr>
+                <tr className="spending-row-total spending-row-total-debt">
+                  <td colSpan={5}>Total (debt)</td>
+                  <td className="spending-col-amount">{formatAmount(debtTotalAmount)}</td>
                   <td className="spending-col-actions" />
                 </tr>
               </tbody>
@@ -754,6 +825,7 @@ function SpendingRow(props: {
     amount?: number;
   }) => void;
   onPaidChange: (paid: boolean) => void;
+  onDebtPaidChange: (debtPaid: boolean) => void;
   onDelete: () => void;
 }) {
   const [entryDate, setEntryDate] = useState(props.entry.entryDate);
@@ -761,6 +833,7 @@ function SpendingRow(props: {
   const [bank, setBank] = useState(props.entry.bank);
   const [amount, setAmount] = useState(formatAmountInput(props.entry.amount));
   const [paid, setPaid] = useState(props.entry.paid);
+  const [debtPaid, setDebtPaid] = useState(props.entry.debtPaid);
   const entryDateRef = useRef(entryDate);
   const descriptionRef = useRef(description);
   const bankRef = useRef(bank);
@@ -776,7 +849,15 @@ function SpendingRow(props: {
     setBank(props.entry.bank);
     setAmount(formatAmountInput(props.entry.amount));
     setPaid(props.entry.paid);
-  }, [props.entry.entryDate, props.entry.description, props.entry.bank, props.entry.amount, props.entry.paid]);
+    setDebtPaid(props.entry.debtPaid);
+  }, [
+    props.entry.entryDate,
+    props.entry.description,
+    props.entry.bank,
+    props.entry.amount,
+    props.entry.paid,
+    props.entry.debtPaid
+  ]);
 
   const unpaidClass = paid ? '' : ' spending-row-unpaid';
 
@@ -846,6 +927,22 @@ function SpendingRow(props: {
     />
   );
 
+  const debtPaidCheckbox = (
+    <input
+      type="checkbox"
+      className="spending-debt-paid-checkbox"
+      checked={debtPaid}
+      aria-label="Debt paid"
+      title={debtPaid ? 'Mark as not paid via debt' : 'Mark as paid via debt'}
+      onMouseDown={(e) => e.preventDefault()}
+      onChange={(e) => {
+        const nextDebtPaid = e.target.checked;
+        setDebtPaid(nextDebtPaid);
+        props.onDebtPaidChange(nextDebtPaid);
+      }}
+    />
+  );
+
   if (props.mobile) {
     return (
       <div className={`finance-mobile-card${unpaidClass ? ' finance-mobile-card-unpaid' : ''}`}>
@@ -858,6 +955,10 @@ function SpendingRow(props: {
         <label className="finance-mobile-field finance-mobile-field-inline">
           <span className="finance-mobile-label">Paid</span>
           {paidCheckbox}
+        </label>
+        <label className="finance-mobile-field finance-mobile-field-inline">
+          <span className="finance-mobile-label">Debt paid</span>
+          {debtPaidCheckbox}
         </label>
         <label className="finance-mobile-field">
           <span className="finance-mobile-label">Payment date</span>
@@ -963,6 +1064,9 @@ function SpendingRow(props: {
       </td>
       <td className="spending-col-paid" data-label="Paid">
         {paidCheckbox}
+      </td>
+      <td className="spending-col-debt-paid" data-label="Debt paid">
+        {debtPaidCheckbox}
       </td>
       <td className="spending-col-amount" data-label="Amount">
         <input

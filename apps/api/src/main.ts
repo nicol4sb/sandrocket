@@ -179,6 +179,7 @@ function toSpendingEntryResponse(entry: SpendingEntry): SpendingEntryResponse {
     entryDate: entry.entryDate,
     bank: entry.bank,
     paid: entry.paid,
+    debtPaid: entry.debtPaid,
     position: entry.position,
     createdAt: entry.createdAt.toISOString(),
     updatedAt: entry.updatedAt.toISOString()
@@ -942,7 +943,9 @@ app.post(
         description: entry.description ?? '',
         bank: entry.bank ?? '',
         amount: entry.amount,
-        entryDate: entry.entryDate
+        entryDate: entry.entryDate,
+        paid: entry.paid,
+        debtPaid: entry.debtPaid
       })),
       body.replace
     );
@@ -986,7 +989,8 @@ app.patch(
       body.amount,
       body.entryDate,
       body.bank,
-      body.paid
+      body.paid,
+      body.debtPaid
     );
     if (!updated) {
       res.status(404).json({ error: 'not-found', message: 'Spending entry not found' });

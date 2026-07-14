@@ -31,19 +31,21 @@ class SpendingServiceImpl {
             entryDate: resolveEntryDate(entryDate),
             bank: (bank ?? '').trim(),
             paid,
+            debtPaid: false,
             position: maxPos + 1
         });
         await this.deps.spending.reorderPositionsByDate(projectId);
         return (await this.deps.spending.findById(created.id)) ?? created;
     }
-    async updateEntry(id, description, amount, entryDate, bank, paid) {
+    async updateEntry(id, description, amount, entryDate, bank, paid, debtPaid) {
         const updated = await this.deps.spending.update({
             id,
             description,
             amount,
             entryDate: entryDate === undefined ? undefined : resolveEntryDate(entryDate),
             bank: bank === undefined ? undefined : bank.trim(),
-            paid
+            paid,
+            debtPaid
         });
         if (!updated)
             return null;
@@ -68,6 +70,7 @@ class SpendingServiceImpl {
             amount: entry.amount,
             entryDate: resolveEntryDate(entry.entryDate),
             paid: entry.paid ?? true,
+            debtPaid: entry.debtPaid ?? false,
             sourceIndex
         }))
             .sort((a, b) => {
@@ -80,6 +83,7 @@ class SpendingServiceImpl {
             amount: entry.amount,
             entryDate: entry.entryDate,
             paid: entry.paid,
+            debtPaid: entry.debtPaid,
             position: index + 1
         }));
         if (replace) {

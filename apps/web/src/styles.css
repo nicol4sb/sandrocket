@@ -814,7 +814,8 @@ main.dashboard > .app-header {
   width: 100%;
   max-width: 100%;
   min-width: 0;
-  overflow-x: hidden;
+  overflow-x: clip;
+  overflow-y: visible;
 }
 
 .board-section {
@@ -2709,7 +2710,8 @@ footer {
   .summary-table-wrap {
     max-width: 100%;
     min-width: 0;
-    overflow-x: hidden;
+    overflow-x: clip;
+    overflow-y: visible;
   }
 
   .finance-mobile-list,
@@ -2904,6 +2906,14 @@ footer {
   color: #4ec9b0;
 }
 
+.finance-mobile-total-spending-debt {
+  border: 1px solid #569cd6;
+}
+
+.finance-mobile-total-spending-debt strong {
+  color: #569cd6;
+}
+
 .finance-mobile-total-devis {
   border: 1px solid #569cd6;
 }
@@ -2924,6 +2934,7 @@ footer {
   border-style: solid;
   border-color: #3a3a3e;
   border-left: 3px solid #4ec9b0;
+  overflow: visible;
 }
 
 .spending-accordion-header {
@@ -3092,14 +3103,23 @@ footer {
 }
 
 .spending-table-wrap {
-  overflow-x: auto;
+  overflow-x: clip;
+  overflow-y: visible;
 }
 
 .spending-table {
   width: 100%;
-  border-collapse: collapse;
+  border-collapse: separate;
+  border-spacing: 0;
   table-layout: fixed;
   border: 1px solid #4a4a4e;
+}
+
+.spending-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.28);
 }
 
 .spending-table th {
@@ -3144,12 +3164,26 @@ footer {
   text-align: center;
 }
 
-.spending-paid-checkbox {
+.spending-table th.spending-col-debt-paid,
+.spending-table td.spending-col-debt-paid {
+  width: 4.75rem;
+  text-align: center;
+}
+
+.spending-paid-checkbox,
+.spending-debt-paid-checkbox {
   width: 1.125rem;
   height: 1.125rem;
   margin: 0;
   cursor: pointer;
+}
+
+.spending-paid-checkbox {
   accent-color: #4ec9b0;
+}
+
+.spending-debt-paid-checkbox {
+  accent-color: #569cd6;
 }
 
 .spending-row-unpaid td {
@@ -3353,6 +3387,10 @@ footer {
   font-weight: 600;
 }
 
+.spending-row-total-debt td {
+  color: #569cd6;
+}
+
 /* ── Devis Table ── */
 
 .summary-section {
@@ -3375,6 +3413,7 @@ footer {
   border-style: solid;
   border-color: #3a3a3e;
   border-left: 3px solid #569cd6;
+  overflow: visible;
 }
 
 .summary-accordion-header {
@@ -3512,14 +3551,23 @@ footer {
 }
 
 .summary-table-wrap {
-  overflow-x: auto;
+  overflow-x: clip;
+  overflow-y: visible;
 }
 
 .summary-table {
   width: 100%;
-  border-collapse: collapse;
+  border-collapse: separate;
+  border-spacing: 0;
   table-layout: fixed;
   border: 1px solid #4a4a4e;
+}
+
+.summary-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.28);
 }
 
 .summary-table th {
