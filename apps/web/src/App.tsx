@@ -23,6 +23,7 @@ import { AuthSuccessResponse, ListProjectsResponse, TaskResponse } from '@sandro
 import { Login } from './components/Login';
 import { Modal } from './components/Modal';
 import { EpicLane } from './EpicLane';
+import { DoneArchive } from './DoneArchive';
 import { DocumentDropbox } from './DocumentDropbox';
 import { SpendingTable } from './SpendingTable';
 import { SummaryTable } from './SummaryTable';
@@ -37,6 +38,12 @@ function scrollBoardSection(sectionId: string): void {
   const section = document.getElementById(sectionId);
   if (!section) return;
   section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function scrollToEpic(epicId: number): void {
+  const epic = document.getElementById(`epic-${epicId}`);
+  if (!epic) return;
+  epic.scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
 
 export default function App() {
@@ -253,7 +260,10 @@ export default function App() {
     });
   };
 
-  const updateTask = async (id: number, fields: Partial<Pick<TaskResponse, 'description' | 'status'>>) => {
+  const updateTask = async (
+    id: number,
+    fields: Partial<Pick<TaskResponse, 'description' | 'status' | 'position'>>
+  ) => {
     const res = await fetch(`${baseUrl}/tasks/${id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
@@ -261,21 +271,26 @@ export default function App() {
       body: JSON.stringify(fields)
     });
     if (!res.ok) return;
-    const epicId = Object.values(tasksByEpic).flat().find(t => t.id === id)?.epicId;
-    if (!epicId) return;
-    setTasksByEpic(prev => {
-      const list = prev[epicId] ?? [];
-      const updated = list.map(t => {
-        if (t.id !== id) return t;
-        const nt: UiTask = {
-          ...t,
-          description: fields.description !== undefined ? fields.description : t.description,
-          status: fields.status !== undefined ? (fields.status as UiTask['status']) : t.status
-        };
-        return nt;
-      });
-      return { ...prev, [epicId]: updated };
+    const updated = (await res.json()) as TaskResponse;
+    setTasksByEpic((prev) => {
+      const list = prev[updated.epicId] ?? [];
+      const exists = list.some((t) => t.id === id);
+      const nextList = exists
+        ? list.map((t) => (t.id === id ? updated : t))
+        : [...list, updated];
+      return { ...prev, [updated.epicId]: nextList };
     });
+  };
+
+  const toggleTaskDone = async (id: number, done: boolean) => {
+    const task = Object.values(tasksByEpic).flat().find((t) => t.id === id);
+    if (!task) return;
+    const activeCount = (tasksByEpic[task.epicId] ?? []).filter((t) => t.status !== 'done').length;
+    if (done) {
+      await updateTask(id, { status: 'done' });
+    } else {
+      await updateTask(id, { status: 'backlog', position: activeCount });
+    }
   };
 
   const deleteTask = async (id: number) => {
@@ -293,25 +308,22 @@ export default function App() {
   };
 
   const reorderTask = async (taskId: number, epicId: number, position: number) => {
-    // Optimistic update
+    // Optimistic update — only reorder active (non-done) tasks
     setTasksByEpic(prev => {
       const list = prev[epicId] ?? [];
-      const task = list.find(t => t.id === taskId);
+      const doneTasks = list.filter((t) => t.status === 'done');
+      const active = list.filter((t) => t.status !== 'done');
+      const task = active.find((t) => t.id === taskId);
       if (!task) return prev;
-      
-      // Remove task from current position
-      const filtered = list.filter(t => t.id !== taskId);
-      
-      // Insert at new position
+
+      const filtered = active.filter((t) => t.id !== taskId);
       filtered.splice(Math.min(position, filtered.length), 0, {
         ...task,
         position
       });
-      
-      // Recalculate positions for all tasks
+
       const reordered = filtered.map((t, idx) => ({ ...t, position: idx }));
-      
-      return { ...prev, [epicId]: reordered };
+      return { ...prev, [epicId]: [...reordered, ...doneTasks] };
     });
 
     // API call - always use backlog status
@@ -333,11 +345,11 @@ export default function App() {
       }
     } else {
       const updated = (await res.json()) as TaskResponse;
-      setTasksByEpic(prev => {
-        const list = prev[epicId] ?? [];
-        const newList = list.map(t => t.id === taskId ? updated : t)
-          .sort((a, b) => a.position - b.position);
-        return { ...prev, [epicId]: newList };
+      setTasksByEpic((prev) => {
+        const list = (prev[epicId] ?? []).map((t) => (t.id === taskId ? updated : t));
+        const active = list.filter((t) => t.status !== 'done').sort((a, b) => a.position - b.position);
+        const done = list.filter((t) => t.status === 'done').sort((a, b) => a.position - b.position);
+        return { ...prev, [epicId]: [...active, ...done] };
       });
     }
   };
@@ -904,6 +916,7 @@ export default function App() {
                 <button type="button" onClick={() => scrollBoardSection('board-spending')}>Spending</button>
                 <button type="button" onClick={() => scrollBoardSection('board-devis')}>Devis</button>
                 <button type="button" onClick={() => scrollBoardSection('board-epics')}>Tasks</button>
+                <button type="button" onClick={() => scrollBoardSection('board-done')}>Done</button>
                 <button type="button" onClick={() => scrollBoardSection('board-documents')}>Docs</button>
               </nav>
               <SpendingTable projectId={current.id} projectName={current.name} baseUrl={baseUrl} />
@@ -917,6 +930,7 @@ export default function App() {
                     baseUrl={baseUrl}
                     onInlineUpdate={(id, fields) => updateTask(id, fields)}
                     onReorder={(taskId, position) => reorderTask(taskId, e.id, position)}
+                    onToggleDone={(taskId, done) => void toggleTaskDone(taskId, done)}
                     onDeleteTask={(id) => deleteTask(id)}
                     onCreateTask={(epicId, description) => createTask(epicId, description)}
                     onEpicUpdate={(id, fields) => updateEpic(id, fields)}
@@ -925,6 +939,13 @@ export default function App() {
                   />
                 ))}
               </div>
+              <DoneArchive
+                epics={epicsByProject[current.id] ?? []}
+                tasksByEpic={tasksByEpic}
+                onRestore={(taskId) => void toggleTaskDone(taskId, false)}
+                onDelete={(id) => deleteTask(id)}
+                onGoToEpic={scrollToEpic}
+              />
               <div id="board-documents" className="doc-dropbox-section board-section">
                 <DocumentDropbox projectId={current.id} baseUrl={baseUrl} />
               </div>

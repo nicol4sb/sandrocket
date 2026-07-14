@@ -21,7 +21,7 @@ export function buildSpendingExcelBuffer(entries) {
     const totalAmount = spendingPaidTotal(sorted);
     const debtTotalAmount = spendingDebtPaidTotal(sorted);
     const rows = [
-        ['Payment date', 'Description', 'Bank', 'Paid', 'Debt paid', 'Amount'],
+        ['Payment date', 'Description', 'Bank', 'Paid', 'Debt', 'Amount'],
         ...sorted.map((e) => [
             e.entryDate,
             e.description,
@@ -30,8 +30,8 @@ export function buildSpendingExcelBuffer(entries) {
             e.debtPaid ? 'Yes' : 'No',
             e.amount
         ]),
-        ['', '', '', 'Total (paid)', '', totalAmount],
-        ['', '', '', '', 'Total (debt)', debtTotalAmount]
+        ['', '', '', 'Total spent', '', totalAmount],
+        ['', '', '', '', 'Debt spent', debtTotalAmount]
     ];
     return workbookToBuffer(rows, 'Spending', [
         { wch: 12 },

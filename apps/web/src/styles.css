@@ -907,8 +907,7 @@ main.dashboard > .app-header {
   position: relative; 
   background: #2d2d30; 
   border-radius: 0.625rem; 
-  padding: 0.625rem 0.875rem; 
-  padding-right: 2rem; 
+  padding: 0.625rem 2rem 0.625rem 2rem; 
   margin: 0.3rem 0; 
   display: flex; 
   flex-direction: column;
@@ -932,6 +931,65 @@ main.dashboard > .app-header {
 }
 .task.todo { background: #37373d; border-color: #7dd3fc; }
 .task.done { background: #2d2d30; border-color: #7dd3fc; opacity: 0.7; }
+.task.task-done-row {
+  cursor: default;
+  opacity: 0.72;
+  border-color: #555;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+}
+.task.task-done-row:active {
+  cursor: default;
+}
+.task.task-done-row:hover {
+  transform: none;
+}
+.task-done-checkbox {
+  position: absolute;
+  left: 0.5rem;
+  top: 0.65rem;
+  width: 1.125rem;
+  height: 1.125rem;
+  margin: 0;
+  cursor: pointer;
+  accent-color: #4ec9b0;
+  z-index: 10;
+}
+.task-done-content {
+  text-decoration: line-through;
+  color: #999 !important;
+}
+.epic-done-section {
+  margin-top: 0.5rem;
+  padding-top: 0.35rem;
+  border-top: 1px dashed #444;
+}
+.epic-done-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  width: 100%;
+  border: none;
+  background: transparent;
+  color: #888;
+  font: inherit;
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 0.35rem 0.15rem;
+  cursor: pointer;
+  text-align: left;
+  transition: color 150ms ease;
+}
+.epic-done-toggle:hover {
+  color: #bbb;
+}
+.epic-done-count {
+  color: #666;
+}
+.epic-done-list {
+  list-style: none;
+  padding: 0;
+  margin: 0.25rem 0 0;
+}
 .task.focus { outline: 2px solid #4ec9b0; }
 .task .title { flex: 1; }
 .task .content,
@@ -2613,6 +2671,185 @@ footer {
   }
 }
 
+/* ── Done task archive ── */
+
+.done-archive-section {
+  width: 100%;
+  max-width: 1400px;
+  min-width: 0;
+  margin: 0 auto 0.75rem;
+  padding: 0 1rem;
+}
+
+.done-archive-accordion {
+  background: #1e1e20;
+  border: 1px dashed #3e3e42;
+  border-radius: 0.75rem;
+  overflow: hidden;
+  transition: border-color 150ms ease;
+}
+
+.done-archive-accordion-open {
+  border-style: solid;
+  border-color: #3a3a3e;
+  border-left: 3px solid #6a9955;
+}
+
+.done-archive-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  border: none;
+  background: transparent;
+  color: #aaa;
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+  padding: 0.65rem 0.85rem;
+  cursor: pointer;
+  text-align: left;
+  transition: color 150ms ease, background 150ms ease;
+}
+
+.done-archive-toggle:hover {
+  color: #ddd;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.done-archive-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.5rem;
+  padding: 0.1rem 0.45rem;
+  border-radius: 999px;
+  background: #2d2d30;
+  color: #6a9955;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.done-archive-caret {
+  margin-left: auto;
+  color: #666;
+}
+
+.done-archive-body {
+  padding: 0 0.85rem 0.85rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.done-archive-search {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid #444;
+  border-radius: 0.5rem;
+  background: #252526;
+  color: #ddd;
+  font: inherit;
+  font-size: 0.875rem;
+  padding: 0.55rem 0.75rem;
+}
+
+.done-archive-search:focus {
+  outline: none;
+  border-color: #6a9955;
+  box-shadow: 0 0 0 2px rgba(106, 153, 85, 0.2);
+}
+
+.done-archive-empty {
+  margin: 0;
+  font-size: 0.8rem;
+  color: #777;
+  padding: 0.25rem 0;
+}
+
+.done-archive-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  max-height: 280px;
+  overflow-y: auto;
+}
+
+.done-archive-item {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.55rem 0.65rem;
+  border-radius: 0.5rem;
+  background: #252526;
+  border: 1px solid #3a3a3e;
+}
+
+.done-archive-item-main {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  min-width: 0;
+  flex: 1;
+}
+
+.done-archive-epic {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #6a9955;
+}
+
+.done-archive-desc {
+  font-size: 0.85rem;
+  color: #bbb;
+  text-decoration: line-through;
+  overflow-wrap: anywhere;
+}
+
+.done-archive-time {
+  font-size: 0.7rem;
+  color: #666;
+}
+
+.done-archive-item-actions {
+  display: flex;
+  gap: 0.25rem;
+  flex-shrink: 0;
+}
+
+.done-archive-action-btn {
+  min-width: 1.75rem;
+  min-height: 1.75rem;
+  border: 1px solid #444;
+  border-radius: 0.375rem;
+  background: #2d2d30;
+  color: #aaa;
+  cursor: pointer;
+  font-size: 0.85rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  transition: color 150ms ease, border-color 150ms ease, background 150ms ease;
+}
+
+.done-archive-action-btn:hover {
+  color: #fff;
+  border-color: #666;
+  background: #37373d;
+}
+
+.done-archive-delete-btn:hover {
+  color: #f48771;
+  border-color: #f48771;
+}
+
 /* ── Spending Table ── */
 
 .spending-section {
@@ -2687,8 +2924,12 @@ footer {
     order: 3;
   }
 
-  .board-layout .doc-dropbox-section {
+  .board-layout .done-archive-section {
     order: 4;
+  }
+
+  .board-layout .doc-dropbox-section {
+    order: 5;
   }
 
   .spending-section,

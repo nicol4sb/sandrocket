@@ -114,6 +114,7 @@ function SortableTask(props: {
   onCommitContent: (id: number, value: string) => void;
   onSetEditContent: (id: number | null, draft: string) => void;
   onDelete: (id: number) => void;
+  onToggleDone: (id: number, done: boolean) => void;
   currentUserId: number;
   onSave?: () => void;
   onTab?: (shift: boolean) => void;
@@ -172,6 +173,17 @@ function SortableTask(props: {
         taskId={props.task.id}
       />
       {!isTaskEditing && (
+        <input
+          type="checkbox"
+          className="task-done-checkbox"
+          checked={false}
+          aria-label="Mark task as done"
+          title="Mark as done"
+          onMouseDown={(e) => e.preventDefault()}
+          onChange={() => props.onToggleDone(props.task.id, true)}
+        />
+      )}
+      {!isTaskEditing && (
         <button
           className="delete-btn"
           onClick={(e) => {
@@ -183,6 +195,37 @@ function SortableTask(props: {
           ×
         </button>
       )}
+    </li>
+  );
+}
+
+function DoneTaskRow(props: {
+  task: UiTask;
+  onRestore: (id: number) => void;
+  onDelete: (id: number) => void;
+}) {
+  return (
+    <li className="task task-done-row">
+      <input
+        type="checkbox"
+        className="task-done-checkbox"
+        checked
+        aria-label="Restore task"
+        title="Restore to active tasks"
+        onMouseDown={(e) => e.preventDefault()}
+        onChange={() => props.onRestore(props.task.id)}
+      />
+      <span className="content task-done-content">{props.task.description}</span>
+      <button
+        className="delete-btn"
+        onClick={(e) => {
+          e.stopPropagation();
+          props.onDelete(props.task.id);
+        }}
+        title="Delete task"
+      >
+        ×
+      </button>
     </li>
   );
 }
@@ -202,12 +245,14 @@ export function EpicLane(props: {
   baseUrl: string;
   onInlineUpdate: (id: number, fields: Partial<Pick<TaskResponse, 'description'>>) => void;
   onReorder: (taskId: number, position: number) => void;
+  onToggleDone: (taskId: number, done: boolean) => void;
   onDeleteTask: (id: number) => void;
   onEpicUpdate: (id: number, fields: { name?: string; description?: string | null }) => void;
   onCreateTask: (epicId: number, description: string) => void;
   onDeleteEpic?: (id: number) => void;
   currentUserId: number;
 }) {
+  const [showDone, setShowDone] = useState(false);
   const [editContentId, setEditContentId] = useState<number | null>(null);
   const [editingContentDraft, setEditingContentDraft] = useState<string>('');
   const [newTaskDraft, setNewTaskDraft] = useState<string>('');
@@ -225,10 +270,16 @@ export function EpicLane(props: {
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   );
 
-  const sortedTasks = [...props.tasks].sort((a, b) => a.position - b.position);
-  const taskIds = sortedTasks.map(t => t.id);
-  const focusIds = sortedTasks.slice(0, 3).map(t => t.id);
-  const activeTask = activeId ? props.tasks.find(t => t.id === activeId) : null;
+  const activeTasks = [...props.tasks]
+    .filter((t) => t.status !== 'done')
+    .sort((a, b) => a.position - b.position);
+  const doneTasks = [...props.tasks]
+    .filter((t) => t.status === 'done')
+    .sort((a, b) => a.position - b.position);
+  const sortedTasks = activeTasks;
+  const taskIds = sortedTasks.map((t) => t.id);
+  const focusIds = sortedTasks.slice(0, 3).map((t) => t.id);
+  const activeTask = activeId ? props.tasks.find((t) => t.id === activeId) : null;
   const taskTextareaRefs = useRef<Map<number, React.RefObject<HTMLTextAreaElement>>>(new Map());
   
   // Initialize refs for all tasks
@@ -292,7 +343,7 @@ export function EpicLane(props: {
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
     >
-      <div className="epic-card">
+      <div className="epic-card" id={`epic-${props.epic.id}`}>
         <button
           className="delete-btn epic-delete"
           onClick={(e) => {
@@ -325,6 +376,7 @@ export function EpicLane(props: {
                   onCommitContent={handleCommitContent}
                   onSetEditContent={(id, draft) => { setEditContentId(id); setEditingContentDraft(draft); }}
                   onDelete={props.onDeleteTask}
+                  onToggleDone={props.onToggleDone}
                   currentUserId={props.currentUserId}
                   onSave={() => {
                     // Focus the empty task textarea after saving
@@ -471,6 +523,34 @@ export function EpicLane(props: {
               </li>
             </ul>
           </SortableContext>
+          {doneTasks.length > 0 && (
+            <div className="epic-done-section">
+              <button
+                type="button"
+                className="epic-done-toggle"
+                onClick={() => setShowDone((v) => !v)}
+                aria-expanded={showDone}
+              >
+                <span className="epic-done-caret" aria-hidden>
+                  {showDone ? '▾' : '▸'}
+                </span>
+                <span>Done</span>
+                <span className="epic-done-count">({doneTasks.length})</span>
+              </button>
+              {showDone && (
+                <ul className="epic-done-list">
+                  {doneTasks.map((t) => (
+                    <DoneTaskRow
+                      key={t.id}
+                      task={t}
+                      onRestore={(id) => props.onToggleDone(id, false)}
+                      onDelete={props.onDeleteTask}
+                    />
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
         </DroppableZone>
 
         <div className="epic-backlog">

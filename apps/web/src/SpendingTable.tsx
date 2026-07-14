@@ -30,7 +30,7 @@ interface ParsedSpendingRow {
   debtPaid: boolean;
 }
 
-const SPENDING_HEADERS = ['Payment date', 'Description', 'Bank', 'Paid', 'Debt paid', 'Amount'] as const;
+const SPENDING_HEADERS = ['Payment date', 'Description', 'Bank', 'Paid', 'Debt', 'Amount'] as const;
 
 const SPENDING_COL = {
   DATE: 0,
@@ -296,8 +296,8 @@ function exportSpendingToExcel(
       e.debtPaid ? 'Yes' : 'No',
       e.amount
     ]),
-    ['', '', '', 'Total (paid)', '', total],
-    ['', '', '', '', 'Total (debt)', debtTotal]
+    ['', '', '', 'Total spent', '', total],
+    ['', '', '', '', 'Debt spent', debtTotal]
   ];
   const worksheet = XLSX.utils.aoa_to_sheet(rows);
   worksheet['!cols'] = [{ wch: 12 }, { wch: 32 }, { wch: 16 }, { wch: 8 }, { wch: 10 }, { wch: 14 }];
@@ -708,11 +708,11 @@ export function SpendingTable({ projectId, projectName, baseUrl }: SpendingTable
                   </label>
                 </div>
                 <div className="finance-mobile-total finance-mobile-total-spending">
-                  <span>Total (paid)</span>
+                  <span>Total spent</span>
                   <strong>{formatAmount(totalAmount)}</strong>
                 </div>
                 <div className="finance-mobile-total finance-mobile-total-spending-debt">
-                  <span>Total (debt)</span>
+                  <span>Debt spent</span>
                   <strong>{formatAmount(debtTotalAmount)}</strong>
                 </div>
               </div>
@@ -726,7 +726,7 @@ export function SpendingTable({ projectId, projectName, baseUrl }: SpendingTable
                   <th>Description</th>
                   <th className="spending-col-bank">Bank</th>
                   <th className="spending-col-paid">Paid</th>
-                  <th className="spending-col-debt-paid">Debt paid</th>
+                  <th className="spending-col-debt-paid">Debt</th>
                   <th className="spending-col-amount">Amount</th>
                   <th className="spending-col-actions" aria-label="Actions" />
                 </tr>
@@ -779,7 +779,7 @@ export function SpendingTable({ projectId, projectName, baseUrl }: SpendingTable
                     />
                   </td>
                   <td className="spending-col-paid" data-label="Paid" />
-                  <td className="spending-col-debt-paid" data-label="Debt paid" />
+                  <td className="spending-col-debt-paid" data-label="Debt" />
                   <td className="spending-col-amount" data-label="Amount">
                     <input
                       type="text"
@@ -795,12 +795,12 @@ export function SpendingTable({ projectId, projectName, baseUrl }: SpendingTable
                   <td className="spending-col-actions" />
                 </tr>
                 <tr className="spending-row-total">
-                  <td colSpan={5}>Total (paid)</td>
+                  <td colSpan={5}>Total spent</td>
                   <td className="spending-col-amount">{formatAmount(totalAmount)}</td>
                   <td className="spending-col-actions" />
                 </tr>
                 <tr className="spending-row-total spending-row-total-debt">
-                  <td colSpan={5}>Total (debt)</td>
+                  <td colSpan={5}>Debt spent</td>
                   <td className="spending-col-amount">{formatAmount(debtTotalAmount)}</td>
                   <td className="spending-col-actions" />
                 </tr>
@@ -932,7 +932,7 @@ function SpendingRow(props: {
       type="checkbox"
       className="spending-debt-paid-checkbox"
       checked={debtPaid}
-      aria-label="Debt paid"
+      aria-label="Debt"
       title={debtPaid ? 'Mark as not paid via debt' : 'Mark as paid via debt'}
       onMouseDown={(e) => e.preventDefault()}
       onChange={(e) => {
@@ -957,7 +957,7 @@ function SpendingRow(props: {
           {paidCheckbox}
         </label>
         <label className="finance-mobile-field finance-mobile-field-inline">
-          <span className="finance-mobile-label">Debt paid</span>
+          <span className="finance-mobile-label">Debt</span>
           {debtPaidCheckbox}
         </label>
         <label className="finance-mobile-field">
@@ -1065,7 +1065,7 @@ function SpendingRow(props: {
       <td className="spending-col-paid" data-label="Paid">
         {paidCheckbox}
       </td>
-      <td className="spending-col-debt-paid" data-label="Debt paid">
+      <td className="spending-col-debt-paid" data-label="Debt">
         {debtPaidCheckbox}
       </td>
       <td className="spending-col-amount" data-label="Amount">
