@@ -3138,6 +3138,57 @@ footer {
   width: 110px;
 }
 
+.spending-table th.spending-col-paid,
+.spending-table td.spending-col-paid {
+  width: 3.25rem;
+  text-align: center;
+}
+
+.spending-paid-checkbox {
+  width: 1.125rem;
+  height: 1.125rem;
+  margin: 0;
+  cursor: pointer;
+  accent-color: #4ec9b0;
+}
+
+.spending-row-unpaid td {
+  background: #141416;
+  border-color: #35353a;
+}
+
+.spending-row-unpaid .spending-input {
+  color: #9a9a9a;
+}
+
+.spending-row-unpaid .spending-col-amount .spending-input {
+  text-decoration: line-through;
+  text-decoration-color: rgba(154, 154, 154, 0.55);
+}
+
+.finance-mobile-card-unpaid {
+  border-style: dashed;
+  border-color: #4a4a4e;
+  background: #141416;
+  opacity: 0.92;
+}
+
+.finance-mobile-card-unpaid .finance-mobile-card-title,
+.finance-mobile-card-unpaid .finance-mobile-input {
+  color: #9a9a9a;
+}
+
+.finance-mobile-card-unpaid .finance-mobile-input-amount {
+  text-decoration: line-through;
+  text-decoration-color: rgba(154, 154, 154, 0.55);
+}
+
+.finance-mobile-field-inline {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+}
+
 .spending-col-actions {
   width: 2rem;
   padding: 0;

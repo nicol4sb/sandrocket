@@ -29,18 +29,18 @@ export declare const projectSchema: z.ZodObject<{
     updatedAt: z.ZodString;
     role: z.ZodOptional<z.ZodEnum<["owner", "contributor"]>>;
 }, "strip", z.ZodTypeAny, {
-    description: string | null;
     id: number;
-    name: string;
+    description: string | null;
     createdAt: string;
     updatedAt: string;
+    name: string;
     role?: "owner" | "contributor" | undefined;
 }, {
-    description: string | null;
     id: number;
-    name: string;
+    description: string | null;
     createdAt: string;
     updatedAt: string;
+    name: string;
     role?: "owner" | "contributor" | undefined;
 }>;
 export type ProjectResponse = z.infer<typeof projectSchema>;
@@ -71,14 +71,14 @@ export declare const invitationResponseSchema: z.ZodObject<{
     expiresAt: z.ZodNullable<z.ZodString>;
 }, "strip", z.ZodTypeAny, {
     token: string;
-    projectId: number;
     id: number;
+    projectId: number;
     createdAt: string;
     expiresAt: string | null;
 }, {
     token: string;
-    projectId: number;
     id: number;
+    projectId: number;
     createdAt: string;
     expiresAt: string | null;
 }>;

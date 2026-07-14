@@ -1,5 +1,5 @@
 import { SpendingRepository } from './ports.js';
-import { SpendingEntry } from './types.js';
+import { SpendingEntry, spendingPaidTotal } from './types.js';
 
 function todayIsoDate(): string {
   return new Date().toISOString().slice(0, 10);
@@ -15,6 +15,7 @@ export interface SpendingImportEntryInput {
   amount: number;
   entryDate?: string;
   bank?: string;
+  paid?: boolean;
 }
 
 export interface SpendingService {
@@ -25,14 +26,16 @@ export interface SpendingService {
     description: string,
     amount: number,
     entryDate?: string,
-    bank?: string
+    bank?: string,
+    paid?: boolean
   ): Promise<SpendingEntry>;
   updateEntry(
     id: number,
     description?: string,
     amount?: number,
     entryDate?: string,
-    bank?: string
+    bank?: string,
+    paid?: boolean
   ): Promise<SpendingEntry | null>;
   deleteEntry(id: number): Promise<boolean>;
   importEntries(
@@ -54,7 +57,7 @@ class SpendingServiceImpl implements SpendingService {
       this.deps.spending.isVisible(projectId),
       this.deps.spending.listByProject(projectId)
     ]);
-    const totalAmount = entries.reduce((sum, e) => sum + e.amount, 0);
+    const totalAmount = spendingPaidTotal(entries);
     return { visible, entries, totalAmount };
   }
 
@@ -68,7 +71,8 @@ class SpendingServiceImpl implements SpendingService {
     description: string,
     amount: number,
     entryDate?: string,
-    bank?: string
+    bank?: string,
+    paid = false
   ): Promise<SpendingEntry> {
     const maxPos = await this.deps.spending.getMaxPosition(projectId);
     const created = await this.deps.spending.create({
@@ -77,6 +81,7 @@ class SpendingServiceImpl implements SpendingService {
       amount,
       entryDate: resolveEntryDate(entryDate),
       bank: (bank ?? '').trim(),
+      paid,
       position: maxPos + 1
     });
     await this.deps.spending.reorderPositionsByDate(projectId);
@@ -88,14 +93,16 @@ class SpendingServiceImpl implements SpendingService {
     description?: string,
     amount?: number,
     entryDate?: string,
-    bank?: string
+    bank?: string,
+    paid?: boolean
   ): Promise<SpendingEntry | null> {
     const updated = await this.deps.spending.update({
       id,
       description,
       amount,
       entryDate: entryDate === undefined ? undefined : resolveEntryDate(entryDate),
-      bank: bank === undefined ? undefined : bank.trim()
+      bank: bank === undefined ? undefined : bank.trim(),
+      paid
     });
     if (!updated) return null;
     await this.deps.spending.reorderPositionsByDate(updated.projectId);
@@ -123,6 +130,7 @@ class SpendingServiceImpl implements SpendingService {
         bank: (entry.bank ?? '').trim(),
         amount: entry.amount,
         entryDate: resolveEntryDate(entry.entryDate),
+        paid: entry.paid ?? true,
         sourceIndex
       }))
       .sort((a, b) => {
@@ -134,6 +142,7 @@ class SpendingServiceImpl implements SpendingService {
         bank: entry.bank,
         amount: entry.amount,
         entryDate: entry.entryDate,
+        paid: entry.paid,
         position: index + 1
       }));
 
@@ -152,7 +161,7 @@ class SpendingServiceImpl implements SpendingService {
     }
 
     const listed = await this.deps.spending.listByProject(projectId);
-    const totalAmount = listed.reduce((sum, e) => sum + e.amount, 0);
+    const totalAmount = spendingPaidTotal(listed);
     return { entries: listed, totalAmount };
   }
 }

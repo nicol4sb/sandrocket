@@ -10,25 +10,25 @@ export declare const summaryEntryResponseSchema: z.ZodObject<{
     createdAt: z.ZodString;
     updatedAt: z.ZodString;
 }, "strip", z.ZodTypeAny, {
-    projectId: number;
     amount: number;
+    id: number;
+    projectId: number;
     entryDate: string;
     position: number;
-    lot: string;
-    fichierRetenu: string;
-    id: number;
     createdAt: string;
     updatedAt: string;
+    lot: string;
+    fichierRetenu: string;
 }, {
-    projectId: number;
     amount: number;
+    id: number;
+    projectId: number;
     entryDate: string;
     position: number;
-    lot: string;
-    fichierRetenu: string;
-    id: number;
     createdAt: string;
     updatedAt: string;
+    lot: string;
+    fichierRetenu: string;
 }>;
 export type SummaryEntryResponse = z.infer<typeof summaryEntryResponseSchema>;
 export interface ListSummaryResponse {

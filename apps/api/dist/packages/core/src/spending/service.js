@@ -1,3 +1,4 @@
+import { spendingPaidTotal } from './types.js';
 function todayIsoDate() {
     return new Date().toISOString().slice(0, 10);
 }
@@ -14,14 +15,14 @@ class SpendingServiceImpl {
             this.deps.spending.isVisible(projectId),
             this.deps.spending.listByProject(projectId)
         ]);
-        const totalAmount = entries.reduce((sum, e) => sum + e.amount, 0);
+        const totalAmount = spendingPaidTotal(entries);
         return { visible, entries, totalAmount };
     }
     async setVisible(projectId, visible) {
         await this.deps.spending.setVisible(projectId, visible);
         return visible;
     }
-    async createEntry(projectId, description, amount, entryDate, bank) {
+    async createEntry(projectId, description, amount, entryDate, bank, paid = false) {
         const maxPos = await this.deps.spending.getMaxPosition(projectId);
         const created = await this.deps.spending.create({
             projectId,
@@ -29,18 +30,20 @@ class SpendingServiceImpl {
             amount,
             entryDate: resolveEntryDate(entryDate),
             bank: (bank ?? '').trim(),
+            paid,
             position: maxPos + 1
         });
         await this.deps.spending.reorderPositionsByDate(projectId);
         return (await this.deps.spending.findById(created.id)) ?? created;
     }
-    async updateEntry(id, description, amount, entryDate, bank) {
+    async updateEntry(id, description, amount, entryDate, bank, paid) {
         const updated = await this.deps.spending.update({
             id,
             description,
             amount,
             entryDate: entryDate === undefined ? undefined : resolveEntryDate(entryDate),
-            bank: bank === undefined ? undefined : bank.trim()
+            bank: bank === undefined ? undefined : bank.trim(),
+            paid
         });
         if (!updated)
             return null;
@@ -64,6 +67,7 @@ class SpendingServiceImpl {
             bank: (entry.bank ?? '').trim(),
             amount: entry.amount,
             entryDate: resolveEntryDate(entry.entryDate),
+            paid: entry.paid ?? true,
             sourceIndex
         }))
             .sort((a, b) => {
@@ -75,6 +79,7 @@ class SpendingServiceImpl {
             bank: entry.bank,
             amount: entry.amount,
             entryDate: entry.entryDate,
+            paid: entry.paid,
             position: index + 1
         }));
         if (replace) {
@@ -92,7 +97,7 @@ class SpendingServiceImpl {
             await this.deps.spending.reorderPositionsByDate(projectId);
         }
         const listed = await this.deps.spending.listByProject(projectId);
-        const totalAmount = listed.reduce((sum, e) => sum + e.amount, 0);
+        const totalAmount = spendingPaidTotal(listed);
         return { entries: listed, totalAmount };
     }
 }

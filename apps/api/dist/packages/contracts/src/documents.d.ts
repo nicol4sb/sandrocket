@@ -9,8 +9,8 @@ export declare const documentResponseSchema: z.ZodObject<{
     uploaderDisplayName: z.ZodString;
     createdAt: z.ZodString;
 }, "strip", z.ZodTypeAny, {
-    projectId: number;
     id: number;
+    projectId: number;
     createdAt: string;
     originalFilename: string;
     mimeType: string;
@@ -18,8 +18,8 @@ export declare const documentResponseSchema: z.ZodObject<{
     uploaderUserId: number;
     uploaderDisplayName: string;
 }, {
-    projectId: number;
     id: number;
+    projectId: number;
     createdAt: string;
     originalFilename: string;
     mimeType: string;
@@ -36,15 +36,15 @@ export declare const documentActivityResponseSchema: z.ZodObject<{
     createdAt: z.ZodString;
 }, "strip", z.ZodTypeAny, {
     action: "uploaded" | "downloaded" | "deleted" | "viewed";
-    filename: string;
     id: number;
     createdAt: string;
+    filename: string;
     userDisplayName: string;
 }, {
     action: "uploaded" | "downloaded" | "deleted" | "viewed";
-    filename: string;
     id: number;
     createdAt: string;
+    filename: string;
     userDisplayName: string;
 }>;
 export type DocumentActivityResponse = z.infer<typeof documentActivityResponseSchema>;

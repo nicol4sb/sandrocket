@@ -26,16 +26,32 @@ interface ParsedSpendingRow {
   description: string;
   bank: string;
   amount: number;
+  paid: boolean;
 }
 
-const SPENDING_HEADERS = ['Payment date', 'Description', 'Bank', 'Amount'] as const;
+const SPENDING_HEADERS = ['Payment date', 'Description', 'Bank', 'Paid', 'Amount'] as const;
 
 const SPENDING_COL = {
   DATE: 0,
   DESCRIPTION: 1,
   BANK: 2,
-  AMOUNT: 3
+  PAID: 3,
+  AMOUNT: 4
 } as const;
+
+function parsePaidValue(value: unknown): boolean {
+  if (value == null || value === '') return true;
+  if (typeof value === 'boolean') return value;
+  if (typeof value === 'number') return value !== 0;
+  const str = String(value).trim().toLowerCase();
+  if (['yes', 'y', 'oui', 'true', '1', 'x', 'paid', 'payé', 'paye'].includes(str)) return true;
+  if (['no', 'n', 'non', 'false', '0', 'unpaid'].includes(str)) return false;
+  return true;
+}
+
+function paidTotal(entries: SpendingEntryResponse[]): number {
+  return entries.filter((e) => e.paid).reduce((sum, e) => sum + e.amount, 0);
+}
 
 function todayIso(): string {
   return toIsoDate(new Date());
@@ -134,6 +150,12 @@ function findHeaderRowIndex(rows: unknown[][]): number {
   return -1;
 }
 
+function spendingHeaderHasPaid(rows: unknown[][], headerIdx: number): boolean {
+  if (headerIdx < 0) return false;
+  const header = rows[headerIdx] ?? [];
+  return header.some((cell) => String(cell ?? '').trim().toLowerCase().includes('paid'));
+}
+
 function parseSpendingExcel(buffer: ArrayBuffer): ParsedSpendingRow[] {
   const workbook = XLSX.read(buffer, { type: 'array', cellDates: true });
   const sheetName = workbook.SheetNames[0];
@@ -142,6 +164,7 @@ function parseSpendingExcel(buffer: ArrayBuffer): ParsedSpendingRow[] {
   const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' }) as unknown[][];
   const headerIdx = findHeaderRowIndex(rows);
   const startIdx = headerIdx >= 0 ? headerIdx + 1 : 0;
+  const hasPaidColumn = spendingHeaderHasPaid(rows, headerIdx);
   const parsed: ParsedSpendingRow[] = [];
 
   for (let i = startIdx; i < rows.length; i++) {
@@ -149,7 +172,8 @@ function parseSpendingExcel(buffer: ArrayBuffer): ParsedSpendingRow[] {
     const dateRaw = row[0];
     const description = String(row[1] ?? '').trim();
     const bank = String(row[2] ?? '').trim();
-    const amountRaw = row[3];
+    const paidRaw = hasPaidColumn ? row[3] : undefined;
+    const amountRaw = hasPaidColumn ? row[4] : row[3];
 
     if (isTotalRow(description, bank, amountRaw)) continue;
     if (!description && !bank && (amountRaw === '' || amountRaw == null)) continue;
@@ -162,7 +186,8 @@ function parseSpendingExcel(buffer: ArrayBuffer): ParsedSpendingRow[] {
       entryDate: parseExcelDate(dateRaw),
       description,
       bank,
-      amount
+      amount,
+      paid: hasPaidColumn ? parsePaidValue(paidRaw) : true
     });
   }
 
@@ -189,7 +214,7 @@ function navigateSpendingCellVertically(
   if (nextRowIndex < 0 || nextRowIndex >= dataRows.length) return;
 
   const nextInput = dataRows[nextRowIndex]?.cells[colIndex]?.querySelector<HTMLInputElement>(
-    '.spending-input'
+    '.spending-input, .spending-paid-checkbox'
   );
   if (!nextInput) return;
 
@@ -221,13 +246,14 @@ function exportSpendingToExcel(
   projectName: string
 ) {
   const sortedEntries = sortEntriesByDate(entries);
+  const total = paidTotal(sortedEntries);
   const rows: (string | number)[][] = [
     [...SPENDING_HEADERS],
-    ...sortedEntries.map((e) => [e.entryDate, e.description, e.bank, e.amount]),
-    ['', '', 'Total', totalAmount]
+    ...sortedEntries.map((e) => [e.entryDate, e.description, e.bank, e.paid ? 'Yes' : 'No', e.amount]),
+    ['', '', '', 'Total', total]
   ];
   const worksheet = XLSX.utils.aoa_to_sheet(rows);
-  worksheet['!cols'] = [{ wch: 12 }, { wch: 32 }, { wch: 16 }, { wch: 14 }];
+  worksheet['!cols'] = [{ wch: 12 }, { wch: 32 }, { wch: 16 }, { wch: 8 }, { wch: 14 }];
   const workbook = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(workbook, worksheet, 'Spending');
   XLSX.writeFile(workbook, `${safeFilename(projectName)}-spending.xlsx`);
@@ -361,7 +387,8 @@ export function SpendingTable({ projectId, projectName, baseUrl }: SpendingTable
             description: row.description,
             bank: row.bank,
             amount: row.amount,
-            entryDate: row.entryDate
+            entryDate: row.entryDate,
+            paid: row.paid
           }))
         })
       });
@@ -406,35 +433,56 @@ export function SpendingTable({ projectId, projectName, baseUrl }: SpendingTable
     }
   };
 
-  const updateEntry = async (
+  const patchEntry = async (
     entry: SpendingEntryResponse,
-    entryDate: string,
-    description: string,
-    bank: string,
-    amountStr: string
+    patch: {
+      entryDate?: string;
+      description?: string;
+      bank?: string;
+      amount?: number;
+      paid?: boolean;
+    },
+    options?: { skipRefetch?: boolean }
   ) => {
-    const amount = parseAmount(amountStr);
-    if (amount === null) return;
+    if (Object.keys(patch).length === 0) return;
 
     setSaving(true);
     try {
+      const body: Record<string, unknown> = {};
+      if (patch.description !== undefined) body.description = patch.description.trim();
+      if (patch.amount !== undefined) body.amount = patch.amount;
+      if (patch.bank !== undefined) body.bank = patch.bank.trim();
+      if (patch.entryDate !== undefined) body.entryDate = resolveEntryDate(patch.entryDate);
+      if (patch.paid !== undefined) body.paid = patch.paid;
+
       const res = await fetch(`${baseUrl}/spending/${entry.id}`, {
         method: 'PATCH',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          description: description.trim(),
-          amount,
-          bank: bank.trim(),
-          entryDate: resolveEntryDate(entryDate)
-        })
+        body: JSON.stringify(body)
       });
       if (res.ok) {
-        await fetchSpending();
+        if (options?.skipRefetch) {
+          const updated = (await res.json()) as SpendingEntryResponse;
+          setEntries((prev) =>
+            sortEntriesByDate(
+              prev.map((e) => (e.id === updated.id ? { ...e, ...updated } : e))
+            )
+          );
+        } else {
+          await fetchSpending();
+        }
       }
     } finally {
       setSaving(false);
     }
+  };
+
+  const setEntryPaid = async (entry: SpendingEntryResponse, paid: boolean) => {
+    setEntries((prev) =>
+      sortEntriesByDate(prev.map((e) => (e.id === entry.id ? { ...e, paid } : e)))
+    );
+    await patchEntry(entry, { paid }, { skipRefetch: true });
   };
 
   const handleDraftBlur = (e: React.FocusEvent<HTMLElement>) => {
@@ -445,7 +493,7 @@ export function SpendingTable({ projectId, projectName, baseUrl }: SpendingTable
     }
   };
 
-  const totalAmount = entries.reduce((sum, e) => sum + e.amount, 0);
+  const totalAmount = paidTotal(entries);
   const isMobile = useIsMobile();
 
   if (loading) {
@@ -547,9 +595,8 @@ export function SpendingTable({ projectId, projectName, baseUrl }: SpendingTable
                     mobile
                     entry={entry}
                     dateMax={dateMax}
-                    onCommit={(entryDate, description, bank, amount) =>
-                      void updateEntry(entry, entryDate, description, bank, amount)
-                    }
+                    onCommit={(patch) => void patchEntry(entry, patch)}
+                    onPaidChange={(paid) => void setEntryPaid(entry, paid)}
                     onDelete={() => void deleteEntry(entry.id)}
                   />
                 ))}
@@ -602,7 +649,7 @@ export function SpendingTable({ projectId, projectName, baseUrl }: SpendingTable
                   </label>
                 </div>
                 <div className="finance-mobile-total finance-mobile-total-spending">
-                  <span>Total</span>
+                  <span>Total (paid)</span>
                   <strong>{formatAmount(totalAmount)}</strong>
                 </div>
               </div>
@@ -615,6 +662,7 @@ export function SpendingTable({ projectId, projectName, baseUrl }: SpendingTable
                   </th>
                   <th>Description</th>
                   <th className="spending-col-bank">Bank</th>
+                  <th className="spending-col-paid">Paid</th>
                   <th className="spending-col-amount">Amount</th>
                   <th className="spending-col-actions" aria-label="Actions" />
                 </tr>
@@ -625,9 +673,8 @@ export function SpendingTable({ projectId, projectName, baseUrl }: SpendingTable
                     key={entry.id}
                     entry={entry}
                     dateMax={dateMax}
-                    onCommit={(entryDate, description, bank, amount) =>
-                      void updateEntry(entry, entryDate, description, bank, amount)
-                    }
+                    onCommit={(patch) => void patchEntry(entry, patch)}
+                    onPaidChange={(paid) => void setEntryPaid(entry, paid)}
                     onDelete={() => void deleteEntry(entry.id)}
                   />
                 ))}
@@ -666,6 +713,7 @@ export function SpendingTable({ projectId, projectName, baseUrl }: SpendingTable
                       onKeyDown={(e) => onSpendingCellKeyDown(e, SPENDING_COL.BANK)}
                     />
                   </td>
+                  <td className="spending-col-paid" data-label="Paid" />
                   <td className="spending-col-amount" data-label="Amount">
                     <input
                       type="text"
@@ -681,7 +729,7 @@ export function SpendingTable({ projectId, projectName, baseUrl }: SpendingTable
                   <td className="spending-col-actions" />
                 </tr>
                 <tr className="spending-row-total">
-                  <td colSpan={3}>Total</td>
+                  <td colSpan={4}>Total (paid)</td>
                   <td className="spending-col-amount">{formatAmount(totalAmount)}</td>
                   <td className="spending-col-actions" />
                 </tr>
@@ -699,13 +747,20 @@ function SpendingRow(props: {
   mobile?: boolean;
   entry: SpendingEntryResponse;
   dateMax: string;
-  onCommit: (entryDate: string, description: string, bank: string, amount: string) => void;
+  onCommit: (patch: {
+    entryDate?: string;
+    description?: string;
+    bank?: string;
+    amount?: number;
+  }) => void;
+  onPaidChange: (paid: boolean) => void;
   onDelete: () => void;
 }) {
   const [entryDate, setEntryDate] = useState(props.entry.entryDate);
   const [description, setDescription] = useState(props.entry.description);
   const [bank, setBank] = useState(props.entry.bank);
   const [amount, setAmount] = useState(formatAmountInput(props.entry.amount));
+  const [paid, setPaid] = useState(props.entry.paid);
   const entryDateRef = useRef(entryDate);
   const descriptionRef = useRef(description);
   const bankRef = useRef(bank);
@@ -720,10 +775,12 @@ function SpendingRow(props: {
     setDescription(props.entry.description);
     setBank(props.entry.bank);
     setAmount(formatAmountInput(props.entry.amount));
-  }, [props.entry.entryDate, props.entry.description, props.entry.bank, props.entry.amount]);
+    setPaid(props.entry.paid);
+  }, [props.entry.entryDate, props.entry.description, props.entry.bank, props.entry.amount, props.entry.paid]);
 
-  const commitAll = (e: React.FocusEvent<HTMLElement>) => {
-    if (isFocusMovingWithinRow(e)) return;
+  const unpaidClass = paid ? '' : ' spending-row-unpaid';
+
+  const commitAll = () => {
     const resolvedDate = resolveEntryDate(entryDateRef.current);
     const dateChanged = resolvedDate !== props.entry.entryDate;
     const descChanged = descriptionRef.current !== props.entry.description;
@@ -731,13 +788,21 @@ function SpendingRow(props: {
     const parsed = parseAmount(amountRef.current);
     const prevParsed = props.entry.amount;
     const amountChanged = parsed !== null && parsed !== prevParsed;
-    if (dateChanged || descChanged || bankChanged || amountChanged) {
-      props.onCommit(
-        resolvedDate,
-        descriptionRef.current,
-        bankRef.current,
-        amountRef.current
-      );
+
+    const patch: {
+      entryDate?: string;
+      description?: string;
+      bank?: string;
+      amount?: number;
+    } = {};
+
+    if (dateChanged) patch.entryDate = resolvedDate;
+    if (descChanged) patch.description = descriptionRef.current;
+    if (bankChanged) patch.bank = bankRef.current;
+    if (amountChanged && parsed !== null) patch.amount = parsed;
+
+    if (Object.keys(patch).length > 0) {
+      props.onCommit(patch);
     }
   };
 
@@ -746,12 +811,7 @@ function SpendingRow(props: {
     entryDateRef.current = nextDate;
     const resolved = resolveEntryDate(nextDate);
     if (resolved !== props.entry.entryDate) {
-      void props.onCommit(
-        resolved,
-        descriptionRef.current,
-        bankRef.current,
-        amountRef.current
-      );
+      props.onCommit({ entryDate: resolved });
     }
   };
 
@@ -770,15 +830,35 @@ function SpendingRow(props: {
     </button>
   );
 
+  const paidCheckbox = (
+    <input
+      type="checkbox"
+      className="spending-paid-checkbox"
+      checked={paid}
+      aria-label="Paid"
+      title={paid ? 'Mark as unpaid' : 'Mark as paid'}
+      onMouseDown={(e) => e.preventDefault()}
+      onChange={(e) => {
+        const nextPaid = e.target.checked;
+        setPaid(nextPaid);
+        props.onPaidChange(nextPaid);
+      }}
+    />
+  );
+
   if (props.mobile) {
     return (
-      <div className="finance-mobile-card">
+      <div className={`finance-mobile-card${unpaidClass ? ' finance-mobile-card-unpaid' : ''}`}>
         <div className="finance-mobile-card-top">
           <span className="finance-mobile-card-title">
             {description.trim() || 'Spending line'}
           </span>
           {deleteButton}
         </div>
+        <label className="finance-mobile-field finance-mobile-field-inline">
+          <span className="finance-mobile-label">Paid</span>
+          {paidCheckbox}
+        </label>
         <label className="finance-mobile-field">
           <span className="finance-mobile-label">Payment date</span>
           <input
@@ -796,7 +876,11 @@ function SpendingRow(props: {
             type="text"
             className="finance-mobile-input"
             value={description}
-            onChange={(e) => setDescription(e.target.value)}
+            onChange={(e) => {
+              const next = e.target.value;
+              setDescription(next);
+              descriptionRef.current = next;
+            }}
             onBlur={commitAll}
           />
         </label>
@@ -807,7 +891,11 @@ function SpendingRow(props: {
             className="finance-mobile-input"
             placeholder="Bank…"
             value={bank}
-            onChange={(e) => setBank(e.target.value)}
+            onChange={(e) => {
+              const next = e.target.value;
+              setBank(next);
+              bankRef.current = next;
+            }}
             onBlur={commitAll}
           />
         </label>
@@ -818,7 +906,11 @@ function SpendingRow(props: {
             inputMode="decimal"
             className="finance-mobile-input finance-mobile-input-amount"
             value={amount}
-            onChange={(e) => setAmount(e.target.value)}
+            onChange={(e) => {
+              const next = e.target.value;
+              setAmount(next);
+              amountRef.current = next;
+            }}
             onBlur={commitAll}
           />
         </label>
@@ -827,7 +919,7 @@ function SpendingRow(props: {
   }
 
   return (
-    <tr className="spending-row">
+    <tr className={`spending-row${unpaidClass}`}>
       <td className="spending-col-date" data-label="Payment date">
         <input
           type="date"
@@ -845,7 +937,11 @@ function SpendingRow(props: {
           type="text"
           className="spending-input"
           value={description}
-          onChange={(e) => setDescription(e.target.value)}
+          onChange={(e) => {
+            const next = e.target.value;
+            setDescription(next);
+            descriptionRef.current = next;
+          }}
           onBlur={commitAll}
           onKeyDown={(e) => onSpendingCellKeyDown(e, SPENDING_COL.DESCRIPTION)}
         />
@@ -856,10 +952,17 @@ function SpendingRow(props: {
           className="spending-input"
           placeholder="Bank…"
           value={bank}
-          onChange={(e) => setBank(e.target.value)}
+          onChange={(e) => {
+            const next = e.target.value;
+            setBank(next);
+            bankRef.current = next;
+          }}
           onBlur={commitAll}
           onKeyDown={(e) => onSpendingCellKeyDown(e, SPENDING_COL.BANK)}
         />
+      </td>
+      <td className="spending-col-paid" data-label="Paid">
+        {paidCheckbox}
       </td>
       <td className="spending-col-amount" data-label="Amount">
         <input
@@ -867,7 +970,11 @@ function SpendingRow(props: {
           inputMode="decimal"
           className="spending-input spending-input-amount"
           value={amount}
-          onChange={(e) => setAmount(e.target.value)}
+          onChange={(e) => {
+            const next = e.target.value;
+            setAmount(next);
+            amountRef.current = next;
+          }}
           onBlur={commitAll}
           onKeyDown={(e) => onSpendingCellKeyDown(e, SPENDING_COL.AMOUNT)}
         />

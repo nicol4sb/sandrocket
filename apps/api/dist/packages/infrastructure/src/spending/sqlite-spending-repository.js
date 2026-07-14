@@ -6,6 +6,7 @@ function mapRow(row) {
         amount: row.amount,
         entryDate: row.entry_date,
         bank: row.bank ?? '',
+        paid: row.paid == null ? true : row.paid === 1,
         position: row.position,
         createdAt: new Date(row.created_at),
         updatedAt: new Date(row.updated_at)
@@ -14,8 +15,8 @@ function mapRow(row) {
 export class SqliteSpendingRepository {
     constructor(db) {
         this.db = db;
-        this.insertStmt = db.prepare(`INSERT INTO project_spending_entries (project_id, description, amount, entry_date, bank, position, created_at, updated_at)
-       VALUES (@project_id, @description, @amount, @entry_date, @bank, @position, @created_at, @updated_at)`);
+        this.insertStmt = db.prepare(`INSERT INTO project_spending_entries (project_id, description, amount, entry_date, bank, paid, position, created_at, updated_at)
+       VALUES (@project_id, @description, @amount, @entry_date, @bank, @paid, @position, @created_at, @updated_at)`);
         this.findByIdStmt = db.prepare('SELECT * FROM project_spending_entries WHERE id = ?');
         this.listByProjectStmt = db.prepare('SELECT * FROM project_spending_entries WHERE project_id = ? ORDER BY entry_date ASC, id ASC');
         this.updateStmt = db.prepare(`UPDATE project_spending_entries SET
@@ -23,6 +24,7 @@ export class SqliteSpendingRepository {
          amount = COALESCE(@amount, amount),
          entry_date = COALESCE(@entry_date, entry_date),
          bank = COALESCE(@bank, bank),
+         paid = COALESCE(@paid, paid),
          updated_at = @updated_at
        WHERE id = @id`);
         this.deleteStmt = db.prepare('DELETE FROM project_spending_entries WHERE id = ?');
@@ -49,6 +51,7 @@ export class SqliteSpendingRepository {
             amount: input.amount,
             entry_date: input.entryDate,
             bank: input.bank,
+            paid: input.paid ? 1 : 0,
             position: input.position,
             created_at: now,
             updated_at: now
@@ -69,6 +72,7 @@ export class SqliteSpendingRepository {
             amount: input.amount ?? null,
             entry_date: input.entryDate ?? null,
             bank: input.bank ?? null,
+            paid: input.paid === undefined ? null : input.paid ? 1 : 0,
             updated_at: new Date().toISOString()
         });
         const after = this.findByIdStmt.get(input.id);
@@ -93,6 +97,7 @@ export class SqliteSpendingRepository {
                     amount: input.amount,
                     entry_date: input.entryDate,
                     bank: input.bank,
+                    paid: input.paid ? 1 : 0,
                     position: input.position,
                     created_at: now,
                     updated_at: now

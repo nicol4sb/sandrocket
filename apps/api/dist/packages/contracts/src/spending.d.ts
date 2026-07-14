@@ -6,27 +6,30 @@ export declare const spendingEntryResponseSchema: z.ZodObject<{
     amount: z.ZodNumber;
     entryDate: z.ZodString;
     bank: z.ZodString;
+    paid: z.ZodBoolean;
     position: z.ZodNumber;
     createdAt: z.ZodString;
     updatedAt: z.ZodString;
 }, "strip", z.ZodTypeAny, {
+    amount: number;
+    paid: boolean;
+    id: number;
     projectId: number;
     description: string;
-    amount: number;
     entryDate: string;
     bank: string;
     position: number;
-    id: number;
     createdAt: string;
     updatedAt: string;
 }, {
+    amount: number;
+    paid: boolean;
+    id: number;
     projectId: number;
     description: string;
-    amount: number;
     entryDate: string;
     bank: string;
     position: number;
-    id: number;
     createdAt: string;
     updatedAt: string;
 }>;
@@ -49,13 +52,16 @@ export declare const createSpendingEntryRequestSchema: z.ZodObject<{
     amount: z.ZodNumber;
     entryDate: z.ZodOptional<z.ZodString>;
     bank: z.ZodDefault<z.ZodOptional<z.ZodString>>;
+    paid: z.ZodDefault<z.ZodOptional<z.ZodBoolean>>;
 }, "strip", z.ZodTypeAny, {
-    description: string;
     amount: number;
+    paid: boolean;
+    description: string;
     bank: string;
     entryDate?: string | undefined;
 }, {
     amount: number;
+    paid?: boolean | undefined;
     description?: string | undefined;
     entryDate?: string | undefined;
     bank?: string | undefined;
@@ -66,14 +72,17 @@ export declare const updateSpendingEntryRequestSchema: z.ZodObject<{
     amount: z.ZodOptional<z.ZodNumber>;
     entryDate: z.ZodOptional<z.ZodString>;
     bank: z.ZodOptional<z.ZodString>;
+    paid: z.ZodOptional<z.ZodBoolean>;
 }, "strip", z.ZodTypeAny, {
-    description?: string | undefined;
     amount?: number | undefined;
+    paid?: boolean | undefined;
+    description?: string | undefined;
     entryDate?: string | undefined;
     bank?: string | undefined;
 }, {
-    description?: string | undefined;
     amount?: number | undefined;
+    paid?: boolean | undefined;
+    description?: string | undefined;
     entryDate?: string | undefined;
     bank?: string | undefined;
 }>;
@@ -85,21 +94,25 @@ export declare const importSpendingEntriesRequestSchema: z.ZodObject<{
         amount: z.ZodNumber;
         entryDate: z.ZodOptional<z.ZodString>;
         bank: z.ZodDefault<z.ZodOptional<z.ZodString>>;
+        paid: z.ZodDefault<z.ZodOptional<z.ZodBoolean>>;
     }, "strip", z.ZodTypeAny, {
-        description: string;
         amount: number;
+        paid: boolean;
+        description: string;
         bank: string;
         entryDate?: string | undefined;
     }, {
         amount: number;
+        paid?: boolean | undefined;
         description?: string | undefined;
         entryDate?: string | undefined;
         bank?: string | undefined;
     }>, "many">;
 }, "strip", z.ZodTypeAny, {
     entries: {
-        description: string;
         amount: number;
+        paid: boolean;
+        description: string;
         bank: string;
         entryDate?: string | undefined;
     }[];
@@ -107,6 +120,7 @@ export declare const importSpendingEntriesRequestSchema: z.ZodObject<{
 }, {
     entries: {
         amount: number;
+        paid?: boolean | undefined;
         description?: string | undefined;
         entryDate?: string | undefined;
         bank?: string | undefined;

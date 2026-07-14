@@ -5,6 +5,7 @@ export interface SpendingEntry {
     amount: number;
     entryDate: string;
     bank: string;
+    paid: boolean;
     position: number;
     createdAt: Date;
     updatedAt: Date;
@@ -15,6 +16,7 @@ export interface CreateSpendingEntryInput {
     amount: number;
     entryDate: string;
     bank: string;
+    paid: boolean;
     position: number;
 }
 export interface UpdateSpendingEntryInput {
@@ -23,4 +25,6 @@ export interface UpdateSpendingEntryInput {
     amount?: number;
     entryDate?: string;
     bank?: string;
+    paid?: boolean;
 }
+export declare function spendingPaidTotal(entries: Pick<SpendingEntry, 'amount' | 'paid'>[]): number;

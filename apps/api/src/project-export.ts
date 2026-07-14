@@ -1,6 +1,6 @@
 import * as XLSX from 'xlsx';
 import type { Epic, SpendingEntry, SummaryEntry, Task } from '@sandrocket/core';
-import { sortByEntryDate } from '@sandrocket/core';
+import { sortByEntryDate, spendingPaidTotal } from '@sandrocket/core';
 
 function formatDisplayDate(iso: string): string {
   const [y, m, d] = iso.split('-');
@@ -25,13 +25,13 @@ function workbookToBuffer(
 /** Matches SpendingTable export / import format */
 export function buildSpendingExcelBuffer(entries: SpendingEntry[]): Buffer {
   const sorted = sortByEntryDate(entries);
-  const totalAmount = sorted.reduce((sum, e) => sum + e.amount, 0);
+  const totalAmount = spendingPaidTotal(sorted);
   const rows: (string | number)[][] = [
-    ['Payment date', 'Description', 'Bank', 'Amount'],
-    ...sorted.map((e) => [e.entryDate, e.description, e.bank, e.amount]),
-    ['', '', 'Total', totalAmount]
+    ['Payment date', 'Description', 'Bank', 'Paid', 'Amount'],
+    ...sorted.map((e) => [e.entryDate, e.description, e.bank, e.paid ? 'Yes' : 'No', e.amount]),
+    ['', '', '', 'Total', totalAmount]
   ];
-  return workbookToBuffer(rows, 'Spending', [{ wch: 12 }, { wch: 32 }, { wch: 16 }, { wch: 14 }]);
+  return workbookToBuffer(rows, 'Spending', [{ wch: 12 }, { wch: 32 }, { wch: 16 }, { wch: 8 }, { wch: 14 }]);
 }
 
 /** Matches SummaryTable (Devis) export / import format */

@@ -1,5 +1,5 @@
 import * as XLSX from 'xlsx';
-import { sortByEntryDate } from '@sandrocket/core';
+import { sortByEntryDate, spendingPaidTotal } from '@sandrocket/core';
 function formatDisplayDate(iso) {
     const [y, m, d] = iso.split('-');
     if (!y || !m || !d)
@@ -18,13 +18,13 @@ function workbookToBuffer(rows, sheetName, colWidths) {
 /** Matches SpendingTable export / import format */
 export function buildSpendingExcelBuffer(entries) {
     const sorted = sortByEntryDate(entries);
-    const totalAmount = sorted.reduce((sum, e) => sum + e.amount, 0);
+    const totalAmount = spendingPaidTotal(sorted);
     const rows = [
-        ['Payment date', 'Description', 'Bank', 'Amount'],
-        ...sorted.map((e) => [e.entryDate, e.description, e.bank, e.amount]),
-        ['', '', 'Total', totalAmount]
+        ['Payment date', 'Description', 'Bank', 'Paid', 'Amount'],
+        ...sorted.map((e) => [e.entryDate, e.description, e.bank, e.paid ? 'Yes' : 'No', e.amount]),
+        ['', '', '', 'Total', totalAmount]
     ];
-    return workbookToBuffer(rows, 'Spending', [{ wch: 12 }, { wch: 32 }, { wch: 16 }, { wch: 14 }]);
+    return workbookToBuffer(rows, 'Spending', [{ wch: 12 }, { wch: 32 }, { wch: 16 }, { wch: 8 }, { wch: 14 }]);
 }
 /** Matches SummaryTable (Devis) export / import format */
 export function buildDevisExcelBuffer(entries) {
