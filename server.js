@@ -41,9 +41,9 @@ if (!existsSync(tsxPath)) {
   process.exit(1);
 }
 
-// Spawn tsx to run the TypeScript source
-// tsx handles workspace module resolution correctly
-const tsx = spawn('node', [tsxPath, sourceEntry], {
+// Spawn tsx with the same Node binary as this process (not PATH's `node`).
+// Under systemd, PATH often has /usr/bin/node (older) while ExecStart uses nvm.
+const tsx = spawn(process.execPath, [tsxPath, sourceEntry], {
   stdio: 'inherit',
   cwd: repoRoot,
   env: process.env
