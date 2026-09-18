@@ -10,20 +10,13 @@ import type {
 import { useIsMobile } from './hooks/useMediaQuery';
 import { sortEntriesByDate } from './financeSort';
 import { LocaleDateInput } from './LocaleDateInput';
-import { formatLocaleDate, formatLocaleDateMedium, parseFlexibleDisplayDate } from './localeFormat';
+import { formatLocaleDateMedium, parseFlexibleDisplayDate } from './localeFormat';
 import { findDocumentByFilename, openDocumentView } from './documentLinks';
 
 interface SummaryTableProps {
   projectId: number;
   projectName: string;
   baseUrl: string;
-}
-
-interface DraftRow {
-  lot: string;
-  fichierRetenu: string;
-  entryDate: string;
-  amount: string;
 }
 
 interface ParsedDevisRow {
@@ -37,7 +30,6 @@ const DEVIS_HEADERS = ['Lot', 'Fichier retenu', 'Date du devis', 'TTC (€)'] as
 
 const SUMMARY_COL = {
   LOT: 0,
-  FICHIER: 1,
   DATE: 2,
   AMOUNT: 3
 } as const;
@@ -49,10 +41,6 @@ function todayIso(): string {
 function resolveEntryDate(value: string): string {
   const trimmed = value.trim();
   return trimmed || todayIso();
-}
-
-function newDraftRow(): DraftRow {
-  return { lot: '', fichierRetenu: '', entryDate: todayIso(), amount: '' };
 }
 
 function toIsoDate(d: Date): string {
@@ -102,10 +90,6 @@ function formatAmount(amount: number): string {
 function formatAmountInput(amount: number): string {
   if (amount === 0) return '';
   return formatAmount(amount);
-}
-
-function rowHasContent(lot: string, amountStr: string): boolean {
-  return lot.trim().length > 0 || (parseAmount(amountStr) ?? 0) !== 0;
 }
 
 const MAX_DEVIS_DROP_BYTES = 50 * 1024 * 1024;
@@ -193,7 +177,7 @@ function navigateSummaryCellVertically(
   if (!row || !tbody) return;
 
   const dataRows = Array.from(
-    tbody.querySelectorAll<HTMLTableRowElement>('tr.summary-row, tr.summary-row-draft')
+    tbody.querySelectorAll<HTMLTableRowElement>('tr.summary-row')
   );
   const rowIndex = dataRows.indexOf(row as HTMLTableRowElement);
   if (rowIndex === -1) return;
@@ -253,11 +237,6 @@ function exportSummaryToExcel(
 
 export function SummaryTable({ projectId, projectName, baseUrl }: SummaryTableProps) {
   const [entries, setEntries] = useState<SummaryEntryResponse[]>([]);
-  const [draft, setDraft] = useState<DraftRow>(newDraftRow);
-  const [draftExpanded, setDraftExpanded] = useState(false);
-  const draftBlurSkipRef = useRef(false);
-  const draftPrimaryRef = useRef<HTMLInputElement>(null);
-  const draftRowRef = useRef<HTMLDivElement>(null);
   const [expandedEntryId, setExpandedEntryId] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -265,10 +244,8 @@ export function SummaryTable({ projectId, projectName, baseUrl }: SummaryTablePr
   const [documents, setDocuments] = useState<DocumentResponse[]>([]);
   const [isDragOver, setIsDragOver] = useState(false);
   const [dropError, setDropError] = useState<string | null>(null);
-  const draftRef = useRef(draft);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dragDepthRef = useRef(0);
-  draftRef.current = draft;
   const dateMax = todayIso();
 
   const fetchSummary = useCallback(async () => {
@@ -301,42 +278,9 @@ export function SummaryTable({ projectId, projectName, baseUrl }: SummaryTablePr
 
   useEffect(() => {
     setLoading(true);
-    setDraft(newDraftRow());
-    fetchSummary();
-    fetchDocuments();
+    void fetchSummary();
+    void fetchDocuments();
   }, [fetchSummary, fetchDocuments]);
-
-  const createEntry = async (
-    lot: string,
-    fichierRetenu: string,
-    entryDate: string,
-    amountStr: string
-  ) => {
-    const amount = parseAmount(amountStr);
-    if (amount === null) return;
-    if (!rowHasContent(lot, amountStr)) return;
-
-    setSaving(true);
-    try {
-      const res = await fetch(`${baseUrl}/projects/${projectId}/summary`, {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          lot: lot.trim(),
-          fichierRetenu: fichierRetenu.trim(),
-          amount,
-          ...(entryDate.trim() ? { entryDate: entryDate.trim() } : {})
-        })
-      });
-      if (res.ok) {
-        setDraft(newDraftRow());
-        await fetchSummary();
-      }
-    } finally {
-      setSaving(false);
-    }
-  };
 
   const createEntryFromDroppedFile = async (originalFilename: string) => {
     const lot = lotNameFromFilename(originalFilename);
@@ -392,17 +336,6 @@ export function SummaryTable({ projectId, projectName, baseUrl }: SummaryTablePr
     }
   };
 
-  const handleDroppedFiles = async (files: File[]) => {
-    if (files.length === 0) return;
-    for (const file of files) {
-      if (isExcelFile(file)) {
-        await handleImportFile(file);
-      } else {
-        await uploadDocumentAndCreateLine(file);
-      }
-    }
-  };
-
   const importEntries = async (parsed: ParsedDevisRow[]) => {
     if (parsed.length === 0) {
       setImportError('No data rows found in the Excel file.');
@@ -439,7 +372,7 @@ export function SummaryTable({ projectId, projectName, baseUrl }: SummaryTablePr
       }
       const data = (await res.json()) as ImportSummaryResponse;
       setEntries(sortEntriesByDate(data.entries));
-      setDraft(newDraftRow());
+      await fetchDocuments();
     } catch {
       setImportError('Import failed. Check the file format.');
     } finally {
@@ -455,6 +388,17 @@ export function SummaryTable({ projectId, projectName, baseUrl }: SummaryTablePr
       await importEntries(parsed);
     } catch {
       setImportError('Could not read the Excel file.');
+    }
+  };
+
+  const handleDroppedFiles = async (files: File[]) => {
+    if (files.length === 0) return;
+    for (const file of files) {
+      if (isExcelFile(file)) {
+        await handleImportFile(file);
+      } else {
+        await uploadDocumentAndCreateLine(file);
+      }
     }
   };
 
@@ -502,40 +446,6 @@ export function SummaryTable({ projectId, projectName, baseUrl }: SummaryTablePr
     } finally {
       setSaving(false);
     }
-  };
-
-  const expandDraft = () => {
-    setExpandedEntryId(null);
-    draftBlurSkipRef.current = true;
-    setDraftExpanded(true);
-    requestAnimationFrame(() => draftPrimaryRef.current?.focus());
-  };
-
-  const collapseDraft = useCallback(() => {
-    const { lot, fichierRetenu, entryDate, amount } = draftRef.current;
-    if (rowHasContent(lot, amount)) {
-      void createEntry(lot, fichierRetenu, entryDate, amount);
-    }
-    setDraftExpanded(false);
-  }, [createEntry]);
-
-  useEffect(() => {
-    if (!draftExpanded) return;
-    const onPointerDown = (e: PointerEvent) => {
-      if (draftRowRef.current?.contains(e.target as Node)) return;
-      collapseDraft();
-    };
-    document.addEventListener('pointerdown', onPointerDown, true);
-    return () => document.removeEventListener('pointerdown', onPointerDown, true);
-  }, [draftExpanded, collapseDraft]);
-
-  const handleDraftBlur = (e: React.FocusEvent<HTMLElement>) => {
-    if (isFocusMovingWithinRow(e)) return;
-    if (draftBlurSkipRef.current) {
-      draftBlurSkipRef.current = false;
-      return;
-    }
-    collapseDraft();
   };
 
   const totalAmount = entries.reduce((sum, e) => sum + e.amount, 0);
@@ -596,7 +506,7 @@ export function SummaryTable({ projectId, projectName, baseUrl }: SummaryTablePr
         {isDragOver && (
           <div className="summary-drop-overlay" aria-hidden>
             <strong>Drop to add devis line</strong>
-            <span>Uploads the file and creates a row with Fichier retenu set</span>
+            <span>Uploads to Documents and sets Fichier retenu</span>
           </div>
         )}
         <div className="summary-toolbar">
@@ -631,113 +541,40 @@ export function SummaryTable({ projectId, projectName, baseUrl }: SummaryTablePr
         </div>
 
         <div className="summary-table-wrap">
-            {(importError || dropError) && (
-              <p className="summary-import-error">{importError ?? dropError}</p>
-            )}
-            {isMobile ? (
-              <div className="finance-compact-list">
-                {entries.map((entry) => (
-                  <SummaryRow
-                    key={entry.id}
-                    compact
-                    entry={entry}
-                    dateMax={dateMax}
-                    baseUrl={baseUrl}
-                    documents={documents}
-                    expanded={expandedEntryId === entry.id}
-                    onExpandedChange={(open) => {
-                      setExpandedEntryId(open ? entry.id : null);
-                      if (open) setDraftExpanded(false);
-                    }}
-                    onCommit={(lot, fichierRetenu, entryDate, amount) =>
-                      void updateEntry(entry, lot, fichierRetenu, entryDate, amount)
-                    }
-                    onDelete={() => void deleteEntry(entry.id)}
-                  />
-                ))}
-                <div
-                  ref={draftRowRef}
-                  className={`finance-compact-row finance-compact-row-draft${
-                    draftExpanded ? ' finance-compact-row-expanded' : ''
-                  }`}
-                >
-                  {!draftExpanded ? (
-                    <div className="finance-compact-draft-collapsed">
-                      <input
-                        type="text"
-                        className="finance-compact-input finance-compact-draft-trigger"
-                        placeholder="Add a line…"
-                        value={draft.lot}
-                        onFocus={expandDraft}
-                        onChange={(e) => {
-                          const next = e.target.value;
-                          setDraft((d) => ({ ...d, lot: next }));
-                          if (next.trim() && !draftExpanded) expandDraft();
-                        }}
-                        onBlur={handleDraftBlur}
-                      />
-                    </div>
-                  ) : (
-                    <div className="finance-compact-details finance-compact-details-open">
-                      <label className="finance-compact-field">
-                        <span>Lot</span>
-                        <input
-                          ref={draftPrimaryRef}
-                          type="text"
-                          className="finance-compact-input"
-                          placeholder="Add a line…"
-                          value={draft.lot}
-                          onChange={(e) => setDraft((d) => ({ ...d, lot: e.target.value }))}
-                          onBlur={handleDraftBlur}
-                        />
-                      </label>
-                      <div className="finance-compact-field-row">
-                        <label className="finance-compact-field">
-                          <span>TTC (€)</span>
-                          <input
-                            type="text"
-                            inputMode="decimal"
-                            className="finance-compact-input finance-compact-input-amount"
-                            placeholder="0"
-                            value={draft.amount}
-                            onChange={(e) => setDraft((d) => ({ ...d, amount: e.target.value }))}
-                            onBlur={handleDraftBlur}
-                          />
-                        </label>
-                        <label className="finance-compact-field">
-                          <span>Date</span>
-                          <LocaleDateInput
-                            displayClassName="finance-compact-input locale-date-display-field"
-                            value={draft.entryDate}
-                            max={dateMax}
-                            onChange={(next) => setDraft((d) => ({ ...d, entryDate: next }))}
-                            onBlur={handleDraftBlur}
-                          />
-                        </label>
-                      </div>
-                      <label className="finance-compact-field">
-                        <span>Fichier retenu</span>
-                        <input
-                          type="text"
-                          className="finance-compact-input"
-                          placeholder="Fichier…"
-                          value={draft.fichierRetenu}
-                          onChange={(e) => setDraft((d) => ({ ...d, fichierRetenu: e.target.value }))}
-                          onBlur={handleDraftBlur}
-                        />
-                      </label>
-                    </div>
-                  )}
-                </div>
-                <div className="finance-compact-totals">
-                  <div className="finance-compact-total finance-compact-total-devis">
-                    <span>Total TTC</span>
-                    <strong>{formatAmount(totalAmount)}</strong>
-                  </div>
+          {(importError || dropError) && (
+            <p className="summary-import-error">{importError ?? dropError}</p>
+          )}
+          {isMobile ? (
+            <div className="finance-compact-list">
+              {entries.map((entry) => (
+                <SummaryRow
+                  key={entry.id}
+                  compact
+                  entry={entry}
+                  dateMax={dateMax}
+                  baseUrl={baseUrl}
+                  documents={documents}
+                  expanded={expandedEntryId === entry.id}
+                  onExpandedChange={(open) => {
+                    setExpandedEntryId(open ? entry.id : null);
+                  }}
+                  onCommit={(lot, fichierRetenu, entryDate, amount) =>
+                    void updateEntry(entry, lot, fichierRetenu, entryDate, amount)
+                  }
+                  onDelete={() => void deleteEntry(entry.id)}
+                />
+              ))}
+              <p className="summary-drop-hint">
+                Drop a PDF or Word file here to upload it to Documents and add a devis line.
+              </p>
+              <div className="finance-compact-totals">
+                <div className="finance-compact-total finance-compact-total-devis">
+                  <span>Total TTC</span>
+                  <strong>{formatAmount(totalAmount)}</strong>
                 </div>
               </div>
-            ) : (
-            <>
+            </div>
+          ) : (
             <table className="summary-table">
               <thead>
                 <tr>
@@ -762,53 +599,12 @@ export function SummaryTable({ projectId, projectName, baseUrl }: SummaryTablePr
                     onDelete={() => void deleteEntry(entry.id)}
                   />
                 ))}
-                <tr className="summary-row-draft">
-                  <td className="summary-col-lot" data-label="Lot">
-                    <input
-                      type="text"
-                      className="summary-input"
-                      placeholder="Add a line…"
-                      value={draft.lot}
-                      onChange={(e) => setDraft((d) => ({ ...d, lot: e.target.value }))}
-                      onBlur={handleDraftBlur}
-                      onKeyDown={(e) => onSummaryCellKeyDown(e, SUMMARY_COL.LOT)}
-                    />
+                <tr className="summary-row-hint">
+                  <td colSpan={5}>
+                    <p className="summary-drop-hint">
+                      Drop a PDF or Word file here to upload it to Documents and add a devis line.
+                    </p>
                   </td>
-                  <td className="summary-col-fichier" data-label="Fichier retenu">
-                    <input
-                      type="text"
-                      className="summary-input"
-                      placeholder="Fichier…"
-                      value={draft.fichierRetenu}
-                      onChange={(e) => setDraft((d) => ({ ...d, fichierRetenu: e.target.value }))}
-                      onBlur={handleDraftBlur}
-                      onKeyDown={(e) => onSummaryCellKeyDown(e, SUMMARY_COL.FICHIER)}
-                    />
-                  </td>
-                  <td className="summary-col-date" data-label="Date du devis">
-                    <LocaleDateInput
-                      displayClassName="summary-input summary-input-date locale-date-display-field"
-                      value={draft.entryDate}
-                      max={dateMax}
-                      onChange={(next) => setDraft((d) => ({ ...d, entryDate: next }))}
-                      onBlur={handleDraftBlur}
-                      onKeyDown={(e) => onSummaryCellKeyDown(e, SUMMARY_COL.DATE)}
-                      title={`Defaults to today (up to ${formatLocaleDate(dateMax)})`}
-                    />
-                  </td>
-                  <td className="summary-col-amount" data-label="TTC (€)">
-                    <input
-                      type="text"
-                      inputMode="decimal"
-                      className="summary-input summary-input-amount"
-                      placeholder="0"
-                      value={draft.amount}
-                      onChange={(e) => setDraft((d) => ({ ...d, amount: e.target.value }))}
-                      onBlur={handleDraftBlur}
-                      onKeyDown={(e) => onSummaryCellKeyDown(e, SUMMARY_COL.AMOUNT)}
-                    />
-                  </td>
-                  <td className="summary-col-actions" />
                 </tr>
                 <tr className="summary-row-total">
                   <td colSpan={3}>Total TTC</td>
@@ -817,9 +613,8 @@ export function SummaryTable({ projectId, projectName, baseUrl }: SummaryTablePr
                 </tr>
               </tbody>
             </table>
-            </>
-            )}
-          </div>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -827,34 +622,22 @@ export function SummaryTable({ projectId, projectName, baseUrl }: SummaryTablePr
 
 function FichierRetenuField(props: {
   value: string;
-  onChange: (value: string) => void;
-  onBlur: (e: React.FocusEvent<HTMLElement>) => void;
-  onKeyDown?: (e: React.KeyboardEvent<HTMLInputElement>) => void;
   documents: DocumentResponse[];
   baseUrl: string;
-  inputClassName: string;
-  placeholder?: string;
 }) {
   const matched = findDocumentByFilename(props.documents, props.value);
 
   return (
     <div className={`summary-fichier-field${matched ? ' summary-fichier-field-linked' : ''}`}>
-      <input
-        type="text"
-        className={props.inputClassName}
-        value={props.value}
-        placeholder={props.placeholder}
-        onChange={(e) => props.onChange(e.target.value)}
-        onBlur={props.onBlur}
-        onKeyDown={props.onKeyDown}
-      />
+      <span className="summary-fichier-readonly" title={props.value || undefined}>
+        {props.value || '—'}
+      </span>
       {matched && (
         <button
           type="button"
           className="summary-fichier-open-btn"
           title={`Open ${matched.originalFilename}`}
           aria-label={`Open ${matched.originalFilename}`}
-          onMouseDown={(e) => e.preventDefault()}
           onClick={() => openDocumentView(props.baseUrl, matched.id)}
         >
           <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
@@ -879,22 +662,19 @@ function SummaryRow(props: {
   onDelete: () => void;
 }) {
   const [lot, setLot] = useState(props.entry.lot);
-  const [fichierRetenu, setFichierRetenu] = useState(props.entry.fichierRetenu);
   const [entryDate, setEntryDate] = useState(props.entry.entryDate);
   const [amount, setAmount] = useState(formatAmountInput(props.entry.amount));
   const rowRef = useRef<HTMLDivElement>(null);
   const lotRef = useRef(lot);
-  const fichierRetenuRef = useRef(fichierRetenu);
   const entryDateRef = useRef(entryDate);
   const amountRef = useRef(amount);
   lotRef.current = lot;
-  fichierRetenuRef.current = fichierRetenu;
   entryDateRef.current = entryDate;
   amountRef.current = amount;
+  const fichierRetenu = props.entry.fichierRetenu;
 
   useEffect(() => {
     setLot(props.entry.lot);
-    setFichierRetenu(props.entry.fichierRetenu);
     setEntryDate(props.entry.entryDate);
     setAmount(formatAmountInput(props.entry.amount));
   }, [props.entry.lot, props.entry.fichierRetenu, props.entry.entryDate, props.entry.amount]);
@@ -903,25 +683,18 @@ function SummaryRow(props: {
     if (e && isFocusMovingWithinRow(e)) return;
     const resolvedDate = resolveEntryDate(entryDateRef.current);
     const lotChanged = lotRef.current !== props.entry.lot;
-    const fichierChanged = fichierRetenuRef.current !== props.entry.fichierRetenu;
     const dateChanged = resolvedDate !== props.entry.entryDate;
     const parsed = parseAmount(amountRef.current);
-    const prevParsed = props.entry.amount;
-    const amountChanged = parsed !== null && parsed !== prevParsed;
-    if (lotChanged || fichierChanged || dateChanged || amountChanged) {
-      props.onCommit(
-        lotRef.current,
-        fichierRetenuRef.current,
-        resolvedDate,
-        amountRef.current
-      );
+    const amountChanged = parsed !== null && parsed !== props.entry.amount;
+    if (lotChanged || dateChanged || amountChanged) {
+      props.onCommit(lotRef.current, fichierRetenu, resolvedDate, amountRef.current);
     }
   };
 
   const collapseCompact = useCallback(() => {
     commitAll();
     props.onExpandedChange?.(false);
-  }, [props]);
+  }, [props, fichierRetenu]);
 
   const handleCompactBlur = (e: React.FocusEvent<HTMLElement>) => {
     if (isFocusMovingWithinRow(e)) return;
@@ -943,7 +716,7 @@ function SummaryRow(props: {
     entryDateRef.current = nextDate;
     const resolved = resolveEntryDate(nextDate);
     if (resolved !== props.entry.entryDate) {
-      props.onCommit(lotRef.current, fichierRetenuRef.current, resolved, amountRef.current);
+      props.onCommit(lotRef.current, fichierRetenu, resolved, amountRef.current);
     }
   };
 
@@ -1032,11 +805,8 @@ function SummaryRow(props: {
               <span>Fichier retenu</span>
               <FichierRetenuField
                 value={fichierRetenu}
-                onChange={setFichierRetenu}
-                onBlur={handleCompactBlur}
                 documents={props.documents}
                 baseUrl={props.baseUrl}
-                inputClassName="finance-compact-input"
               />
             </label>
             <div className="finance-compact-details-actions">{deleteButton}</div>
@@ -1061,12 +831,8 @@ function SummaryRow(props: {
       <td className="summary-col-fichier" data-label="Fichier retenu">
         <FichierRetenuField
           value={fichierRetenu}
-          onChange={setFichierRetenu}
-          onBlur={commitAll}
-          onKeyDown={(e) => onSummaryCellKeyDown(e, SUMMARY_COL.FICHIER)}
           documents={props.documents}
           baseUrl={props.baseUrl}
-          inputClassName="summary-input"
         />
       </td>
       <td className="summary-col-date" data-label="Date du devis">

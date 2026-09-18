@@ -20,7 +20,6 @@ import {
   lotSpentTotal,
   type LotDraftRow
 } from './SpendingLotGroups';
-import { DocumentPreviewOverlay } from './DocumentPreviewOverlay';
 import { LocaleDateInput } from './LocaleDateInput';
 import { formatLocaleDate, formatLocaleDateMedium, parseFlexibleDisplayDate } from './localeFormat';
 
@@ -325,7 +324,6 @@ export function SpendingTable({ projectId, projectName, baseUrl }: SpendingTable
   const [entries, setEntries] = useState<SpendingEntryResponse[]>([]);
   const [lots, setLots] = useState<SpendingLotResponse[]>([]);
   const [documents, setDocuments] = useState<DocumentResponse[]>([]);
-  const [previewDocument, setPreviewDocument] = useState<DocumentResponse | null>(null);
   const [draft, setDraft] = useState<DraftRow>(newDraftRow);
   const [draftExpanded, setDraftExpanded] = useState(false);
   const draftBlurSkipRef = useRef(false);
@@ -372,7 +370,6 @@ export function SpendingTable({ projectId, projectName, baseUrl }: SpendingTable
   useEffect(() => {
     setLoading(true);
     setDraft(newDraftRow());
-    setPreviewDocument(null);
     void fetchSpending();
     void fetchDocuments();
   }, [fetchSpending, fetchDocuments]);
@@ -662,13 +659,6 @@ export function SpendingTable({ projectId, projectName, baseUrl }: SpendingTable
 
   return (
     <div id="board-spending" className="spending-section board-section">
-      {previewDocument && (
-        <DocumentPreviewOverlay
-          baseUrl={baseUrl}
-          document={previewDocument}
-          onClose={() => setPreviewDocument(null)}
-        />
-      )}
       <input
         ref={fileInputRef}
         type="file"
@@ -754,7 +744,7 @@ export function SpendingTable({ projectId, projectName, baseUrl }: SpendingTable
                     colorIndex={index}
                     entries={entries}
                     documents={documents}
-                    onPreviewDocument={setPreviewDocument}
+                    baseUrl={baseUrl}
                     dateMax={dateMax}
                     expandedEntryId={expandedEntryId}
                     onExpandedChange={setExpandedEntryId}
@@ -930,7 +920,7 @@ export function SpendingTable({ projectId, projectName, baseUrl }: SpendingTable
                       colorIndex={index}
                       spent={spent}
                       documents={documents}
-                      onPreviewDocument={setPreviewDocument}
+                      baseUrl={baseUrl}
                     />
                     {lotEntries.map((entry) => renderSpendingRow(spendingRowProps(entry)))}
                     <SpendingLotDraftRow

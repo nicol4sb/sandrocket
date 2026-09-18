@@ -6,7 +6,7 @@ import type {
 } from '@sandrocket/contracts';
 import { sortEntriesByDate } from './financeSort';
 import { LocaleDateInput } from './LocaleDateInput';
-import { documentPreviewKind, findDocumentByFilename } from './documentLinks';
+import { documentPreviewKind, findDocumentByFilename, openDocumentView } from './documentLinks';
 
 export function lotSpentTotal(entries: SpendingEntryResponse[], lotId: number): number {
   return entries.filter((e) => e.lotId === lotId && e.paid).reduce((sum, e) => sum + e.amount, 0);
@@ -209,7 +209,7 @@ interface SpendingLotEstimateRowProps {
   colorIndex: number;
   spent: number;
   documents?: DocumentResponse[];
-  onPreviewDocument?: (doc: DocumentResponse) => void;
+  baseUrl?: string;
 }
 
 function DocumentKindIcon({ kind }: { kind: 'pdf' | 'word' | 'image' | 'other' }) {
@@ -265,13 +265,13 @@ export function SpendingLotEstimateRow(props: SpendingLotEstimateRowProps) {
       <td data-label="Description">
         <span className="spending-lot-desc-with-doc">
           <span className="spending-lot-devis-title">{title}</span>
-          {matchedDoc && kind && props.onPreviewDocument && (
+          {matchedDoc && kind && props.baseUrl && (
             <button
               type="button"
               className={`spending-lot-doc-btn spending-lot-doc-btn-${kind}`}
-              title={`Preview ${matchedDoc.originalFilename}`}
-              aria-label={`Preview ${matchedDoc.originalFilename}`}
-              onClick={() => props.onPreviewDocument?.(matchedDoc)}
+              title={`Open ${matchedDoc.originalFilename}`}
+              aria-label={`Open ${matchedDoc.originalFilename}`}
+              onClick={() => openDocumentView(props.baseUrl!, matchedDoc.id)}
             >
               <DocumentKindIcon kind={kind} />
             </button>
@@ -389,7 +389,7 @@ interface SpendingLotMobileGroupProps {
   colorIndex: number;
   entries: SpendingEntryResponse[];
   documents?: DocumentResponse[];
-  onPreviewDocument?: (doc: DocumentResponse) => void;
+  baseUrl?: string;
   dateMax: string;
   expandedEntryId: number | null;
   onExpandedChange: (entryId: number | null) => void;
@@ -430,13 +430,13 @@ export function SpendingLotMobileGroup(props: SpendingLotMobileGroupProps) {
         <div className="spending-lot-mobile-estimate-head">
           <span className="spending-lot-desc-with-doc">
             <strong className="spending-lot-devis-title">{title}</strong>
-            {matchedDoc && kind && props.onPreviewDocument && (
+            {matchedDoc && kind && props.baseUrl && (
               <button
                 type="button"
                 className={`spending-lot-doc-btn spending-lot-doc-btn-${kind}`}
-                title={`Preview ${matchedDoc.originalFilename}`}
-                aria-label={`Preview ${matchedDoc.originalFilename}`}
-                onClick={() => props.onPreviewDocument?.(matchedDoc)}
+                title={`Open ${matchedDoc.originalFilename}`}
+                aria-label={`Open ${matchedDoc.originalFilename}`}
+                onClick={() => openDocumentView(props.baseUrl!, matchedDoc.id)}
               >
                 <DocumentKindIcon kind={kind} />
               </button>
