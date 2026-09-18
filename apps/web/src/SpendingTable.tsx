@@ -65,16 +65,16 @@ function parsePaidValue(value: unknown): boolean {
   return true;
 }
 
-function paidTotal(entries: SpendingEntryResponse[]): number {
-  return entries.filter((e) => e.paid).reduce((sum, e) => sum + e.amount, 0);
-}
-
 function debtPaidTotal(entries: SpendingEntryResponse[]): number {
-  return entries.filter((e) => e.debtPaid).reduce((sum, e) => sum + e.amount, 0);
+  return entries.filter((e) => e.paid && e.debtPaid).reduce((sum, e) => sum + e.amount, 0);
 }
 
 function nonDebtPaidTotal(entries: SpendingEntryResponse[]): number {
   return entries.filter((e) => e.paid && !e.debtPaid).reduce((sum, e) => sum + e.amount, 0);
+}
+
+function paidTotal(entries: SpendingEntryResponse[]): number {
+  return debtPaidTotal(entries) + nonDebtPaidTotal(entries);
 }
 
 function todayIso(): string {

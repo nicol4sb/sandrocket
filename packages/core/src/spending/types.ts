@@ -36,14 +36,16 @@ export interface UpdateSpendingEntryInput {
   debtPaid?: boolean;
 }
 
-export function spendingPaidTotal(entries: Pick<SpendingEntry, 'amount' | 'paid'>[]): number {
-  return entries.filter((e) => e.paid).reduce((sum, e) => sum + e.amount, 0);
+export function spendingPaidTotal(
+  entries: Pick<SpendingEntry, 'amount' | 'paid' | 'debtPaid'>[]
+): number {
+  return spendingDebtPaidTotal(entries) + spendingNonDebtPaidTotal(entries);
 }
 
 export function spendingDebtPaidTotal(
-  entries: Pick<SpendingEntry, 'amount' | 'debtPaid'>[]
+  entries: Pick<SpendingEntry, 'amount' | 'paid' | 'debtPaid'>[]
 ): number {
-  return entries.filter((e) => e.debtPaid).reduce((sum, e) => sum + e.amount, 0);
+  return entries.filter((e) => e.paid && e.debtPaid).reduce((sum, e) => sum + e.amount, 0);
 }
 
 export function spendingNonDebtPaidTotal(

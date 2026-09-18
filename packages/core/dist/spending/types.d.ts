@@ -33,6 +33,6 @@ export interface UpdateSpendingEntryInput {
     paid?: boolean;
     debtPaid?: boolean;
 }
-export declare function spendingPaidTotal(entries: Pick<SpendingEntry, 'amount' | 'paid'>[]): number;
-export declare function spendingDebtPaidTotal(entries: Pick<SpendingEntry, 'amount' | 'debtPaid'>[]): number;
+export declare function spendingPaidTotal(entries: Pick<SpendingEntry, 'amount' | 'paid' | 'debtPaid'>[]): number;
+export declare function spendingDebtPaidTotal(entries: Pick<SpendingEntry, 'amount' | 'paid' | 'debtPaid'>[]): number;
 export declare function spendingNonDebtPaidTotal(entries: Pick<SpendingEntry, 'amount' | 'paid' | 'debtPaid'>[]): number;
