@@ -3133,6 +3133,13 @@ footer {
   .summary-table-wrap {
     max-width: 100%;
     min-width: 0;
+  }
+
+  .spending-table-wrap {
+    overflow: visible;
+  }
+
+  .summary-table-wrap {
     overflow-x: clip;
     overflow-y: visible;
   }
@@ -3474,6 +3481,22 @@ footer {
 
 .finance-compact-total-non-debt strong {
   color: #c586c0;
+}
+
+.finance-compact-total-remaining {
+  border: 1px solid #4ec9b0;
+}
+
+.finance-compact-total-remaining strong {
+  color: #4ec9b0;
+}
+
+.finance-compact-total-remaining-over {
+  border-color: #f48771;
+}
+
+.finance-compact-total-remaining-over strong {
+  color: #f48771;
 }
 
 .finance-compact-total-devis {
@@ -3832,8 +3855,9 @@ footer {
 }
 
 .spending-table-wrap {
-  overflow-x: clip;
-  overflow-y: visible;
+  /* Keep overflow visible so thead sticky works against .board scrolling.
+     overflow-x: clip would create a scroll containment and break sticky. */
+  overflow: visible;
 }
 
 .spending-table {
@@ -3846,8 +3870,10 @@ footer {
 
 .spending-table thead th {
   position: sticky;
-  top: 0;
-  z-index: 3;
+  /* Sit below sticky .project-folder-tabs while scrolling .board */
+  top: 2.85rem;
+  z-index: 6;
+  background: #252528;
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.28);
 }
 
@@ -4216,6 +4242,14 @@ footer {
 
 .spending-row-total-non-debt td {
   color: #c586c0;
+}
+
+.spending-row-total-remaining td {
+  color: #4ec9b0;
+}
+
+.spending-row-total-remaining-over td {
+  color: #f48771;
 }
 
 .spending-add-lot-bar {

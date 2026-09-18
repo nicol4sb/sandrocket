@@ -647,6 +647,11 @@ export function SpendingTable({ projectId, projectName, baseUrl }: SpendingTable
   const totalAmount = paidTotal(entries);
   const debtTotalAmount = debtPaidTotal(entries);
   const nonDebtTotalAmount = nonDebtPaidTotal(entries);
+  const remainingTotal = lots.reduce(
+    (sum, lot) => sum + (lot.estimateAmount - lotSpentTotal(entries, lot.id)),
+    0
+  );
+  const remainingOver = remainingTotal < 0;
   const uncategorizedEntries = sortEntriesByDate(entries.filter((e) => e.lotId == null));
 
   const assignAllUncategorizedToLot = (lotId: number) => {
@@ -904,6 +909,20 @@ export function SpendingTable({ projectId, projectName, baseUrl }: SpendingTable
                     <span>Total spent</span>
                     <strong>{formatAmount(totalAmount)}</strong>
                   </div>
+                  {lots.length > 0 && (
+                    <div
+                      className={`finance-compact-total finance-compact-total-remaining${
+                        remainingOver ? ' finance-compact-total-remaining-over' : ''
+                      }`}
+                    >
+                      <span>Total remaining</span>
+                      <strong>
+                        {remainingOver
+                          ? `Over by ${formatAmount(Math.abs(remainingTotal))}`
+                          : formatAmount(remainingTotal)}
+                      </strong>
+                    </div>
+                  )}
                 </div>
               </div>
             ) : (
@@ -992,6 +1011,22 @@ export function SpendingTable({ projectId, projectName, baseUrl }: SpendingTable
                   <td className="spending-col-lot" />
                   <td className="spending-col-actions" />
                 </tr>
+                {lots.length > 0 && (
+                  <tr
+                    className={`spending-row-total spending-row-total-remaining${
+                      remainingOver ? ' spending-row-total-remaining-over' : ''
+                    }`}
+                  >
+                    <td colSpan={5}>Total remaining</td>
+                    <td className="spending-col-amount">
+                      {remainingOver
+                        ? `Over by ${formatAmount(Math.abs(remainingTotal))}`
+                        : formatAmount(remainingTotal)}
+                    </td>
+                    <td className="spending-col-lot" />
+                    <td className="spending-col-actions" />
+                  </tr>
+                )}
               </tbody>
             </table>
             </>

@@ -102,9 +102,24 @@ export function buildSpendingExcelRows(
   const total = spendingPaidTotal(entries);
   const debtTotal = spendingDebtPaidTotal(entries);
   const nonDebtTotal = spendingNonDebtPaidTotal(entries);
+  const remainingTotal = lots.reduce(
+    (sum, lot) => sum + (lot.estimateAmount - spendingLotPaidTotal(entries, lot.id)),
+    0
+  );
   rows.push(['', '', '', '', 'Debt spent', '', debtTotal]);
   rows.push(['', '', '', '', '', 'Non debt spend', nonDebtTotal]);
   rows.push(['', '', '', 'Total spent', '', '', total]);
+  if (lots.length > 0) {
+    rows.push([
+      '',
+      '',
+      '',
+      remainingTotal < 0 ? 'Total remaining (over)' : 'Total remaining',
+      '',
+      '',
+      remainingTotal
+    ]);
+  }
 
   return rows;
 }
@@ -125,6 +140,7 @@ export function isSpendingExcelMetaRow(
   if (desc.startsWith('subtotal')) return true;
   if (dateEmpty && desc === 'estimate') return true;
   if (/^(debt spent|non debt spend)$/i.test(desc)) return true;
+  if (/^total remaining/i.test(desc)) return true;
   if (dateEmpty && amountEmpty && !bank.trim()) return true;
 
   return false;
