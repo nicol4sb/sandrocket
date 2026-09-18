@@ -75,26 +75,26 @@ export declare const spendingEntryResponseSchema: z.ZodObject<{
 }, "strip", z.ZodTypeAny, {
     amount: number;
     paid: boolean;
+    debtPaid: boolean;
     id: number;
     projectId: number;
     lotId: number | null;
     description: string;
     entryDate: string;
     bank: string;
-    debtPaid: boolean;
     position: number;
     createdAt: string;
     updatedAt: string;
 }, {
     amount: number;
     paid: boolean;
+    debtPaid: boolean;
     id: number;
     projectId: number;
     lotId: number | null;
     description: string;
     entryDate: string;
     bank: string;
-    debtPaid: boolean;
     position: number;
     createdAt: string;
     updatedAt: string;
@@ -126,20 +126,20 @@ export declare const createSpendingEntryRequestSchema: z.ZodObject<{
 }, "strip", z.ZodTypeAny, {
     amount: number;
     paid: boolean;
+    debtPaid: boolean;
     description: string;
     bank: string;
-    debtPaid: boolean;
     lotId?: number | null | undefined;
     entryDate?: string | undefined;
     lotName?: string | undefined;
 }, {
     amount: number;
     paid?: boolean | undefined;
+    debtPaid?: boolean | undefined;
     lotId?: number | null | undefined;
     description?: string | undefined;
     entryDate?: string | undefined;
     bank?: string | undefined;
-    debtPaid?: boolean | undefined;
     lotName?: string | undefined;
 }>;
 export type CreateSpendingEntryRequest = z.infer<typeof createSpendingEntryRequestSchema>;
@@ -154,19 +154,19 @@ export declare const updateSpendingEntryRequestSchema: z.ZodObject<{
 }, "strip", z.ZodTypeAny, {
     amount?: number | undefined;
     paid?: boolean | undefined;
+    debtPaid?: boolean | undefined;
     lotId?: number | null | undefined;
     description?: string | undefined;
     entryDate?: string | undefined;
     bank?: string | undefined;
-    debtPaid?: boolean | undefined;
 }, {
     amount?: number | undefined;
     paid?: boolean | undefined;
+    debtPaid?: boolean | undefined;
     lotId?: number | null | undefined;
     description?: string | undefined;
     entryDate?: string | undefined;
     bank?: string | undefined;
-    debtPaid?: boolean | undefined;
 }>;
 export type UpdateSpendingEntryRequest = z.infer<typeof updateSpendingEntryRequestSchema>;
 export declare const importSpendingEntriesRequestSchema: z.ZodObject<{
@@ -183,29 +183,29 @@ export declare const importSpendingEntriesRequestSchema: z.ZodObject<{
     }, "strip", z.ZodTypeAny, {
         amount: number;
         paid: boolean;
+        debtPaid: boolean;
         description: string;
         bank: string;
-        debtPaid: boolean;
         lotId?: number | null | undefined;
         entryDate?: string | undefined;
         lotName?: string | undefined;
     }, {
         amount: number;
         paid?: boolean | undefined;
+        debtPaid?: boolean | undefined;
         lotId?: number | null | undefined;
         description?: string | undefined;
         entryDate?: string | undefined;
         bank?: string | undefined;
-        debtPaid?: boolean | undefined;
         lotName?: string | undefined;
     }>, "many">;
 }, "strip", z.ZodTypeAny, {
     entries: {
         amount: number;
         paid: boolean;
+        debtPaid: boolean;
         description: string;
         bank: string;
-        debtPaid: boolean;
         lotId?: number | null | undefined;
         entryDate?: string | undefined;
         lotName?: string | undefined;
@@ -215,11 +215,11 @@ export declare const importSpendingEntriesRequestSchema: z.ZodObject<{
     entries: {
         amount: number;
         paid?: boolean | undefined;
+        debtPaid?: boolean | undefined;
         lotId?: number | null | undefined;
         description?: string | undefined;
         entryDate?: string | undefined;
         bank?: string | undefined;
-        debtPaid?: boolean | undefined;
         lotName?: string | undefined;
     }[];
     replace?: boolean | undefined;
