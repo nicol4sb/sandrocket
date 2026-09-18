@@ -20,6 +20,7 @@ import {
   lotSpentTotal,
   type LotDraftRow
 } from './SpendingLotGroups';
+import { DocumentPreviewOverlay } from './DocumentPreviewOverlay';
 import { LocaleDateInput } from './LocaleDateInput';
 import { formatLocaleDate, formatLocaleDateMedium, parseFlexibleDisplayDate } from './localeFormat';
 
@@ -323,6 +324,8 @@ function exportSpendingToExcel(
 export function SpendingTable({ projectId, projectName, baseUrl }: SpendingTableProps) {
   const [entries, setEntries] = useState<SpendingEntryResponse[]>([]);
   const [lots, setLots] = useState<SpendingLotResponse[]>([]);
+  const [documents, setDocuments] = useState<DocumentResponse[]>([]);
+  const [previewDocument, setPreviewDocument] = useState<DocumentResponse | null>(null);
   const [draft, setDraft] = useState<DraftRow>(newDraftRow);
   const [draftExpanded, setDraftExpanded] = useState(false);
   const draftBlurSkipRef = useRef(false);
@@ -332,7 +335,6 @@ export function SpendingTable({ projectId, projectName, baseUrl }: SpendingTable
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [importError, setImportError] = useState<string | null>(null);
-  const [documents, setDocuments] = useState<DocumentResponse[]>([]);
   const draftRef = useRef(draft);
   const fileInputRef = useRef<HTMLInputElement>(null);
   draftRef.current = draft;
@@ -370,8 +372,9 @@ export function SpendingTable({ projectId, projectName, baseUrl }: SpendingTable
   useEffect(() => {
     setLoading(true);
     setDraft(newDraftRow());
-    fetchSpending();
-    fetchDocuments();
+    setPreviewDocument(null);
+    void fetchSpending();
+    void fetchDocuments();
   }, [fetchSpending, fetchDocuments]);
 
   const createEntry = async (
@@ -659,6 +662,13 @@ export function SpendingTable({ projectId, projectName, baseUrl }: SpendingTable
 
   return (
     <div id="board-spending" className="spending-section board-section">
+      {previewDocument && (
+        <DocumentPreviewOverlay
+          baseUrl={baseUrl}
+          document={previewDocument}
+          onClose={() => setPreviewDocument(null)}
+        />
+      )}
       <input
         ref={fileInputRef}
         type="file"
@@ -743,9 +753,9 @@ export function SpendingTable({ projectId, projectName, baseUrl }: SpendingTable
                     lot={lot}
                     colorIndex={index}
                     entries={entries}
-                    dateMax={dateMax}
-                    baseUrl={baseUrl}
                     documents={documents}
+                    onPreviewDocument={setPreviewDocument}
+                    dateMax={dateMax}
                     expandedEntryId={expandedEntryId}
                     onExpandedChange={setExpandedEntryId}
                     onEntryCommit={(entry, patch) => void patchEntry(entry, patch)}
@@ -919,8 +929,8 @@ export function SpendingTable({ projectId, projectName, baseUrl }: SpendingTable
                       lot={lot}
                       colorIndex={index}
                       spent={spent}
-                      baseUrl={baseUrl}
                       documents={documents}
+                      onPreviewDocument={setPreviewDocument}
                     />
                     {lotEntries.map((entry) => renderSpendingRow(spendingRowProps(entry)))}
                     <SpendingLotDraftRow

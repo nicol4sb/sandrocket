@@ -6,7 +6,7 @@ import type {
 } from '@sandrocket/contracts';
 import { sortEntriesByDate } from './financeSort';
 import { LocaleDateInput } from './LocaleDateInput';
-import { findDocumentByFilename, openDocumentView } from './documentLinks';
+import { documentPreviewKind, findDocumentByFilename } from './documentLinks';
 
 export function lotSpentTotal(entries: SpendingEntryResponse[], lotId: number): number {
   return entries.filter((e) => e.lotId === lotId && e.paid).reduce((sum, e) => sum + e.amount, 0);
@@ -208,8 +208,45 @@ interface SpendingLotEstimateRowProps {
   lot: SpendingLotResponse;
   colorIndex: number;
   spent: number;
-  baseUrl?: string;
   documents?: DocumentResponse[];
+  onPreviewDocument?: (doc: DocumentResponse) => void;
+}
+
+function DocumentKindIcon({ kind }: { kind: 'pdf' | 'word' | 'image' | 'other' }) {
+  if (kind === 'pdf') {
+    return (
+      <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden>
+        <path
+          fill="#e57373"
+          d="M3 1.5A1.5 1.5 0 014.5 0h5.086a1.5 1.5 0 011.06.44l2.914 2.914A1.5 1.5 0 0114 4.414V14.5A1.5 1.5 0 0112.5 16h-8A1.5 1.5 0 013 14.5v-13z"
+        />
+        <path fill="#fff" d="M9 0v3a1 1 0 001 1h3" opacity="0.35" />
+        <text x="8" y="12" textAnchor="middle" fill="#fff" fontSize="4.5" fontWeight="700" fontFamily="system-ui,sans-serif">
+          PDF
+        </text>
+      </svg>
+    );
+  }
+  if (kind === 'word') {
+    return (
+      <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden>
+        <path
+          fill="#42a5f5"
+          d="M3 1.5A1.5 1.5 0 014.5 0h5.086a1.5 1.5 0 011.06.44l2.914 2.914A1.5 1.5 0 0114 4.414V14.5A1.5 1.5 0 0112.5 16h-8A1.5 1.5 0 013 14.5v-13z"
+        />
+        <path fill="#fff" d="M9 0v3a1 1 0 001 1h3" opacity="0.35" />
+        <text x="8" y="12" textAnchor="middle" fill="#fff" fontSize="4.2" fontWeight="700" fontFamily="system-ui,sans-serif">
+          W
+        </text>
+      </svg>
+    );
+  }
+  return (
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden>
+      <path d="M4 1.5h5l3 3V14a1 1 0 01-1 1H4a1 1 0 01-1-1V2.5a1 1 0 011-1z" />
+      <path d="M9 1.5V5h3.5" />
+    </svg>
+  );
 }
 
 export function SpendingLotEstimateRow(props: SpendingLotEstimateRowProps) {
@@ -217,31 +254,29 @@ export function SpendingLotEstimateRow(props: SpendingLotEstimateRowProps) {
   const fichierRetenu = props.lot.description.trim();
   const diff = props.lot.estimateAmount - props.spent;
   const over = diff < 0;
-  const matchedDoc =
-    props.documents && props.baseUrl
-      ? findDocumentByFilename(props.documents, fichierRetenu)
-      : null;
+  const matchedDoc = props.documents
+    ? findDocumentByFilename(props.documents, fichierRetenu)
+    : null;
+  const kind = matchedDoc ? documentPreviewKind(matchedDoc) : null;
 
   return (
     <tr className={`spending-lot-estimate spending-lot-group--${props.colorIndex % 6}`}>
-      <td className="spending-col-date spending-lot-estimate-date" data-label="Payment date">
-        <span className="spending-lot-devis-title">{title}</span>
-      </td>
+      <td className="spending-col-date spending-lot-estimate-date" data-label="Payment date" />
       <td data-label="Description">
-        {fichierRetenu ? (
-          matchedDoc && props.baseUrl ? (
+        <span className="spending-lot-desc-with-doc">
+          <span className="spending-lot-devis-title">{title}</span>
+          {matchedDoc && kind && props.onPreviewDocument && (
             <button
               type="button"
-              className="spending-lot-fichier-link"
-              title={`Open ${matchedDoc.originalFilename}`}
-              onClick={() => openDocumentView(props.baseUrl!, matchedDoc.id)}
+              className={`spending-lot-doc-btn spending-lot-doc-btn-${kind}`}
+              title={`Preview ${matchedDoc.originalFilename}`}
+              aria-label={`Preview ${matchedDoc.originalFilename}`}
+              onClick={() => props.onPreviewDocument?.(matchedDoc)}
             >
-              {fichierRetenu}
+              <DocumentKindIcon kind={kind} />
             </button>
-          ) : (
-            <span className="spending-lot-fichier-readonly">{fichierRetenu}</span>
-          )
-        ) : null}
+          )}
+        </span>
       </td>
       <td className="spending-col-bank" colSpan={3} data-label="Progress">
         <span className="spending-lot-progress">
@@ -353,6 +388,8 @@ interface SpendingLotMobileGroupProps {
   lot: SpendingLotResponse;
   colorIndex: number;
   entries: SpendingEntryResponse[];
+  documents?: DocumentResponse[];
+  onPreviewDocument?: (doc: DocumentResponse) => void;
   dateMax: string;
   expandedEntryId: number | null;
   onExpandedChange: (entryId: number | null) => void;
@@ -370,8 +407,6 @@ interface SpendingLotMobileGroupProps {
   onDeleteEntry: (id: number) => void;
   onCreateEntry: (lotId: number | null, draft: LotDraftRow) => void;
   renderRow: (props: SpendingRowRendererProps) => React.ReactNode;
-  baseUrl?: string;
-  documents?: DocumentResponse[];
 }
 
 export function SpendingLotMobileGroup(props: SpendingLotMobileGroupProps) {
@@ -384,34 +419,30 @@ export function SpendingLotMobileGroup(props: SpendingLotMobileGroupProps) {
   const lotEntries = sortEntriesByDate(props.entries.filter((e) => e.lotId === props.lot.id));
   const title = props.lot.name.trim() || 'Unnamed lot';
   const fichierRetenu = props.lot.description.trim();
-  const matchedDoc =
-    props.documents && props.baseUrl
-      ? findDocumentByFilename(props.documents, fichierRetenu)
-      : null;
+  const matchedDoc = props.documents
+    ? findDocumentByFilename(props.documents, fichierRetenu)
+    : null;
+  const kind = matchedDoc ? documentPreviewKind(matchedDoc) : null;
 
   return (
     <section className={`spending-lot-mobile spending-lot-group--${props.colorIndex % 6}`}>
       <div className="spending-lot-mobile-estimate">
         <div className="spending-lot-mobile-estimate-head">
-          <strong className="spending-lot-devis-title">{title}</strong>
-        </div>
-        {fichierRetenu && (
-          <div className="spending-lot-mobile-field">
-            <span>Fichier retenu</span>
-            {matchedDoc && props.baseUrl ? (
+          <span className="spending-lot-desc-with-doc">
+            <strong className="spending-lot-devis-title">{title}</strong>
+            {matchedDoc && kind && props.onPreviewDocument && (
               <button
                 type="button"
-                className="spending-lot-fichier-link"
-                title={`Open ${matchedDoc.originalFilename}`}
-                onClick={() => openDocumentView(props.baseUrl!, matchedDoc.id)}
+                className={`spending-lot-doc-btn spending-lot-doc-btn-${kind}`}
+                title={`Preview ${matchedDoc.originalFilename}`}
+                aria-label={`Preview ${matchedDoc.originalFilename}`}
+                onClick={() => props.onPreviewDocument?.(matchedDoc)}
               >
-                {fichierRetenu}
+                <DocumentKindIcon kind={kind} />
               </button>
-            ) : (
-              <strong className="spending-lot-fichier-readonly">{fichierRetenu}</strong>
             )}
-          </div>
-        )}
+          </span>
+        </div>
         <div className="spending-lot-mobile-estimate-amount">
           <span>Estimate</span>
           <strong className="spending-lot-estimate-readonly">{formatLotAmount(props.lot.estimateAmount)}</strong>
