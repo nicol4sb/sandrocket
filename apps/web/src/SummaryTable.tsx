@@ -1,7 +1,9 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import * as XLSX from 'xlsx';
 import type {
+  DocumentResponse,
   ImportSummaryResponse,
+  ListDocumentsResponse,
   ListSummaryResponse,
   SummaryEntryResponse
 } from '@sandrocket/contracts';
@@ -9,6 +11,7 @@ import { useIsMobile } from './hooks/useMediaQuery';
 import { sortEntriesByDate } from './financeSort';
 import { LocaleDateInput } from './LocaleDateInput';
 import { formatLocaleDate, formatLocaleDateMedium, parseFlexibleDisplayDate } from './localeFormat';
+import { findDocumentByFilename, openDocumentView } from './documentLinks';
 
 interface SummaryTableProps {
   projectId: number;
@@ -103,6 +106,24 @@ function formatAmountInput(amount: number): string {
 
 function rowHasContent(lot: string, amountStr: string): boolean {
   return lot.trim().length > 0 || (parseAmount(amountStr) ?? 0) !== 0;
+}
+
+const MAX_DEVIS_DROP_BYTES = 50 * 1024 * 1024;
+
+function isExcelFile(file: File): boolean {
+  const name = file.name.toLowerCase();
+  return (
+    name.endsWith('.xlsx') ||
+    name.endsWith('.xls') ||
+    file.type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
+    file.type === 'application/vnd.ms-excel'
+  );
+}
+
+function lotNameFromFilename(filename: string): string {
+  const base = filename.replace(/^.*[/\\]/, '').trim();
+  const withoutExt = base.replace(/\.[^.]+$/, '').trim();
+  return withoutExt || base || 'New lot';
 }
 
 function isFocusMovingWithinRow(e: React.FocusEvent<HTMLElement>): boolean {
@@ -230,27 +251,7 @@ function exportSummaryToExcel(
   XLSX.writeFile(workbook, `${safeFilename(projectName)}-devis.xlsx`);
 }
 
-function SummaryCaret({ open }: { open: boolean }) {
-  return (
-    <svg
-      className={`summary-caret${open ? ' summary-caret-open' : ''}`}
-      width="12"
-      height="12"
-      viewBox="0 0 12 12"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden
-    >
-      <path d="M3 4.5 6 7.5 9 4.5" />
-    </svg>
-  );
-}
-
 export function SummaryTable({ projectId, projectName, baseUrl }: SummaryTableProps) {
-  const [visible, setVisible] = useState(false);
   const [entries, setEntries] = useState<SummaryEntryResponse[]>([]);
   const [draft, setDraft] = useState<DraftRow>(newDraftRow);
   const [draftExpanded, setDraftExpanded] = useState(false);
@@ -261,8 +262,12 @@ export function SummaryTable({ projectId, projectName, baseUrl }: SummaryTablePr
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [importError, setImportError] = useState<string | null>(null);
+  const [documents, setDocuments] = useState<DocumentResponse[]>([]);
+  const [isDragOver, setIsDragOver] = useState(false);
+  const [dropError, setDropError] = useState<string | null>(null);
   const draftRef = useRef(draft);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const dragDepthRef = useRef(0);
   draftRef.current = draft;
   const dateMax = todayIso();
 
@@ -273,7 +278,6 @@ export function SummaryTable({ projectId, projectName, baseUrl }: SummaryTablePr
       });
       if (!res.ok) return;
       const data = (await res.json()) as ListSummaryResponse;
-      setVisible(data.visible);
       setEntries(sortEntriesByDate(data.entries));
     } catch {
       // ignore
@@ -282,28 +286,25 @@ export function SummaryTable({ projectId, projectName, baseUrl }: SummaryTablePr
     }
   }, [baseUrl, projectId]);
 
+  const fetchDocuments = useCallback(async () => {
+    try {
+      const res = await fetch(`${baseUrl}/projects/${projectId}/documents`, {
+        credentials: 'include'
+      });
+      if (!res.ok) return;
+      const data = (await res.json()) as ListDocumentsResponse;
+      setDocuments(data.documents);
+    } catch {
+      // ignore
+    }
+  }, [baseUrl, projectId]);
+
   useEffect(() => {
     setLoading(true);
     setDraft(newDraftRow());
     fetchSummary();
-  }, [fetchSummary]);
-
-  const setVisibility = async (nextVisible: boolean) => {
-    setSaving(true);
-    try {
-      const res = await fetch(`${baseUrl}/projects/${projectId}/summary/visibility`, {
-        method: 'PATCH',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ visible: nextVisible })
-      });
-      if (res.ok) {
-        setVisible(nextVisible);
-      }
-    } finally {
-      setSaving(false);
-    }
-  };
+    fetchDocuments();
+  }, [fetchSummary, fetchDocuments]);
 
   const createEntry = async (
     lot: string,
@@ -334,6 +335,71 @@ export function SummaryTable({ projectId, projectName, baseUrl }: SummaryTablePr
       }
     } finally {
       setSaving(false);
+    }
+  };
+
+  const createEntryFromDroppedFile = async (originalFilename: string) => {
+    const lot = lotNameFromFilename(originalFilename);
+    const res = await fetch(`${baseUrl}/projects/${projectId}/summary`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        lot,
+        fichierRetenu: originalFilename,
+        amount: 0
+      })
+    });
+    if (!res.ok) {
+      throw new Error('Failed to create devis line');
+    }
+  };
+
+  const uploadDocumentAndCreateLine = async (file: File) => {
+    if (file.size > MAX_DEVIS_DROP_BYTES) {
+      setDropError(`"${file.name}" exceeds the 50MB limit`);
+      return;
+    }
+
+    setSaving(true);
+    setDropError(null);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const uploadRes = await fetch(`${baseUrl}/projects/${projectId}/documents`, {
+        method: 'POST',
+        credentials: 'include',
+        body: formData
+      });
+      if (!uploadRes.ok) {
+        let message = 'Upload failed';
+        try {
+          const data = (await uploadRes.json()) as { message?: string };
+          if (data.message) message = data.message;
+        } catch {
+          // ignore
+        }
+        setDropError(message);
+        return;
+      }
+      const doc = (await uploadRes.json()) as DocumentResponse;
+      await createEntryFromDroppedFile(doc.originalFilename);
+      await Promise.all([fetchSummary(), fetchDocuments()]);
+    } catch {
+      setDropError('Could not add file to devis');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDroppedFiles = async (files: File[]) => {
+    if (files.length === 0) return;
+    for (const file of files) {
+      if (isExcelFile(file)) {
+        await handleImportFile(file);
+      } else {
+        await uploadDocumentAndCreateLine(file);
+      }
     }
   };
 
@@ -373,7 +439,6 @@ export function SummaryTable({ projectId, projectName, baseUrl }: SummaryTablePr
       }
       const data = (await res.json()) as ImportSummaryResponse;
       setEntries(sortEntriesByDate(data.entries));
-      setVisible(true);
       setDraft(newDraftRow());
     } catch {
       setImportError('Import failed. Check the file format.');
@@ -480,10 +545,6 @@ export function SummaryTable({ projectId, projectName, baseUrl }: SummaryTablePr
     return null;
   }
 
-  const toggleVisibility = () => {
-    void setVisibility(!visible);
-  };
-
   return (
     <div id="board-devis" className="summary-section board-section">
       <input
@@ -497,76 +558,82 @@ export function SummaryTable({ projectId, projectName, baseUrl }: SummaryTablePr
           e.target.value = '';
         }}
       />
-      <div className={`summary-accordion${visible ? ' summary-accordion-open' : ''}`}>
-        <div className="summary-accordion-header">
-          <button
-            type="button"
-            className="summary-toggle"
-            onClick={toggleVisibility}
-            disabled={saving}
-            aria-expanded={visible}
-            title={visible ? 'Hide devis' : 'Show devis'}
-          >
-            <span className="summary-toggle-icon">D</span>
-            <span className="summary-toggle-label">Devis</span>
-            {!visible && entries.length > 0 && (
-              <span className="summary-toggle-summary">{formatAmount(totalAmount)}</span>
-            )}
-          </button>
+      <div
+        className={`summary-panel${isDragOver ? ' summary-panel-dragover' : ''}`}
+        onDragEnter={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          dragDepthRef.current += 1;
+          if (e.dataTransfer.types.includes('Files')) {
+            setIsDragOver(true);
+          }
+        }}
+        onDragOver={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          if (e.dataTransfer.types.includes('Files')) {
+            e.dataTransfer.dropEffect = 'copy';
+            setIsDragOver(true);
+          }
+        }}
+        onDragLeave={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          dragDepthRef.current = Math.max(0, dragDepthRef.current - 1);
+          if (dragDepthRef.current === 0) {
+            setIsDragOver(false);
+          }
+        }}
+        onDrop={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          dragDepthRef.current = 0;
+          setIsDragOver(false);
+          const files = Array.from(e.dataTransfer.files);
+          void handleDroppedFiles(files);
+        }}
+      >
+        {isDragOver && (
+          <div className="summary-drop-overlay" aria-hidden>
+            <strong>Drop to add devis line</strong>
+            <span>Uploads the file and creates a row with Fichier retenu set</span>
+          </div>
+        )}
+        <div className="summary-toolbar">
           <div className="summary-header-actions">
-            {visible && (
-              <>
-                <button
-                  type="button"
-                  className="summary-import-btn"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    fileInputRef.current?.click();
-                  }}
-                  disabled={saving}
-                  title="Import devis from Excel"
-                >
-                  <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
-                    <path d="M2 6v3a1 1 0 001 1h10a1 1 0 001-1V6" />
-                    <path d="M8 10V2M4.5 5.5 8 2l3.5 3.5M2 13h10" />
-                  </svg>
-                  <span>Import</span>
-                </button>
-                <button
-                  type="button"
-                  className="summary-export-btn"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    exportSummaryToExcel(entries, totalAmount, projectName);
-                  }}
-                  disabled={entries.length === 0}
-                  title="Export devis to Excel"
-                >
-                  <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
-                    <path d="M2 10v3a1 1 0 001 1h10a1 1 0 001-1v-3" />
-                    <path d="M8 2v8M4.5 7.5 8 11l3.5-3.5M2 13h10" />
-                  </svg>
-                  <span>Excel</span>
-                </button>
-              </>
-            )}
             <button
               type="button"
-              className="summary-caret-btn"
-              onClick={toggleVisibility}
+              className="summary-import-btn"
+              onClick={() => fileInputRef.current?.click()}
               disabled={saving}
-              aria-expanded={visible}
-              aria-label={visible ? 'Hide devis' : 'Show devis'}
-              title={visible ? 'Hide devis' : 'Show devis'}
+              title="Import devis from Excel"
             >
-              <SummaryCaret open={visible} />
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+                <path d="M2 6v3a1 1 0 001 1h10a1 1 0 001-1V6" />
+                <path d="M8 10V2M4.5 5.5 8 2l3.5 3.5M2 13h10" />
+              </svg>
+              <span>Import</span>
+            </button>
+            <button
+              type="button"
+              className="summary-export-btn"
+              onClick={() => exportSummaryToExcel(entries, totalAmount, projectName)}
+              disabled={entries.length === 0}
+              title="Export devis to Excel"
+            >
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+                <path d="M2 10v3a1 1 0 001 1h10a1 1 0 001-1v-3" />
+                <path d="M8 2v8M4.5 7.5 8 11l3.5-3.5M2 13h10" />
+              </svg>
+              <span>Excel</span>
             </button>
           </div>
         </div>
 
-        {visible && (
-          <div className="summary-table-wrap">
-            {importError && <p className="summary-import-error">{importError}</p>}
+        <div className="summary-table-wrap">
+            {(importError || dropError) && (
+              <p className="summary-import-error">{importError ?? dropError}</p>
+            )}
             {isMobile ? (
               <div className="finance-compact-list">
                 {entries.map((entry) => (
@@ -575,6 +642,8 @@ export function SummaryTable({ projectId, projectName, baseUrl }: SummaryTablePr
                     compact
                     entry={entry}
                     dateMax={dateMax}
+                    baseUrl={baseUrl}
+                    documents={documents}
                     expanded={expandedEntryId === entry.id}
                     onExpandedChange={(open) => {
                       setExpandedEntryId(open ? entry.id : null);
@@ -685,6 +754,8 @@ export function SummaryTable({ projectId, projectName, baseUrl }: SummaryTablePr
                     key={entry.id}
                     entry={entry}
                     dateMax={dateMax}
+                    baseUrl={baseUrl}
+                    documents={documents}
                     onCommit={(lot, fichierRetenu, entryDate, amount) =>
                       void updateEntry(entry, lot, fichierRetenu, entryDate, amount)
                     }
@@ -749,8 +820,49 @@ export function SummaryTable({ projectId, projectName, baseUrl }: SummaryTablePr
             </>
             )}
           </div>
-        )}
       </div>
+    </div>
+  );
+}
+
+function FichierRetenuField(props: {
+  value: string;
+  onChange: (value: string) => void;
+  onBlur: (e: React.FocusEvent<HTMLElement>) => void;
+  onKeyDown?: (e: React.KeyboardEvent<HTMLInputElement>) => void;
+  documents: DocumentResponse[];
+  baseUrl: string;
+  inputClassName: string;
+  placeholder?: string;
+}) {
+  const matched = findDocumentByFilename(props.documents, props.value);
+
+  return (
+    <div className={`summary-fichier-field${matched ? ' summary-fichier-field-linked' : ''}`}>
+      <input
+        type="text"
+        className={props.inputClassName}
+        value={props.value}
+        placeholder={props.placeholder}
+        onChange={(e) => props.onChange(e.target.value)}
+        onBlur={props.onBlur}
+        onKeyDown={props.onKeyDown}
+      />
+      {matched && (
+        <button
+          type="button"
+          className="summary-fichier-open-btn"
+          title={`Open ${matched.originalFilename}`}
+          aria-label={`Open ${matched.originalFilename}`}
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={() => openDocumentView(props.baseUrl, matched.id)}
+        >
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+            <path d="M6 3H3.5A1.5 1.5 0 002 4.5v8A1.5 1.5 0 003.5 14h8a1.5 1.5 0 001.5-1.5V10" />
+            <path d="M8 8l6-6M10 2h4v4" />
+          </svg>
+        </button>
+      )}
     </div>
   );
 }
@@ -761,6 +873,8 @@ function SummaryRow(props: {
   onExpandedChange?: (expanded: boolean) => void;
   entry: SummaryEntryResponse;
   dateMax: string;
+  baseUrl: string;
+  documents: DocumentResponse[];
   onCommit: (lot: string, fichierRetenu: string, entryDate: string, amount: string) => void;
   onDelete: () => void;
 }) {
@@ -916,12 +1030,13 @@ function SummaryRow(props: {
             </div>
             <label className="finance-compact-field">
               <span>Fichier retenu</span>
-              <input
-                type="text"
-                className="finance-compact-input"
+              <FichierRetenuField
                 value={fichierRetenu}
-                onChange={(e) => setFichierRetenu(e.target.value)}
+                onChange={setFichierRetenu}
                 onBlur={handleCompactBlur}
+                documents={props.documents}
+                baseUrl={props.baseUrl}
+                inputClassName="finance-compact-input"
               />
             </label>
             <div className="finance-compact-details-actions">{deleteButton}</div>
@@ -944,13 +1059,14 @@ function SummaryRow(props: {
         />
       </td>
       <td className="summary-col-fichier" data-label="Fichier retenu">
-        <input
-          type="text"
-          className="summary-input"
+        <FichierRetenuField
           value={fichierRetenu}
-          onChange={(e) => setFichierRetenu(e.target.value)}
+          onChange={setFichierRetenu}
           onBlur={commitAll}
           onKeyDown={(e) => onSummaryCellKeyDown(e, SUMMARY_COL.FICHIER)}
+          documents={props.documents}
+          baseUrl={props.baseUrl}
+          inputClassName="summary-input"
         />
       </td>
       <td className="summary-col-date" data-label="Date du devis">

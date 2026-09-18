@@ -107,7 +107,7 @@ export function buildSpendingExcelRows(
     0
   );
   rows.push(['', '', '', '', 'Debt spent', '', debtTotal]);
-  rows.push(['', '', '', '', '', 'Non debt spend', nonDebtTotal]);
+  rows.push(['', '', '', '', '', 'Equity', nonDebtTotal]);
   rows.push(['', '', '', 'Total spent', '', '', total]);
   if (lots.length > 0) {
     rows.push([
@@ -139,7 +139,7 @@ export function isSpendingExcelMetaRow(
   if (lot === 'uncategorized' && dateEmpty && amountEmpty) return true;
   if (desc.startsWith('subtotal')) return true;
   if (dateEmpty && desc === 'estimate') return true;
-  if (/^(debt spent|non debt spend)$/i.test(desc)) return true;
+  if (/^(debt spent|non debt spend|equity)$/i.test(desc)) return true;
   if (/^total remaining/i.test(desc)) return true;
   if (dateEmpty && amountEmpty && !bank.trim()) return true;
 

@@ -67,7 +67,7 @@ export function buildSpendingExcelRows(entries, lots, options) {
     const nonDebtTotal = spendingNonDebtPaidTotal(entries);
     const remainingTotal = lots.reduce((sum, lot) => sum + (lot.estimateAmount - spendingLotPaidTotal(entries, lot.id)), 0);
     rows.push(['', '', '', '', 'Debt spent', '', debtTotal]);
-    rows.push(['', '', '', '', '', 'Non debt spend', nonDebtTotal]);
+    rows.push(['', '', '', '', '', 'Equity', nonDebtTotal]);
     rows.push(['', '', '', 'Total spent', '', '', total]);
     if (lots.length > 0) {
         rows.push([
@@ -93,7 +93,7 @@ export function isSpendingExcelMetaRow(lotName, description, bank, dateRaw, amou
         return true;
     if (dateEmpty && desc === 'estimate')
         return true;
-    if (/^(debt spent|non debt spend)$/i.test(desc))
+    if (/^(debt spent|non debt spend|equity)$/i.test(desc))
         return true;
     if (/^total remaining/i.test(desc))
         return true;

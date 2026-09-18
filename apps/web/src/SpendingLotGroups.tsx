@@ -1,7 +1,12 @@
 import React, { useEffect, useRef, useState } from 'react';
-import type { SpendingEntryResponse, SpendingLotResponse } from '@sandrocket/contracts';
+import type {
+  DocumentResponse,
+  SpendingEntryResponse,
+  SpendingLotResponse
+} from '@sandrocket/contracts';
 import { sortEntriesByDate } from './financeSort';
 import { LocaleDateInput } from './LocaleDateInput';
+import { findDocumentByFilename, openDocumentView } from './documentLinks';
 
 export function lotSpentTotal(entries: SpendingEntryResponse[], lotId: number): number {
   return entries.filter((e) => e.lotId === lotId && e.paid).reduce((sum, e) => sum + e.amount, 0);
@@ -202,11 +207,20 @@ export function SpendingLotMigrateBar(props: {
 interface SpendingLotEstimateRowProps {
   lot: SpendingLotResponse;
   colorIndex: number;
+  spent: number;
+  baseUrl?: string;
+  documents?: DocumentResponse[];
 }
 
 export function SpendingLotEstimateRow(props: SpendingLotEstimateRowProps) {
   const title = props.lot.name.trim() || 'Unnamed lot';
   const fichierRetenu = props.lot.description.trim();
+  const diff = props.lot.estimateAmount - props.spent;
+  const over = diff < 0;
+  const matchedDoc =
+    props.documents && props.baseUrl
+      ? findDocumentByFilename(props.documents, fichierRetenu)
+      : null;
 
   return (
     <tr className={`spending-lot-estimate spending-lot-group--${props.colorIndex % 6}`}>
@@ -215,40 +229,32 @@ export function SpendingLotEstimateRow(props: SpendingLotEstimateRowProps) {
       </td>
       <td data-label="Description">
         {fichierRetenu ? (
-          <span className="spending-lot-fichier-readonly">{fichierRetenu}</span>
+          matchedDoc && props.baseUrl ? (
+            <button
+              type="button"
+              className="spending-lot-fichier-link"
+              title={`Open ${matchedDoc.originalFilename}`}
+              onClick={() => openDocumentView(props.baseUrl!, matchedDoc.id)}
+            >
+              {fichierRetenu}
+            </button>
+          ) : (
+            <span className="spending-lot-fichier-readonly">{fichierRetenu}</span>
+          )
         ) : null}
       </td>
-      <td className="spending-col-bank" />
-      <td className="spending-col-paid" />
-      <td className="spending-col-debt-paid" />
+      <td className="spending-col-bank" colSpan={3} data-label="Progress">
+        <span className="spending-lot-progress">
+          <span className="spending-lot-progress-spent">{formatLotAmount(props.spent)} spent</span>
+          <span className={`spending-lot-progress-diff${over ? ' spending-lot-progress-over' : ''}`}>
+            {over
+              ? `Over ${formatLotAmount(Math.abs(diff))}`
+              : `${formatLotAmount(diff)} left`}
+          </span>
+        </span>
+      </td>
       <td className="spending-col-amount" data-label="Amount">
         <span className="spending-lot-estimate-readonly">{formatLotAmount(props.lot.estimateAmount)}</span>
-      </td>
-      <td className="spending-col-lot" />
-      <td className="spending-col-actions" />
-    </tr>
-  );
-}
-
-interface SpendingLotSubtotalRowProps {
-  lot: SpendingLotResponse;
-  spent: number;
-  colorIndex: number;
-}
-
-export function SpendingLotSubtotalRow(props: SpendingLotSubtotalRowProps) {
-  const diff = props.lot.estimateAmount - props.spent;
-  const over = diff < 0;
-  return (
-    <tr className={`spending-lot-subtotal spending-lot-group--${props.colorIndex % 6}`}>
-      <td colSpan={5} className="spending-lot-subtotal-label">
-        Subtotal — spent vs estimate
-      </td>
-      <td className="spending-col-amount spending-lot-subtotal-values">
-        <span className="spending-lot-subtotal-spent">{formatLotAmount(props.spent)} spent</span>
-        <span className={`spending-lot-subtotal-diff${over ? ' spending-lot-subtotal-over' : ''}`}>
-          {over ? `Over by ${formatLotAmount(Math.abs(diff))}` : `${formatLotAmount(diff)} remaining`}
-        </span>
       </td>
       <td className="spending-col-lot" />
       <td className="spending-col-actions" />
@@ -364,6 +370,8 @@ interface SpendingLotMobileGroupProps {
   onDeleteEntry: (id: number) => void;
   onCreateEntry: (lotId: number | null, draft: LotDraftRow) => void;
   renderRow: (props: SpendingRowRendererProps) => React.ReactNode;
+  baseUrl?: string;
+  documents?: DocumentResponse[];
 }
 
 export function SpendingLotMobileGroup(props: SpendingLotMobileGroupProps) {
@@ -376,6 +384,10 @@ export function SpendingLotMobileGroup(props: SpendingLotMobileGroupProps) {
   const lotEntries = sortEntriesByDate(props.entries.filter((e) => e.lotId === props.lot.id));
   const title = props.lot.name.trim() || 'Unnamed lot';
   const fichierRetenu = props.lot.description.trim();
+  const matchedDoc =
+    props.documents && props.baseUrl
+      ? findDocumentByFilename(props.documents, fichierRetenu)
+      : null;
 
   return (
     <section className={`spending-lot-mobile spending-lot-group--${props.colorIndex % 6}`}>
@@ -386,12 +398,29 @@ export function SpendingLotMobileGroup(props: SpendingLotMobileGroupProps) {
         {fichierRetenu && (
           <div className="spending-lot-mobile-field">
             <span>Fichier retenu</span>
-            <strong className="spending-lot-fichier-readonly">{fichierRetenu}</strong>
+            {matchedDoc && props.baseUrl ? (
+              <button
+                type="button"
+                className="spending-lot-fichier-link"
+                title={`Open ${matchedDoc.originalFilename}`}
+                onClick={() => openDocumentView(props.baseUrl!, matchedDoc.id)}
+              >
+                {fichierRetenu}
+              </button>
+            ) : (
+              <strong className="spending-lot-fichier-readonly">{fichierRetenu}</strong>
+            )}
           </div>
         )}
         <div className="spending-lot-mobile-estimate-amount">
           <span>Estimate</span>
           <strong className="spending-lot-estimate-readonly">{formatLotAmount(props.lot.estimateAmount)}</strong>
+        </div>
+        <div className="spending-lot-mobile-progress">
+          <span>{formatLotAmount(spent)} spent</span>
+          <span className={over ? 'spending-lot-progress-over' : ''}>
+            {over ? `Over ${formatLotAmount(Math.abs(diff))}` : `${formatLotAmount(diff)} left`}
+          </span>
         </div>
       </div>
       {lotEntries.map((entry) =>
@@ -477,12 +506,6 @@ export function SpendingLotMobileGroup(props: SpendingLotMobileGroupProps) {
             </label>
           </div>
         )}
-      </div>
-      <div className="spending-lot-mobile-subtotal">
-        <span>{formatLotAmount(spent)} spent</span>
-        <span className={over ? 'spending-lot-subtotal-over' : ''}>
-          {over ? `Over by ${formatLotAmount(Math.abs(diff))}` : `${formatLotAmount(diff)} remaining`}
-        </span>
       </div>
     </section>
   );

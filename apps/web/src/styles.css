@@ -930,7 +930,8 @@ main.dashboard > .app-header {
   min-width: 0;
 }
 
-.project-folder-panel-finance .summary-section {
+.project-folder-panel-devis .summary-section,
+.project-folder-panel-spending .spending-section {
   margin-top: 0;
 }
 
@@ -3178,8 +3179,8 @@ footer {
     font-size: 0.75rem;
   }
 
-  .spending-accordion-open .spending-table-wrap,
-  .summary-accordion-open .summary-table-wrap {
+  .spending-panel .spending-table-wrap,
+  .summary-panel .summary-table-wrap {
     padding: 0 0.5rem 0.75rem;
   }
 }
@@ -3674,6 +3675,132 @@ footer {
   color: #569cd6;
 }
 
+.spending-panel {
+  background: #1e1e20;
+  border: 1px solid #3a3a3e;
+  border-left: 3px solid #4ec9b0;
+  border-radius: 0.75rem;
+  overflow: visible;
+}
+
+.spending-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  padding: 0.4rem 0.65rem 0.35rem;
+}
+
+.spending-toolbar-kpis {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
+.spending-kpi {
+  display: flex;
+  flex-direction: column;
+  gap: 0.05rem;
+  min-width: 4.75rem;
+  padding: 0.25rem 0.45rem;
+  border-radius: 0.4rem;
+  border: 1px solid #3a3a3e;
+  background: #252528;
+}
+
+.spending-kpi span {
+  font-size: 0.62rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #888;
+}
+
+.spending-kpi strong {
+  font-size: 0.88rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: #ddd;
+  line-height: 1.15;
+}
+
+.spending-kpi-debt {
+  border-color: rgba(86, 156, 214, 0.45);
+}
+
+.spending-kpi-debt strong {
+  color: #569cd6;
+}
+
+.spending-kpi-non-debt {
+  border-color: rgba(197, 134, 192, 0.45);
+}
+
+.spending-kpi-non-debt strong {
+  color: #c586c0;
+}
+
+.spending-kpi-total {
+  border-color: rgba(78, 201, 176, 0.5);
+}
+
+.spending-kpi-total strong {
+  color: #4ec9b0;
+}
+
+.spending-kpi-remaining {
+  border-color: rgba(78, 201, 176, 0.35);
+}
+
+.spending-kpi-remaining strong {
+  color: #4ec9b0;
+}
+
+.spending-kpi-remaining-over {
+  border-color: rgba(244, 135, 113, 0.5);
+}
+
+.spending-kpi-remaining-over strong {
+  color: #f48771;
+}
+
+.spending-lot-progress {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.45rem;
+  font-size: 0.74rem;
+  font-variant-numeric: tabular-nums;
+  padding: 0.15rem 0.35rem;
+}
+
+.spending-lot-progress-spent {
+  color: #bbb;
+  font-weight: 600;
+}
+
+.spending-lot-progress-diff {
+  color: #4ec9b0;
+  font-weight: 700;
+}
+
+.spending-lot-progress-over {
+  color: #f48771;
+}
+
+.spending-lot-mobile-progress {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #bbb;
+  margin-top: 0.25rem;
+}
+
 .spending-accordion {
   background: #1e1e20;
   border: 1px dashed #3e3e42;
@@ -3787,7 +3914,7 @@ footer {
   cursor: wait;
 }
 
-.spending-accordion-open .spending-table-wrap {
+.spending-panel .spending-table-wrap {
   padding: 0 1rem 1rem;
 }
 
@@ -3879,25 +4006,25 @@ footer {
 
 .spending-table th {
   text-align: left;
-  font-size: 0.7rem;
+  font-size: 0.65rem;
   font-weight: 600;
   color: #999;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  padding: 0.45rem 0.5rem;
+  padding: 0.3rem 0.4rem;
   border: 1px solid #4a4a4e;
   background: #252528;
 }
 
 .spending-table th.spending-col-amount,
 .spending-table td.spending-col-amount {
-  width: 120px;
+  width: 108px;
   text-align: right;
 }
 
 .spending-table th.spending-col-date,
 .spending-table td.spending-col-date {
-  width: 132px;
+  width: 118px;
 }
 
 .spending-col-optional {
@@ -3910,18 +4037,18 @@ footer {
 
 .spending-table th.spending-col-bank,
 .spending-table td.spending-col-bank {
-  width: 110px;
+  width: 88px;
 }
 
 .spending-table th.spending-col-paid,
 .spending-table td.spending-col-paid {
-  width: 3.25rem;
+  width: 2.75rem;
   text-align: center;
 }
 
 .spending-table th.spending-col-debt-paid,
 .spending-table td.spending-col-debt-paid {
-  width: 4.75rem;
+  width: 2.75rem;
   text-align: center;
 }
 
@@ -4197,8 +4324,8 @@ footer {
   border: none;
   border-radius: 0;
   color: #e0e0e0;
-  font-size: 0.875rem;
-  padding: 0.45rem 0.5rem;
+  font-size: 0.82rem;
+  padding: 0.28rem 0.4rem;
   font-family: inherit;
   transition: background 150ms ease, box-shadow 150ms ease;
 }
@@ -4226,7 +4353,7 @@ footer {
 .spending-row-total td {
   font-weight: 700;
   color: #4ec9b0;
-  padding: 0.55rem 0.5rem;
+  padding: 0.35rem 0.4rem;
   font-variant-numeric: tabular-nums;
   background: #222224;
 }
@@ -4297,6 +4424,8 @@ footer {
   background: color-mix(in srgb, var(--lot-accent, #4ec9b0) 14%, #252528) !important;
   border-top: 2px solid var(--lot-accent, #4ec9b0);
   vertical-align: middle;
+  padding-top: 0.2rem;
+  padding-bottom: 0.2rem;
 }
 
 .spending-lot-estimate-date {
@@ -4305,16 +4434,16 @@ footer {
 
 .spending-lot-devis-title {
   display: block;
-  font-size: 0.84rem;
+  font-size: 0.78rem;
   font-weight: 700;
   color: #eee;
-  line-height: 1.25;
-  padding: 0.15rem 0;
+  line-height: 1.2;
+  padding: 0.1rem 0;
 }
 
 .spending-lot-fichier-readonly {
   display: block;
-  font-size: 0.82rem;
+  font-size: 0.72rem;
   color: #aaa;
   font-weight: 500;
 }
@@ -4570,6 +4699,56 @@ footer {
   padding: 0 1rem;
 }
 
+.summary-panel {
+  position: relative;
+  background: #1e1e20;
+  border: 1px solid #3a3a3e;
+  border-left: 3px solid #569cd6;
+  border-radius: 0.75rem;
+  overflow: visible;
+}
+
+.summary-panel-dragover {
+  border-color: #569cd6;
+  box-shadow: inset 0 0 0 1px rgba(86, 156, 214, 0.35);
+}
+
+.summary-drop-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  padding: 1rem;
+  border-radius: inherit;
+  background: rgba(30, 30, 32, 0.88);
+  border: 2px dashed #569cd6;
+  color: #9cdcfe;
+  text-align: center;
+  pointer-events: none;
+}
+
+.summary-drop-overlay strong {
+  font-size: 0.95rem;
+  color: #e8f4ff;
+}
+
+.summary-drop-overlay span {
+  font-size: 0.78rem;
+  color: #9aa7b5;
+}
+
+.summary-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem 0.35rem;
+}
+
 .summary-accordion {
   background: #1e1e20;
   border: 1px dashed #3e3e42;
@@ -4683,7 +4862,7 @@ footer {
   cursor: wait;
 }
 
-.summary-accordion-open .summary-table-wrap {
+.summary-panel .summary-table-wrap {
   padding: 0 1rem 1rem;
 }
 
@@ -4760,6 +4939,69 @@ footer {
 .summary-table th.summary-col-lot,
 .summary-table td.summary-col-lot {
   width: 36%;
+}
+
+.summary-fichier-field {
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  min-width: 0;
+  width: 100%;
+}
+
+.summary-fichier-field .summary-input,
+.summary-fichier-field .finance-compact-input {
+  flex: 1;
+  min-width: 0;
+}
+
+.summary-fichier-field-linked .summary-input,
+.summary-fichier-field-linked .finance-compact-input {
+  padding-right: 0.35rem;
+}
+
+.summary-fichier-open-btn {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.75rem;
+  margin: 0;
+  padding: 0;
+  border: none;
+  border-left: 1px solid #3a3a3e;
+  background: transparent;
+  color: #569cd6;
+  cursor: pointer;
+  transition: background 150ms ease, color 150ms ease;
+}
+
+.summary-fichier-open-btn:hover {
+  background: rgba(86, 156, 214, 0.12);
+  color: #9cdcfe;
+}
+
+.spending-lot-fichier-link {
+  display: block;
+  max-width: 100%;
+  padding: 0;
+  border: none;
+  background: none;
+  color: #569cd6;
+  font: inherit;
+  font-size: 0.72rem;
+  font-weight: 500;
+  text-align: left;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.spending-lot-fichier-link:hover {
+  color: #9cdcfe;
 }
 
 .summary-table th.summary-col-fichier,
@@ -4922,7 +5164,7 @@ footer {
 .doc-dropbox-header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
   gap: 0.5rem;
 }
 

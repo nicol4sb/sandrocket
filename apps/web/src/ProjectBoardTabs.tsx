@@ -1,28 +1,38 @@
 import React from 'react';
 
-export type ProjectBoardTab = 'finance' | 'tasks' | 'documents';
+export type ProjectBoardTab = 'devis' | 'spending' | 'documents' | 'tasks';
 
 const TABS: Array<{ id: ProjectBoardTab; label: string; shortLabel: string }> = [
-  { id: 'finance', label: 'Spending & Devis', shortLabel: 'Finance' },
-  { id: 'tasks', label: 'Tasks', shortLabel: 'Tasks' },
-  { id: 'documents', label: 'Documents', shortLabel: 'Docs' }
+  { id: 'devis', label: 'Devis', shortLabel: 'Devis' },
+  { id: 'spending', label: 'Spending', shortLabel: 'Spend' },
+  { id: 'documents', label: 'Documents', shortLabel: 'Docs' },
+  { id: 'tasks', label: 'Tasks', shortLabel: 'Tasks' }
 ];
 
 interface ProjectBoardTabsProps {
   activeTab: ProjectBoardTab;
   onTabChange: (tab: ProjectBoardTab) => void;
-  finance: React.ReactNode;
-  tasks: React.ReactNode;
+  devis: React.ReactNode;
+  spending: React.ReactNode;
   documents: React.ReactNode;
+  tasks: React.ReactNode;
 }
 
 export function ProjectBoardTabs({
   activeTab,
   onTabChange,
-  finance,
-  tasks,
-  documents
+  devis,
+  spending,
+  documents,
+  tasks
 }: ProjectBoardTabsProps) {
+  const panels: Record<ProjectBoardTab, React.ReactNode> = {
+    devis,
+    spending,
+    documents,
+    tasks
+  };
+
   return (
     <div className="board-layout">
       <div className="project-folder">
@@ -45,35 +55,18 @@ export function ProjectBoardTabs({
         </nav>
 
         <div className="project-folder-panel">
-          {activeTab === 'finance' && (
-            <div
-              id="project-tabpanel-finance"
-              role="tabpanel"
-              aria-labelledby="project-tab-finance"
-              className="project-folder-panel-inner project-folder-panel-finance"
-            >
-              {finance}
-            </div>
-          )}
-          {activeTab === 'tasks' && (
-            <div
-              id="project-tabpanel-tasks"
-              role="tabpanel"
-              aria-labelledby="project-tab-tasks"
-              className="project-folder-panel-inner project-folder-panel-tasks"
-            >
-              {tasks}
-            </div>
-          )}
-          {activeTab === 'documents' && (
-            <div
-              id="project-tabpanel-documents"
-              role="tabpanel"
-              aria-labelledby="project-tab-documents"
-              className="project-folder-panel-inner project-folder-panel-documents"
-            >
-              {documents}
-            </div>
+          {TABS.map((tab) =>
+            activeTab === tab.id ? (
+              <div
+                key={tab.id}
+                id={`project-tabpanel-${tab.id}`}
+                role="tabpanel"
+                aria-labelledby={`project-tab-${tab.id}`}
+                className={`project-folder-panel-inner project-folder-panel-${tab.id}`}
+              >
+                {panels[tab.id]}
+              </div>
+            ) : null
           )}
         </div>
       </div>
@@ -81,16 +74,24 @@ export function ProjectBoardTabs({
   );
 }
 
+function isProjectBoardTab(value: string): value is ProjectBoardTab {
+  return value === 'devis' || value === 'spending' || value === 'documents' || value === 'tasks';
+}
+
 export function readStoredProjectTab(projectId: number): ProjectBoardTab {
   try {
     const value = localStorage.getItem(`sr:projectTab:${projectId}`);
-    if (value === 'finance' || value === 'tasks' || value === 'documents') {
+    if (value && isProjectBoardTab(value)) {
       return value;
+    }
+    // Legacy combined finance tab → prefer spending
+    if (value === 'finance') {
+      return 'spending';
     }
   } catch {
     // ignore storage errors
   }
-  return 'finance';
+  return 'devis';
 }
 
 export function storeProjectTab(projectId: number, tab: ProjectBoardTab): void {

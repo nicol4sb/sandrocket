@@ -220,7 +220,6 @@ export function DocumentDropbox({ projectId, baseUrl }: DocumentDropboxProps) {
   return (
     <div className="doc-dropbox">
       <div className="doc-dropbox-header">
-        <h3 className="doc-dropbox-title">Documents</h3>
         <div className="doc-dropbox-header-actions">
           <button
             type="button"

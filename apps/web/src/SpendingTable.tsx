@@ -1,7 +1,9 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import * as XLSX from 'xlsx';
 import type {
+  DocumentResponse,
   ImportSpendingResponse,
+  ListDocumentsResponse,
   ListSpendingResponse,
   SpendingEntryResponse,
   SpendingLotResponse
@@ -15,7 +17,6 @@ import {
   SpendingLotMigrateBar,
   SpendingLotAssignCaret,
   SpendingLotMobileGroup,
-  SpendingLotSubtotalRow,
   lotSpentTotal,
   type LotDraftRow
 } from './SpendingLotGroups';
@@ -319,27 +320,7 @@ function exportSpendingToExcel(
   XLSX.writeFile(workbook, `${safeFilename(projectName)}-spending.xlsx`);
 }
 
-function SpendingCaret({ open }: { open: boolean }) {
-  return (
-    <svg
-      className={`spending-caret${open ? ' spending-caret-open' : ''}`}
-      width="12"
-      height="12"
-      viewBox="0 0 12 12"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden
-    >
-      <path d="M3 4.5 6 7.5 9 4.5" />
-    </svg>
-  );
-}
-
 export function SpendingTable({ projectId, projectName, baseUrl }: SpendingTableProps) {
-  const [visible, setVisible] = useState(false);
   const [entries, setEntries] = useState<SpendingEntryResponse[]>([]);
   const [lots, setLots] = useState<SpendingLotResponse[]>([]);
   const [draft, setDraft] = useState<DraftRow>(newDraftRow);
@@ -351,6 +332,7 @@ export function SpendingTable({ projectId, projectName, baseUrl }: SpendingTable
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [importError, setImportError] = useState<string | null>(null);
+  const [documents, setDocuments] = useState<DocumentResponse[]>([]);
   const draftRef = useRef(draft);
   const fileInputRef = useRef<HTMLInputElement>(null);
   draftRef.current = draft;
@@ -363,7 +345,6 @@ export function SpendingTable({ projectId, projectName, baseUrl }: SpendingTable
       });
       if (!res.ok) return;
       const data = (await res.json()) as ListSpendingResponse;
-      setVisible(data.visible);
       setEntries(sortEntriesByDate(data.entries));
       setLots(data.lots ?? []);
     } catch {
@@ -373,28 +354,25 @@ export function SpendingTable({ projectId, projectName, baseUrl }: SpendingTable
     }
   }, [baseUrl, projectId]);
 
+  const fetchDocuments = useCallback(async () => {
+    try {
+      const res = await fetch(`${baseUrl}/projects/${projectId}/documents`, {
+        credentials: 'include'
+      });
+      if (!res.ok) return;
+      const data = (await res.json()) as ListDocumentsResponse;
+      setDocuments(data.documents);
+    } catch {
+      // ignore
+    }
+  }, [baseUrl, projectId]);
+
   useEffect(() => {
     setLoading(true);
     setDraft(newDraftRow());
     fetchSpending();
-  }, [fetchSpending]);
-
-  const setVisibility = async (nextVisible: boolean) => {
-    setSaving(true);
-    try {
-      const res = await fetch(`${baseUrl}/projects/${projectId}/spending/visibility`, {
-        method: 'PATCH',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ visible: nextVisible })
-      });
-      if (res.ok) {
-        setVisible(nextVisible);
-      }
-    } finally {
-      setSaving(false);
-    }
-  };
+    fetchDocuments();
+  }, [fetchSpending, fetchDocuments]);
 
   const createEntry = async (
     entryDate: string,
@@ -474,7 +452,6 @@ export function SpendingTable({ projectId, projectName, baseUrl }: SpendingTable
       const data = (await res.json()) as ImportSpendingResponse;
       setEntries(sortEntriesByDate(data.entries));
       setLots(data.lots ?? []);
-      setVisible(true);
       setDraft(newDraftRow());
     } catch {
       setImportError('Import failed. Check the file format.');
@@ -680,10 +657,6 @@ export function SpendingTable({ projectId, projectName, baseUrl }: SpendingTable
     return null;
   }
 
-  const toggleVisibility = () => {
-    void setVisibility(!visible);
-  };
-
   return (
     <div id="board-spending" className="spending-section board-section">
       <input
@@ -697,81 +670,71 @@ export function SpendingTable({ projectId, projectName, baseUrl }: SpendingTable
           e.target.value = '';
         }}
       />
-      <div className={`spending-accordion${visible ? ' spending-accordion-open' : ''}`}>
-        <div className="spending-accordion-header">
-          <button
-            type="button"
-            className="spending-toggle"
-            onClick={toggleVisibility}
-            disabled={saving}
-            aria-expanded={visible}
-            title={visible ? 'Hide spending' : 'Show spending'}
-          >
-            <span className="spending-toggle-icon">€</span>
-            <span className="spending-toggle-label">Spending</span>
-            {!visible && entries.length > 0 && (
-              <span className="spending-toggle-summary">{formatAmount(totalAmount)}</span>
+      <div className="spending-panel">
+        <div className="spending-toolbar">
+          <div className="spending-toolbar-kpis" aria-label="Spending totals">
+            <div className="spending-kpi spending-kpi-debt">
+              <span>Debt</span>
+              <strong>{formatAmount(debtTotalAmount)}</strong>
+            </div>
+            <div className="spending-kpi spending-kpi-non-debt">
+              <span>Equity</span>
+              <strong>{formatAmount(nonDebtTotalAmount)}</strong>
+            </div>
+            <div className="spending-kpi spending-kpi-total">
+              <span>Total</span>
+              <strong>{formatAmount(totalAmount)}</strong>
+            </div>
+            {lots.length > 0 && (
+              <div
+                className={`spending-kpi spending-kpi-remaining${
+                  remainingOver ? ' spending-kpi-remaining-over' : ''
+                }`}
+              >
+                <span>{remainingOver ? 'Over' : 'Left'}</span>
+                <strong>
+                  {formatAmount(Math.abs(remainingTotal))}
+                </strong>
+              </div>
             )}
-          </button>
+          </div>
           <div className="spending-header-actions">
-            {visible && (
-              <>
-                <button
-                  type="button"
-                  className="spending-import-btn"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    fileInputRef.current?.click();
-                  }}
-                  disabled={saving}
-                  title="Import spending from Excel"
-                >
-                  <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
-                    <path d="M2 6v3a1 1 0 001 1h10a1 1 0 001-1V6" />
-                    <path d="M8 10V2M4.5 5.5 8 2l3.5 3.5M2 13h10" />
-                  </svg>
-                  <span>Import</span>
-                </button>
-                <button
-                  type="button"
-                  className="spending-export-btn"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    exportSpendingToExcel(entries, lots, projectName);
-                  }}
-                  disabled={entries.length === 0}
-                  title="Export spending to Excel"
-                >
-                  <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
-                    <path d="M2 10v3a1 1 0 001 1h10a1 1 0 001-1v-3" />
-                    <path d="M8 2v8M4.5 7.5 8 11l3.5-3.5M2 13h10" />
-                  </svg>
-                  <span>Excel</span>
-                </button>
-              </>
-            )}
             <button
               type="button"
-              className="spending-caret-btn"
-              onClick={toggleVisibility}
+              className="spending-import-btn"
+              onClick={() => fileInputRef.current?.click()}
               disabled={saving}
-              aria-expanded={visible}
-              aria-label={visible ? 'Hide spending' : 'Show spending'}
-              title={visible ? 'Hide spending' : 'Show spending'}
+              title="Import spending from Excel"
             >
-              <SpendingCaret open={visible} />
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+                <path d="M2 6v3a1 1 0 001 1h10a1 1 0 001-1V6" />
+                <path d="M8 10V2M4.5 5.5 8 2l3.5 3.5M2 13h10" />
+              </svg>
+              <span>Import</span>
+            </button>
+            <button
+              type="button"
+              className="spending-export-btn"
+              onClick={() => exportSpendingToExcel(entries, lots, projectName)}
+              disabled={entries.length === 0}
+              title="Export spending to Excel"
+            >
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+                <path d="M2 10v3a1 1 0 001 1h10a1 1 0 001-1v-3" />
+                <path d="M8 2v8M4.5 7.5 8 11l3.5-3.5M2 13h10" />
+              </svg>
+              <span>Excel</span>
             </button>
           </div>
         </div>
 
-        {visible && (
-          <div className="spending-table-wrap">
+        <div className="spending-table-wrap">
             {importError && <p className="spending-import-error">{importError}</p>}
             {isMobile ? (
               <div className="finance-compact-list spending-lot-list">
                 {lots.length === 0 && (
                   <p className="spending-devis-link-hint">
-                    Lots and estimates come from the Devis table — add a line there first.
+                    Lots and estimates come from the Devis tab — add a line there first.
                   </p>
                 )}
                 {lots.map((lot, index) => (
@@ -781,6 +744,8 @@ export function SpendingTable({ projectId, projectName, baseUrl }: SpendingTable
                     colorIndex={index}
                     entries={entries}
                     dateMax={dateMax}
+                    baseUrl={baseUrl}
+                    documents={documents}
                     expandedEntryId={expandedEntryId}
                     onExpandedChange={setExpandedEntryId}
                     onEntryCommit={(entry, patch) => void patchEntry(entry, patch)}
@@ -902,7 +867,7 @@ export function SpendingTable({ projectId, projectName, baseUrl }: SpendingTable
                     <strong>{formatAmount(debtTotalAmount)}</strong>
                   </div>
                   <div className="finance-compact-total finance-compact-total-non-debt">
-                    <span>Non debt spend</span>
+                    <span>Equity</span>
                     <strong>{formatAmount(nonDebtTotalAmount)}</strong>
                   </div>
                   <div className="finance-compact-total finance-compact-total-spending">
@@ -929,15 +894,13 @@ export function SpendingTable({ projectId, projectName, baseUrl }: SpendingTable
             <>
             {lots.length === 0 && (
               <p className="spending-devis-link-hint">
-                Lots and estimates come from the Devis table — add a line there first.
+                Lots and estimates come from the Devis tab — add a line there first.
               </p>
             )}
             <table className="spending-table">
               <thead>
                 <tr>
-                  <th className="spending-col-date">
-                    Payment date <span className="spending-col-optional">(optional)</span>
-                  </th>
+                  <th className="spending-col-date">Date</th>
                   <th>Description</th>
                   <th className="spending-col-bank">Bank</th>
                   <th className="spending-col-paid">Paid</th>
@@ -952,7 +915,13 @@ export function SpendingTable({ projectId, projectName, baseUrl }: SpendingTable
                 const spent = lotSpentTotal(entries, lot.id);
                 return (
                   <tbody key={lot.id} className={`spending-lot-group spending-lot-group--${index % 6}`}>
-                    <SpendingLotEstimateRow lot={lot} colorIndex={index} />
+                    <SpendingLotEstimateRow
+                      lot={lot}
+                      colorIndex={index}
+                      spent={spent}
+                      baseUrl={baseUrl}
+                      documents={documents}
+                    />
                     {lotEntries.map((entry) => renderSpendingRow(spendingRowProps(entry)))}
                     <SpendingLotDraftRow
                       lotId={lot.id}
@@ -960,7 +929,6 @@ export function SpendingTable({ projectId, projectName, baseUrl }: SpendingTable
                       onCreate={createEntryFromLotDraft}
                       colHandlers={(col) => (e) => onSpendingCellKeyDown(e, col)}
                     />
-                    <SpendingLotSubtotalRow lot={lot} spent={spent} colorIndex={index} />
                   </tbody>
                 );
               })}
@@ -1000,7 +968,7 @@ export function SpendingTable({ projectId, projectName, baseUrl }: SpendingTable
                   <td className="spending-col-actions" />
                 </tr>
                 <tr className="spending-row-total spending-row-total-non-debt">
-                  <td colSpan={5}>Non debt spend</td>
+                  <td colSpan={5}>Equity</td>
                   <td className="spending-col-amount">{formatAmount(nonDebtTotalAmount)}</td>
                   <td className="spending-col-lot" />
                   <td className="spending-col-actions" />
@@ -1032,7 +1000,6 @@ export function SpendingTable({ projectId, projectName, baseUrl }: SpendingTable
             </>
             )}
           </div>
-        )}
       </div>
     </div>
   );

@@ -80,7 +80,7 @@ export default function App() {
   const [invitationToken, setInvitationToken] = useState<string | null>(null);
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [inviteLink, setInviteLink] = useState<string>('');
-  const [activeBoardTab, setActiveBoardTab] = useState<ProjectBoardTab>('finance');
+  const [activeBoardTab, setActiveBoardTab] = useState<ProjectBoardTab>('devis');
 
   // Check for invitation token in URL
   useEffect(() => {
@@ -959,11 +959,16 @@ export default function App() {
             <ProjectBoardTabs
               activeTab={activeBoardTab}
               onTabChange={handleBoardTabChange}
-              finance={
-                <>
-                  <SpendingTable projectId={current.id} projectName={current.name} baseUrl={baseUrl} />
-                  <SummaryTable projectId={current.id} projectName={current.name} baseUrl={baseUrl} />
-                </>
+              devis={
+                <SummaryTable projectId={current.id} projectName={current.name} baseUrl={baseUrl} />
+              }
+              spending={
+                <SpendingTable projectId={current.id} projectName={current.name} baseUrl={baseUrl} />
+              }
+              documents={
+                <div id="board-documents" className="doc-dropbox-section board-section">
+                  <DocumentDropbox projectId={current.id} baseUrl={baseUrl} />
+                </div>
               }
               tasks={
                 <>
@@ -994,11 +999,6 @@ export default function App() {
                     onGoToEpic={scrollToEpic}
                   />
                 </>
-              }
-              documents={
-                <div id="board-documents" className="doc-dropbox-section board-section">
-                  <DocumentDropbox projectId={current.id} baseUrl={baseUrl} />
-                </div>
               }
             />
           </>
